@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Análise Completa de Produção</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #c9d1d9;
+    --muted: #8b949e;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d2991d;
+    --card: #161b22;
+    --header-bg: #010409;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+  header { background: var(--header-bg); border-bottom: 1px solid var(--border); padding: 24px 32px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 28px; color: var(--accent); }
+  header p { color: var(--muted); margin-top: 4px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  section { margin-bottom: 40px; }
+  section h2 { font-size: 22px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 16px; }
+  section h3 { font-size: 17px; color: #e6edf3; margin: 20px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border: 1px solid var(--border); }
+  th { background: var(--card); font-weight: 600; color: #e6edf3; }
+  td { vertical-align: top; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .tag-ok { background: #1a3a1a; color: var(--green); }
+  .tag-warn { background: #3a2e0a; color: var(--yellow); }
+  .tag-err { background: #3a1a1a; color: var(--red); }
+  .tag-new { background: #1a2a3a; color: var(--accent); }
+  .tag-diff { background: #2a1a3a; color: #d2a8ff; }
+  .metric { display: inline-flex; align-items: center; gap: 8px; }
+  .metric-num { font-size: 36px; font-weight: 700; color: var(--green); }
+  .metric-label { font-size: 14px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card h4 { font-size: 15px; color: #e6edf3; margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--muted); }
+  .checklist { list-style: none; padding: 0; }
+  .checklist li { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; font-size: 14px; }
+  .checklist li:last-child { border-bottom: none; }
+  .icon-ok { color: var(--green); font-size: 18px; }
+  .icon-err { color: var(--red); font-size: 18px; }
+  .icon-warn { color: var(--yellow); font-size: 18px; }
+  .verdict { border: 2px solid var(--yellow); border-radius: 12px; padding: 24px; margin: 24px 0; background: #1a1a0a; }
+  .verdict h2 { border-bottom: none; margin-bottom: 12px; color: var(--yellow); }
+  .verdict p { font-size: 15px; }
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 32px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 4px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .pb { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .pb-bar { flex: 1; height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .pb-fill { height: 100%; border-radius: 5px; }
+  .pb-fill.green { background: var(--green); }
+  .pb-fill.yellow { background: var(--yellow); }
+  .pb-fill.red { background: var(--red); }
+  .pb-label { min-width: 60px; font-weight: 600; font-size: 14px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  footer { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#128202; AUGECOIN — Análise Completa de Código e Prontidão para Produção</h1>
+  <p>Comparação com PascalCoin v5.0 | Compilação, Testes, Arquitetura e Checklist Mainnet</p>
+  <div class="badge-row" style="margin-top:12px">
+    <span class="tag tag-ok">Build: OK</span>
+    <span class="tag tag-ok">269 Testes Rust: 0 Falhas</span>
+    <span class="tag tag-warn">9 Testes TS Quebrados</span>
+    <span class="tag tag-err">CI Não Configurado</span>
+    <span class="tag tag-warn">~85% Pronto</span>
+  </div>
+</header>
+
+<main>
+
+<!-- TOC -->
+<div class="toc">
+  <strong style="color:#e6edf3">&#128218; Índice</strong>
+  <ol>
+    <li><a href="#resumo">Resumo do PascalCoin (pascal.pdf)</a></li>
+    <li><a href="#comparacao">Comparação PascalCoin vs AugeCoin</a></li>
+    <li><a href="#metricas">Métricas de Build e Testes</a></li>
+    <li><a href="#crates">Análise por Crate</a></li>
+    <li><a href="#cenarios">Cobertura de Cenários Críticos</a></li>
+    <li><a href="#gaps">Divergências e Gaps</a></li>
+    <li><a href="#veredito">Veredito Final</a></li>
+    <li><a href="#checklist">Checklist Pré-Mainnet</a></li>
+  </ol>
+</div>
+
+<!-- 1. RESUMO PASCAL -->
+<section id="resumo">
+  <h2>&#128196; 1. Resumo do PascalCoin (pascal.pdf v5.0)</h2>
+  <p style="color:var(--muted);margin-bottom:16px">Whitepaper de setembro/2019 por Herman Schoenfeld e Albert Molina. Pascal é uma criptomoeda "next-generation" com foco em escalabilidade infinita.</p>
+  <table>
+    <tr><th>Característica</th><th>PascalCoin Original</th></tr>
+    <tr><td>Modelo</td><td>Account-based (PASA), não UTXO</td></tr>
+    <tr><td>Consenso</td><td>Proof-of-Work (RandomHash2, GPU/ASIC resistente)</td></tr>
+    <tr><td>Estrutura</td><td>SafeBox (ledger balance) + Blockchain (ledger)</td></tr>
+    <tr><td>Blockchain deletável</td><td>Sim — só últimos 100 blocos necessários (&ldquo;infinite scaling&rdquo;)</td></tr>
+    <tr><td>Supply total</td><td>42M PASC, halving a cada 2 anos, tail emission 1 coin/bloco</td></tr>
+    <tr><td>Bloco</td><td>5 minutos, ~5 contas por bloco</td></tr>
+    <tr><td>Taxas</td><td>Zero-fee (1 tx grátis por bloco, 288/dia)</td></tr>
+    <tr><td>Endereços</td><td>Números legíveis (ex: 1234-56), nomes únicos (DNS-like)</td></tr>
+    <tr><td>Segurança</td><td>ECDSA, Double-Spend Alerts, Coin-rot recovery (4 anos)</td></tr>
+    <tr><td>Layer-2</td><td>OP_DATA, atomic swaps, embedded chains</td></tr>
+    <tr><td>Governança</td><td>Block Policy (v6 planejada), 20% developer reward</td></tr>
+    <tr><td>Throughput</td><td>1,600 TPS (VISA-level)</td></tr>
+  </table>
+</section>
+
+<!-- 2. COMPARAÇÃO -->
+<section id="comparacao">
+  <h2>&#128270; 2. Comparação PascalCoin vs AugeCoin</h2>
+  <table>
+    <tr><th style="width:25%">Funcionalidade</th><th style="width:35%">PascalCoin</th><th style="width:30%">AugeCoin</th><th style="width:10%">Status</th></tr>
+    <tr><td><strong>Consenso</strong></td><td>PoW (RandomHash2)</td><td>PoA (4 validadores, BFT 2/3+1)</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Assinatura</strong></td><td>ECDSA</td><td>Ed25519 (Dilithium removido)</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Hash</strong></td><td>SHA2-256</td><td>BLAKE3-512</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Endereços</strong></td><td>Numéricos (1234-56)</td><td>Bech32m (auge1...)</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Derivação de chaves</strong></td><td>Não especificada</td><td>BIP39 + HKDF-SHA3-512</td><td><span class="tag tag-new">NOVO</span></td></tr>
+    <tr><td><strong>SafeBox</strong></td><td>Sim (estrutura proprietária)</td><td>Sim (Merkle tree + name index)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Blockchain deletável</strong></td><td>Sim (últimos 100 blocos)</td><td>NÃO implementado</td><td><span class="tag tag-err">FALTANDO</span></td></tr>
+    <tr><td><strong>Account Seals</strong></td><td>Sim (20 bytes)</td><td>Sim (account_seal: Vec&lt;u8&gt;)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Operações</strong></td><td>11 tipos</td><td>11 tipos idênticos</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Account Types (0-65535)</strong></td><td>Sim</td><td>Sim (account_type: u16)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Account Data (32 bytes)</strong></td><td>Sim</td><td>Sim (account_data: Vec&lt;u8&gt;)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Nomes de conta únicos</strong></td><td>Sim (DNS-like)</td><td>Sim (name: String)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Zero-fee</strong></td><td>1 grátis por bloco</td><td>Configurável (min_fee=0 padrão)</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Anti-Double-Spend</strong></td><td>DSA (Double Spend Alerts)</td><td>Anti-replay via n_operation</td><td><span class="tag tag-ok">EQUIVALENTE</span></td></tr>
+    <tr><td><strong>Coin-rot recovery</strong></td><td>4 anos inativo</td><td>NÃO implementado</td><td><span class="tag tag-err">FALTANDO</span></td></tr>
+    <tr><td><strong>Atomic swaps</strong></td><td>Hash-locked accounts</td><td>NÃO implementado</td><td><span class="tag tag-err">FALTANDO</span></td></tr>
+    <tr><td><strong>In-protocol exchange</strong></td><td>Compra/venda PASA</td><td>ListForSale, BuyAccount</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>OP_DATA (Layer-2)</strong></td><td>255 bytes</td><td>Suportado no enum Operation</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Supply total</strong></td><td>42M PASC</td><td>762.12M AUGE</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Premine</strong></td><td>0%</td><td>0%</td><td><span class="tag tag-ok">COMPATÍVEL</span></td></tr>
+    <tr><td><strong>Developer reward</strong></td><td>20% (v3+)</td><td>0%</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Block time</strong></td><td>300s (5 min)</td><td>60s</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Halving</strong></td><td>2 anos</td><td>NÃO (emissão linear)</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Contas por bloco</strong></td><td>~5</td><td>10</td><td><span class="tag tag-diff">DIFERENTE</span></td></tr>
+    <tr><td><strong>Rede P2P</strong></td><td>Proprietária</td><td>libp2p + Noise + gossipsub</td><td><span class="tag tag-diff">MELHORADO</span></td></tr>
+    <tr><td><strong>RPC</strong></td><td>JSON-RPC (proprietário)</td><td>JSON-RPC 2.0/TLS + gRPC</td><td><span class="tag tag-diff">MELHORADO</span></td></tr>
+    <tr><td><strong>Métricas</strong></td><td>Não documentado</td><td>Prometheus + Grafana</td><td><span class="tag tag-new">NOVO</span></td></tr>
+    <tr><td><strong>Wallets</strong></td><td>Mobile (v5)</td><td>Web + Desktop (Tauri) + Mobile (RN)</td><td><span class="tag tag-diff">MELHORADO</span></td></tr>
+    <tr><td><strong>SDK</strong></td><td>Pascal (Object Pascal)</td><td>TypeScript + WASM</td><td><span class="tag tag-new">NOVO</span></td></tr>
+  </table>
+</section>
+
+<!-- 3. MÉTRICAS -->
+<section id="metricas">
+  <h2>&#128200; 3. Métricas de Build e Testes</h2>
+  <div class="grid">
+    <div class="card"><div class="metric"><span class="metric-num">&#10004;</span><h4>Build Workspace</h4></div><p>Compilação completa de 9 crates sem erros. Apenas 2 warnings cosméticos (unused import + dead code no wallet-desktop).</p></div>
+    <div class="card"><div class="metric"><span class="metric-num">269</span><span class="metric-label">testes Rust</span></div><p>Todos passando, 0 falhas. Cobertura de unitários + integração + proptest + fuzz targets.</p></div>
+    <div class="card"><div class="metric"><span class="metric-num">30</span><span class="metric-label">/ 39 TS</span></div><p>9 testes falham no @augecoin/sdk — constantes de supply desatualizadas nos asserts (750M vs 762.12M).</p></div>
+    <div class="card"><div class="metric"><span class="metric-num">2</span><span class="metric-label">warnings clippy</span></div><p>Needless borrows no módulo WASM (augecoin-crypto/src/wasm.rs:25,73).</p></div>
+  </div>
+
+  <h3>Distribuição de Testes por Crate</h3>
+  <table>
+    <tr><th>Crate</th><th>Testes Unitários</th><th>Integração</th><th>Fuzz</th><th>Total</th></tr>
+    <tr><td>augecoin-crypto</td><td>42</td><td>—</td><td>—</td><td><strong>42</strong></td></tr>
+    <tr><td>augecoin-core</td><td>22</td><td>1 (proptest emission)</td><td>2 (tx, block)</td><td><strong>25</strong></td></tr>
+    <tr><td>augecoin-storage</td><td>17</td><td>—</td><td>—</td><td><strong>17</strong></td></tr>
+    <tr><td>augecoin-consensus</td><td>38</td><td>3 (4-node, equivocation)</td><td>—</td><td><strong>41</strong></td></tr>
+    <tr><td>augecoin-network</td><td>9</td><td>—</td><td>—</td><td><strong>9</strong></td></tr>
+    <tr><td>augecoin-node</td><td>39</td><td>4 (E2E, load, partition)</td><td>—</td><td><strong>43</strong></td></tr>
+    <tr><td>augecoin-rpc</td><td>15</td><td>5 (auth, TLS, rate limit)</td><td>—</td><td><strong>20</strong></td></tr>
+    <tr><td>augecoin-cli</td><td>31</td><td>—</td><td>—</td><td><strong>31</strong></td></tr>
+  </table>
+</section>
+
+<!-- 4. ANÁLISE POR CRATE -->
+<section id="crates">
+  <h2>&#128218; 4. Análise por Crate</h2>
+
+  <h3>4.1 augecoin-crypto</h3>
+  <div class="two-col">
+    <div>
+      <ul class="checklist">
+        <li><span class="icon-ok">&#10004;</span> Ed25519: geração, assinatura e verificação (ed25519-dalek 2)</li>
+        <li><span class="icon-ok">&#10004;</span> BLAKE3-512 XOF: hash determinístico</li>
+        <li><span class="icon-ok">&#10004;</span> HD Wallet: BIP39 + HKDF-SHA3-512</li>
+        <li><span class="icon-ok">&#10004;</span> Bech32m: derivação e validação (prefixo auge1)</li>
+        <li><span class="icon-ok">&#10004;</span> WASM bindings (wasm-bindgen)</li>
+        <li><span class="icon-warn">&#9888;</span> Dilithium removido — HybridSignature = alias para Ed25519</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:#e6ed3f;margin-bottom:8px">Dependências</h4>
+      <p style="font-size:13px;color:var(--muted);font-family:monospace">bech32 0.12, bip39 2, blake3 1, ed25519-dalek 2, hex 0.4, hmac 0.12, rand 0.8, serde 1, serde_json 1, sha3 0.10, wasm-bindgen 0.2</p>
+    </div>
+  </div>
+
+  <h3>4.2 augecoin-core</h3>
+  <div class="two-col">
+    <div>
+      <ul class="checklist">
+        <li><span class="icon-ok">&#10004;</span> Account: balance, n_operation, name, type, data, seal</li>
+        <li><span class="icon-ok">&#10004;</span> Transaction: 6 variantes (Transfer, ChangeKey, ClaimAccount, SetAccountName, AttachData, ValidatorAdmin)</li>
+        <li><span class="icon-ok">&#10004;</span> Operation (PascalCoin-compatível): 11 tipos com serialização binária</li>
+        <li><span class="icon-ok">&#10004;</span> Block/BlockHeader: Merkle root de operações, serialização canônica</li>
+        <li><span class="icon-ok">&#10004;</span> SafeBox: BTreeMap + name_index + Merkle hash</li>
+        <li><span class="icon-ok">&#10004;</span> Emission: 29 AUGE/bloco, 50 anos, 762.12M total, proptest verificado</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:#e6ed3f;margin-bottom:8px">Constantes Monetárias</h4>
+      <table style="font-size:13px">
+        <tr><td>Block reward</td><td>29 AUGE (2.9B augesat)</td></tr>
+        <tr><td>Block time</td><td>60 segundos</td></tr>
+        <tr><td>Emission period</td><td>50 anos (26.28M blocos)</td></tr>
+        <tr><td>Total supply</td><td>762.120.000 AUGE</td></tr>
+        <tr><td>1 AUGE</td><td>100.000.000 augesat</td></tr>
+        <tr><td>Contas/bloco</td><td>10 (CT_ACCOUNTS_PER_BLOCK)</td></tr>
+        <tr><td>Premine</td><td>0%</td></tr>
+        <tr><td>Dev reward</td><td>0%</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h3>4.3 augecoin-storage</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> RocksDB com 6 Column Families: accounts, blocks, safebox, op_index, validator_set, equivocation_proofs</li>
+    <li><span class="icon-ok">&#10004;</span> CRUD completo para contas, blocos, SafeBox, validators, equivocation proofs</li>
+    <li><span class="icon-ok">&#10004;</span> Checkpoints: capture/restore com formato versionado (v1)</li>
+    <li><span class="icon-ok">&#10004;</span> State root via Merkle tree binária sobre todas as contas</li>
+    <li><span class="icon-ok">&#10004;</span> Rollback, detecção de corrupção (checksum BLAKE3), recovery de checkpoint</li>
+  </ul>
+
+  <h3>4.4 augecoin-consensus</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> ValidatorSet: add/remove/activate/deactivate com activation_height futuro</li>
+    <li><span class="icon-ok">&#10004;</span> Leader selection: round-robin determinístico (height % len)</li>
+    <li><span class="icon-ok">&#10004;</span> RoundState: Propose → Verify → Sign → Commit + timeout + view-change</li>
+    <li><span class="icon-ok">&#10004;</span> Quórum 2/3+1: (n * 2) / 3 + 1</li>
+    <li><span class="icon-ok">&#10004;</span> Equivocation: detecção + EquivocationProof com duas assinaturas conflitantes</li>
+  </ul>
+
+  <h3>4.5 augecoin-network</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> Transporte libp2p com TCP + Noise encryption + Yamux multiplexing</li>
+    <li><span class="icon-ok">&#10004;</span> Gossipsub para propagação de operações e blocos</li>
+    <li><span class="icon-ok">&#10004;</span> Bootnodes estáticos + autenticação de validator peer</li>
+    <li><span class="icon-ok">&#10004;</span> Fast sync: checkpoint + replay de blocos restantes</li>
+    <li><span class="icon-ok">&#10004;</span> Rate limiting: banimento temporário por violações repetidas</li>
+  </ul>
+
+  <h3>4.6 augecoin-rpc</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> JSON-RPC 2.0 sobre TLS (axum + rustls) — HTTP puro rejeitado</li>
+    <li><span class="icon-ok">&#10004;</span> 16 métodos: getaccount, getblock, getblockoperations, sendoperation, getpendings, findaccounts, nodestatus, validatoradd/remove/activate/deactivate, ping, etc.</li>
+    <li><span class="icon-ok">&#10004;</span> Auth: API keys com níveis Public/Admin</li>
+    <li><span class="icon-ok">&#10004;</span> Rate limiting por IP/API key (token bucket)</li>
+    <li><span class="icon-warn">&#9888;</span> gRPC: apenas health.proto (scaffold, sem endpoints de negócio)</li>
+  </ul>
+
+  <h3>4.7 augecoin-node</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> Mempool: valida assinatura, n_operation, saldo, fee, duplicatas</li>
+    <li><span class="icon-ok">&#10004;</span> execute_block() atômico: 6 fases com rollback em HashMap se falhar</li>
+    <li><span class="icon-ok">&#10004;</span> ConsensusEngine: loop de consenso TCP-based entre validadores</li>
+    <li><span class="icon-ok">&#10004;</span> 6 métricas Prometheus: block_height, block_time, peers, mempool, equivocation, latency</li>
+    <li><span class="icon-ok">&#10004;</span> AlertManager: equivocation, malicious peer, validator absent, replay attempt + webhook</li>
+  </ul>
+
+  <h3>4.8 augecoin-cli</h3>
+  <ul class="checklist">
+    <li><span class="icon-ok">&#10004;</span> Comandos validator: list, add, remove, activate, deactivate, earnings</li>
+    <li><span class="icon-ok">&#10004;</span> Comandos status: altura, peers, sincronização, saúde do quórum</li>
+    <li><span class="icon-ok">&#10004;</span> Comandos security: equivocations, banned-peers, alerts (--tail)</li>
+    <li><span class="icon-ok">&#10004;</span> Comandos de conta: get-account, get-block, send-operation, get-pendings, find-accounts</li>
+    <li><span class="icon-ok">&#10004;</span> Output tabular (Unicode) ou JSON, shell completions (clap)</li>
+    <li><span class="icon-ok">&#10004;</span> RpcClient com TLS + signing de operações admin via mnemonic/HD wallet</li>
+  </ul>
+
+  <h3>4.9 Apps e Packages</h3>
+  <table>
+    <tr><th>Componente</th><th>Tecnologia</th><th>Status</th></tr>
+    <tr><td>Wallet Web</td><td>React 19 + TypeScript + Vite</td><td><span class="tag tag-ok">OK</span> BIP39, IndexedDB + AES-256-GCM, QR code, 20 testes</td></tr>
+    <tr><td>Wallet Desktop</td><td>Tauri (Rust) + frontend</td><td><span class="tag tag-warn">PARCIAL</span> Builda, mas 0 testes Rust e keystore nativo incompleto</td></tr>
+    <tr><td>Wallet Mobile</td><td>React Native + Expo SDK 52</td><td><span class="tag tag-ok">OK</span> 42 testes, expo-secure-store, QR code</td></tr>
+    <tr><td>@augecoin/sdk</td><td>TypeScript + WASM</td><td><span class="tag tag-warn">9/39 FALHAS</span> Testes com constantes inconsistentes</td></tr>
+    <tr><td>@augecoin/wasm-crypto</td><td>WASM (wasm-pack)</td><td><span class="tag tag-ok">OK</span> Build funcional, smoke test JS passa</td></tr>
+  </table>
+</section>
+
+<!-- 5. CENÁRIOS CRÍTICOS -->
+<section id="cenarios">
+  <h2>&#128736; 5. Cobertura de Cenários Críticos</h2>
+  <table>
+    <tr><th>Cenário</th><th>Status</th><th>Descrição</th></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Execução de bloco com transferências</td><td><span class="tag tag-ok">TESTADO</span></td><td>E2E test: mempool → bloco → saldos verificados</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Rollback atômico</td><td><span class="tag tag-ok">TESTADO</span></td><td>Tx malformada no meio do lote → nada persistido</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Verificação de assinatura</td><td><span class="tag tag-ok">TESTADO</span></td><td>Válida, corrompida, mensagem diferente</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Anti-replay (n_operation)</td><td><span class="tag tag-ok">TESTADO</span></td><td>Replay rejeitado, chain válido aceito</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Saldo insuficiente</td><td><span class="tag tag-ok">TESTADO</span></td><td>Rejeitado no mempool e na execução</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Quórum 2/3+1 (3 de 4)</td><td><span class="tag tag-ok">TESTADO</span></td><td>3/4 finaliza, 2/4 NÃO finaliza (fail-safe)</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> 1 validador offline</td><td><span class="tag tag-ok">TESTADO</span></td><td>Rede continua com 3 validadores restantes</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> 2 validadores offline</td><td><span class="tag tag-ok">TESTADO</span></td><td>Rede NÃO finaliza (quórum inatingível)</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> View-change por timeout</td><td><span class="tag tag-ok">TESTADO</span></td><td>Timeout sem proposta → próximo líder assume</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Detecção de equivocation</td><td><span class="tag tag-ok">TESTADO</span></td><td>2 blocos conflitantes mesma altura/validador → proof</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Checkpoint + restore</td><td><span class="tag tag-ok">TESTADO</span></td><td>Snapshot → restore reproduz estado exato</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Corrupção de DB detectada</td><td><span class="tag tag-ok">TESTADO</span></td><td>Checksum BLAKE3 falha → erro explícito</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Sync rápido via checkpoint</td><td><span class="tag tag-ok">TESTADO</span></td><td>Checkpoint + replay de blocos</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Sync interrompido retomável</td><td><span class="tag tag-ok">TESTADO</span></td><td>Resume do último checkpoint válido</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Rate limiting de peers</td><td><span class="tag tag-ok">TESTADO</span></td><td>Banimento temporário após N violações</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> TLS obrigatório no RPC</td><td><span class="tag tag-ok">TESTADO</span></td><td>HTTP puro rejeitado, TLS aceito</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> API keys admin endpoints</td><td><span class="tag tag-ok">TESTADO</span></td><td>Admin sem key rejeitado, público sem key ok</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Teste de carga</td><td><span class="tag tag-ok">TESTADO</span></td><td>10/50/100/200/500/1000 ops dentro de 60s</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Teste de partição de rede</td><td><span class="tag tag-ok">TESTADO</span></td><td>2 isolados → não finalizam → recuperam ao reconectar</td></tr>
+    <tr><td><span class="icon-ok">&#10004;</span> Supply total verificável</td><td><span class="tag tag-ok">TESTADO</span></td><td>Proptest: soma block_reward = TOTAL_SUPPLY exato</td></tr>
+  </table>
+</section>
+
+<!-- 6. GAPS -->
+<section id="gaps">
+  <h2>&#9888; 6. Divergências, Gaps e Problemas</h2>
+
+  <h3>6.1 Divergências de Design (Esperadas)</h3>
+  <table>
+    <tr><th>Área</th><th>PascalCoin</th><th>AugeCoin</th><th>Impacto</th></tr>
+    <tr><td>Consenso</td><td>PoW (mineração)</td><td>PoA (4 validadores fixos)</td><td>Modelo de segurança completamente diferente</td></tr>
+    <tr><td>Post-quantum</td><td>Não tem</td><td>Prometido mas removido</td><td>HybridSignature = alias Ed25519, sem Dilithium</td></tr>
+    <tr><td>Blockchain deletável</td><td>Últimos 100 blocos</td><td>Não implementado</td><td>"Infinite scaling" não existe no AugeCoin</td></tr>
+    <tr><td>Coin-rot recovery</td><td>4 anos inativo</td><td>Não implementado</td><td>Contas perdidas não são recuperadas</td></tr>
+    <tr><td>Atomic swaps</td><td>Hash-locked accounts</td><td>Não implementado</td><td>Sem DEX nativo</td></tr>
+  </table>
+
+  <h3>6.2 Problemas Encontrados</h3>
+  <table>
+    <tr><th>Severidade</th><th>Item</th><th>Detalhe</th></tr>
+    <tr><td><span class="tag tag-err">MÉDIA</span></td><td>CI inexistente</td><td><code>.github/workflows/</code> não existe. PROGRESS.md marca FASE-00B como concluída, mas não há workflow de CI configurado.</td></tr>
+    <tr><td><span class="tag tag-err">MÉDIA</span></td><td>SDK TS com 9/39 testes quebrados</td><td>Testes usam valor antigo de supply (750M) em vez do correto (762.12M). Constantes corretas, asserts errados.</td></tr>
+    <tr><td><span class="tag tag-warn">BAIXA</span></td><td>2 warnings clippy</td><td>Needless borrow no módulo WASM (wasm.rs:25,73).</td></tr>
+    <tr><td><span class="tag tag-warn">BAIXA</span></td><td>gRPC apenas scaffold</td><td>Só health.proto implementado, sem endpoints de negócio.</td></tr>
+    <tr><td><span class="tag tag-warn">BAIXA</span></td><td>Wallet Desktop sem testes</td><td>0 testes no crate Tauri. Keystore nativo incompleto.</td></tr>
+    <tr><td><span class="tag tag-warn">BAIXA</span></td><td>Seed fixa para validadores</td><td><code>create_validator_set_and_keys()</code> usa seed determinística. Dev-only.</td></tr>
+    <tr><td><span class="tag tag-warn">BAIXA</span></td><td>Certificados TLS auto-assinados</td><td>rcgen gera em runtime. Produção precisa de certificados reais.</td></tr>
+  </table>
+</section>
+
+<!-- 7. VEREDITO -->
+<section id="veredito">
+  <h2>&#9878; 7. Veredito Final</h2>
+
+  <div class="verdict">
+    <h2>Status: ~85% — Testnet Fechada &#10004; | Mainnet &#10008;</h2>
+    <p>O código do AugeCoin está funcional, compila sem erros, passa em 269 testes Rust com 0 falhas, e possui cobertura de cenários críticos de consenso, storage e rede. É uma <strong>reimplementação substancial do PascalCoin em Rust</strong> com várias melhorias (RPC sobre TLS, métricas Prometheus, SDK TypeScript, 3 wallets), mas com mudanças arquiteturais fundamentais que o tornam um protocolo diferente, não um fork compatível.</p>
+  </div>
+
+  <div class="grid" style="margin-top:20px">
+    <div class="card">
+      <h4>&#9989; O que está PRONTO</h4>
+      <ul class="checklist">
+        <li><span class="icon-ok">&#10004;</span> Core de criptografia (Ed25519, BLAKE3, HD keys, Bech32m)</li>
+        <li><span class="icon-ok">&#10004;</span> Data model completo (Account, Transaction, Block, SafeBox)</li>
+        <li><span class="icon-ok">&#10004;</span> Emissão monetária verificada (proptest)</li>
+        <li><span class="icon-ok">&#10004;</span> Storage robusto (RocksDB, 6 CFs, checkpoints, rollback)</li>
+        <li><span class="icon-ok">&#10004;</span> Consenso BFT funcional (4 validadores, quórum, equivocation)</li>
+        <li><span class="icon-ok">&#10004;</span> Rede P2P (libp2p + Noise + gossipsub + sync)</li>
+        <li><span class="icon-ok">&#10004;</span> RPC completo (16 métodos JSON-RPC 2.0/TLS)</li>
+        <li><span class="icon-ok">&#10004;</span> Execução atômica de bloco (E2E, load, partition testados)</li>
+        <li><span class="icon-ok">&#10004;</span> Métricas Prometheus + Grafana</li>
+        <li><span class="icon-ok">&#10004;</span> CLI completo (validator, status, security, earnings)</li>
+        <li><span class="icon-ok">&#10004;</span> Docker compose testnet 4 nós</li>
+        <li><span class="icon-ok">&#10004;</span> 3 wallets (web, desktop, mobile)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>&#10060; O que FALTA para Mainnet</h4>
+      <ul class="checklist">
+        <li><span class="icon-err">&#10008;</span> CI (GitHub Actions) — build/test/clippy/fmt automatizado</li>
+        <li><span class="icon-err">&#10008;</span> Corrigir 9 testes quebrados do SDK TypeScript</li>
+        <li><span class="icon-err">&#10008;</span> Auditoria externa de crypto e consenso</li>
+        <li><span class="icon-err">&#10008;</span> Geração de chaves dos validadores em ambiente isolado</li>
+        <li><span class="icon-warn">&#9888;</span> Plano de resposta a incidentes</li>
+        <li><span class="icon-warn">&#9888;</span> Modelo de custódia da chave administradora</li>
+        <li><span class="icon-warn">&#9888;</span> OPEN_QUESTIONS.md sem perguntas bloqueantes</li>
+        <li><span class="icon-warn">&#9888;</span> SPEC.md sincronizado com código implementado</li>
+        <li><span class="icon-warn">&#9888;</span> Testes rodando 2-3x sem flakiness</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="margin-top:24px">
+    <h3>Barra de Prontidão</h3>
+    <div class="pb">
+      <span class="pb-label">Geral</span>
+      <div class="pb-bar"><div class="pb-fill yellow" style="width:85%"></div></div>
+      <span>85%</span>
+    </div>
+    <div class="pb">
+      <span class="pb-label">Core</span>
+      <div class="pb-bar"><div class="pb-fill green" style="width:95%"></div></div>
+      <span>95%</span>
+    </div>
+    <div class="pb">
+      <span class="pb-label">Rede</span>
+      <div class="pb-bar"><div class="pb-fill green" style="width:90%"></div></div>
+      <span>90%</span>
+    </div>
+    <div class="pb">
+      <span class="pb-label">DevOps</span>
+      <div class="pb-bar"><div class="pb-fill red" style="width:45%"></div></div>
+      <span>45%</span>
+    </div>
+    <div class="pb">
+      <span class="pb-label">Auditoria</span>
+      <div class="pb-bar"><div class="pb-fill red" style="width:10%"></div></div>
+      <span>10%</span>
+    </div>
+  </div>
+</section>
+
+<!-- 8. CHECKLIST -->
+<section id="checklist">
+  <h2>&#9745; 8. Checklist Pré-Mainnet (FASE-13)</h2>
+  <table>
+    <tr><th>#</th><th>Item</th><th>Status</th></tr>
+    <tr><td>1</td><td>Todos os testes das fases 00-12 passam em CI, sem flakiness (rodar suíte 2-3x)</td><td><span class="tag tag-warn">PENDENTE</span></td></tr>
+    <tr><td>2</td><td>SPEC.md e DECISIONS.md refletem exatamente o que foi implementado</td><td><span class="tag tag-warn">VERIFICAR</span></td></tr>
+    <tr><td>3</td><td>OPEN_QUESTIONS.md sem perguntas bloqueantes pendentes</td><td><span class="tag tag-warn">VERIFICAR</span></td></tr>
+    <tr><td>4</td><td>Chaves dos 4 validadores geradas em ambiente isolado, nunca em texto puro, backup testado</td><td><span class="tag tag-err">BLOQUEANTE</span></td></tr>
+    <tr><td>5</td><td>Modelo de custódia da chave administradora revisado (ADR confirmado)</td><td><span class="tag tag-err">BLOQUEANTE</span></td></tr>
+    <tr><td>6</td><td>Auditoria externa (mesmo informal) de augecoin-crypto e augecoin-consensus</td><td><span class="tag tag-err">BLOQUEANTE</span></td></tr>
+    <tr><td>7</td><td>Plano de resposta a incidentes documentado</td><td><span class="tag tag-warn">VERIFICAR</span></td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  <p>AUGECOIN — Análise Completa de Produção | Gerado em agosto 2026</p>
+  <p>PascalCoin Whitepaper v5.0 &copy; 2019 Herman Schoenfeld &amp; Albert Molina</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "augecoin-crypto",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "augecoin_crypto_bg.wasm",
+    "augecoin_crypto_bg.wasm.d.ts",
+    "augecoin_crypto.js",
+    "augecoin_crypto.d.ts",
+    "augecoin_crypto_bg.js"
+  ],
+  "main": "augecoin_crypto.js",
+  "types": "augecoin_crypto.d.ts",
+  "sideEffects": [
+    "./augecoin_crypto.js",
+    "./snippets/*"
+  ]
+}

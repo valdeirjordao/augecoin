@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise Profunda — Account (AugeCoin)</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --text-muted: #6c757d;
+    --accent: #0969da;
+    --keyword: #cf222e;
+    --func: #8250df;
+    --type: #0550ae;
+    --number: #0550ae;
+    --comment: #6e7781;
+    --highlight: #ddf4ff;
+    --warning: #fff8c5;
+    --danger: #ffebe9;
+  }
+  @media print {
+    body { font-size: 11pt; }
+    .page-break { page-break-before: always; }
+    nav, .no-print { display: none; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    color: #fff;
+    padding: 40px 0;
+    text-align: center;
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 { font-size: 2rem; color: #58a6ff; margin-bottom: 4px; }
+  header p { color: var(--text-muted); font-size: 0.95rem; }
+  header .badge {
+    display: inline-block;
+    background: #238636;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-top: 10px;
+  }
+
+  /* ── Navigation ── */
+  nav {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+    z-index: 100;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  nav a {
+    color: var(--accent);
+    text-decoration: none;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    margin: 0 2px;
+  }
+  nav a:hover { background: var(--highlight); }
+
+  /* ── Main Layout ── */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* ── Section ── */
+  section {
+    margin-bottom: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  section h2 {
+    color: var(--accent);
+    font-size: 1.4rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+  section h3 {
+    color: #333;
+    font-size: 1.1rem;
+    margin: 20px 0 10px;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 18px;
+    font-size: 0.88rem;
+  }
+  th {
+    background: #f0f3f5;
+    text-align: left;
+    padding: 8px 12px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  td {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) { background: #fafbfc; }
+  td.type-col { font-family: 'Fira Code', monospace; color: var(--type); font-size: 0.82rem; min-width: 180px; }
+  td.name-col { font-family: 'Fira Code', monospace; font-weight: 600; min-width: 200px; }
+  td.desc-col { color: #555; }
+
+  /* ── Code ── */
+  pre {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  code { font-family: 'Fira Code', monospace; font-size: 0.88em; }
+  code.inline { background: #f0f3f5; padding: 2px 6px; border-radius: 3px; color: #cf222e; }
+  .kw { color: #ff7b72; }
+  .ty { color: #ffa657; }
+  .fn { color: #d2a8ff; }
+  .st { color: #a5d6ff; }
+  .nu { color: #79c0ff; }
+  .cm { color: #8b949e; font-style: italic; }
+
+  /* ── Info box ── */
+  .info-box {
+    border-left: 4px solid var(--accent);
+    background: var(--highlight);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.9rem;
+  }
+  .warn-box {
+    border-left: 4px solid #d4a72c;
+    background: var(--warning);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.9rem;
+  }
+  .danger-box {
+    border-left: 4px solid #cf222e;
+    background: var(--danger);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.9rem;
+  }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #f0f3f5;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+  }
+
+  /* ── Summary grid ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-card .value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .summary-card .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================================================== -->
+<header>
+  <h1>Análise Profunda — Sistema de Contas</h1>
+  <p>crates/augecoin-core/src/account.rs — 496 linhas</p>
+  <span class="badge">AUGECOIN v0.1.0</span>
+</header>
+
+<nav>
+  <a href="#resumo">Resumo</a>
+  <a href="#estrutura">Estrutura</a>
+  <a href="#accountstate">AccountState</a>
+  <a href="#accountinfo">AccountInfo</a>
+  <a href="#hybridkey">HybridAccountKey</a>
+  <a href="#metodos">Métodos</a>
+  <a href="#serializacao">Serialização</a>
+  <a href="#erros">Erros</a>
+  <a href="#criacao">Criação de Contas</a>
+  <a href="#seguranca">Segurança</a>
+  <a href="#fluxo">Fluxo de Vida</a>
+  <a href="#integracao">Integração</a>
+  <a href="#conclusao">Conclusão</a>
+</nav>
+
+<main>
+
+<!-- ======================================================== -->
+<section id="resumo">
+  <h2>1. Resumo Executivo</h2>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="value">8</div>
+      <div class="label">Campos na struct Account</div>
+    </div>
+    <div class="summary-card">
+      <div class="value">5</div>
+      <div class="label">Estados de conta (AccountState)</div>
+    </div>
+    <div class="summary-card">
+      <div class="value">1.984</div>
+      <div class="label">Bytes por chave híbrida</div>
+    </div>
+    <div class="summary-card">
+      <div class="value">18</div>
+      <div class="label">Métodos públicos</div>
+    </div>
+  </div>
+
+  <p>O módulo <code class="inline">account.rs</code> define a estrutura de dados mais fundamental da blockchain AugeCoin: a <strong>Account</strong>. Inspirada no modelo PascalCoin, cada conta é um registro imutável numerado sequencialmente que armazena saldo, chaves criptográficas híbridas (Ed25519 + ML-DSA-65), metadados e um contador anti-replay (<code class="inline">n_operation</code>).</p>
+
+  <div class="info-box">
+    <strong>Princípio fundamental:</strong> Toda conta AugeCoin é identificada por um <code class="inline">u64</code> único e imutável. O número da conta nunca muda — apenas o dono (chave) pode ser alterado via operações <code class="inline">ChangeKey</code>.
+  </div>
+
+  <table>
+    <tr><th>Arquivo</th><td><code>crates/augecoin-core/src/account.rs</code></td></tr>
+    <tr><th>Linhas</th><td>496</td></tr>
+    <tr><th>Struct principal</th><td><code>Account</code> (66-77)</td></tr>
+    <tr><th>Enum de estado</th><td><code>AccountState</code> (8-15)</td></tr>
+    <tr><th>Struct de chave</th><td><code>HybridAccountKey</code> (45-49)</td></tr>
+    <tr><th>Enum de erro</th><td><code>AccountError</code> (79-95)</td></tr>
+    <tr><th>Serialização</th><td>Formato binário determinístico proprietário (big-endian)</td></tr>
+  </table>
+</section>
+
+<!-- ======================================================== -->
+<section id="estrutura">
+  <h2>2. Estrutura da Account</h2>
+
+  <pre><code><span class="kw">pub struct</span> Account {
+    <span class="kw">pub</span> account_number: <span class="ty">u64</span>,                       <span class="cm">// Número sequencial único (PASA)</span>
+    <span class="kw">pub</span> account_info:   AccountInfo,                   <span class="cm">// Estado, chave, preço, bloqueio</span>
+    <span class="kw">pub</span> balance:        <span class="ty">u64</span>,                       <span class="cm">// Saldo em augesat (menor unidade)</span>
+    <span class="kw">pub</span> updated_on_block_passive_mode: <span class="ty">u64</span>,  <span class="cm">// Último bloco de atualização (passivo)</span>
+    <span class="kw">pub</span> updated_on_block_active_mode:  <span class="ty">u64</span>,  <span class="cm">// Último bloco de atualização (ativo)</span>
+    <span class="kw">pub</span> n_operation:   <span class="ty">u64</span>,                       <span class="cm">// Contador anti-replay</span>
+    <span class="kw">pub</span> name:          <span class="ty">Option</span>&lt;<span class="ty">String</span>&gt;,           <span class="cm">// Nome PASA (ex: "augecoin")</span>
+    <span class="kw">pub</span> account_type:  <span class="ty">u16</span>,                       <span class="cm">// Tipo da conta (definido pelo usuário)</span>
+    <span class="kw">pub</span> account_data:  <span class="ty">Vec</span>&lt;<span class="ty">u8</span>&gt;,                   <span class="cm">// Dados on-chain (max 32 bytes)</span>
+    <span class="kw">pub</span> account_seal:  <span class="ty">Vec</span>&lt;<span class="ty">u8</span>&gt;,                   <span class="cm">// Selo criptográfico (max 32 bytes)</span>
+}</code></pre>
+
+  <h3>2.1 Detalhamento dos Campos</h3>
+
+  <table>
+    <tr><th>Campo</th><th>Tipo</th><th>Tamanho serializado</th><th>Descrição</th></tr>
+    <tr>
+      <td class="name-col">account_number</td>
+      <td class="type-col">u64</td>
+      <td>8 bytes</td>
+      <td class="desc-col">Identificador único. Contas são numeradas sequencialmente pelo protocolo. Números de conta <strong>nunca</strong> são reutilizados após <code class="inline">RecoverFounds</code> — a conta é zerada mas mantém o número.</td>
+    </tr>
+    <tr>
+      <td class="name-col">balance</td>
+      <td class="type-col">u64</td>
+      <td>8 bytes</td>
+      <td class="desc-col">Saldo em <strong>augesat</strong> (1 AUGE = 100.000.000 augesat). Todas as operações aritméticas usam <code class="inline">checked_add</code>/<code class="inline">checked_sub</code> para prevenir overflow/underflow.</td>
+    </tr>
+    <tr>
+      <td class="name-col">n_operation</td>
+      <td class="type-col">u64</td>
+      <td>8 bytes</td>
+      <td class="desc-col">Contador anti-replay. Incrementado a cada operação confirmada que usa esta conta como sender. O nó validador verifica que o <code class="inline">n_operation</code> da operação casa com o da conta — impedindo replay de transações.</td>
+    </tr>
+    <tr>
+      <td class="name-col">name</td>
+      <td class="type-col">Option&lt;String&gt;</td>
+      <td>2 + len (max 64)</td>
+      <td class="desc-col">Nome PASA opcional. Segue o modelo PascalCoin: qualquer conta pode ter um nome único legível (ex: "alice", "exchange"). Nome vazio é representado como <code class="inline">None</code> (serializado como <code class="inline">0xFFFF</code>).</td>
+    </tr>
+    <tr>
+      <td class="name-col">account_type</td>
+      <td class="type-col">u16</td>
+      <td>2 bytes</td>
+      <td class="desc-col">Tipo definido pelo usuário (0 = padrão). Permite classificação de contas (ex: contrato, multisig, etc.).</td>
+    </tr>
+    <tr>
+      <td class="name-col">account_data</td>
+      <td class="type-col">Vec&lt;u8&gt;</td>
+      <td>2 + len (max 32)</td>
+      <td class="desc-col">Payload de dados on-chain. Limitado a 32 bytes (<code class="inline">CT_MAX_ACCOUNT_DATA</code>). Pode armazenar hashes, referências ou metadados arbitrários.</td>
+    </tr>
+    <tr>
+      <td class="name-col">account_seal</td>
+      <td class="type-col">Vec&lt;u8&gt;</td>
+      <td>2 + len (max 32)</td>
+      <td class="desc-col">Selo criptográfico. Utilizado para operações de troca atômica (Atomic Swap).</td>
+    </tr>
+    <tr>
+      <td class="name-col">updated_on_block_passive_mode</td>
+      <td class="type-col">u64</td>
+      <td>8 bytes</td>
+      <td class="desc-col">Bloco da última atualização em modo passivo (a conta recebeu fundos).</td>
+    </tr>
+    <tr>
+      <td class="name-col">updated_on_block_active_mode</td>
+      <td class="type-col">u64</td>
+      <td>8 bytes</td>
+      <td class="desc-col">Bloco da última atualização em modo ativo (a conta enviou fundos ou foi modificada).</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ======================================================== -->
+<section id="accountstate">
+  <h2>3. AccountState — Máquina de Estados</h2>
+
+  <pre><code><span class="kw">pub enum</span> AccountState {
+    Unknown              = <span class="nu">0</span>,   <span class="cm">// Estado desconhecido/inicial</span>
+    Normal               = <span class="nu">1</span>,   <span class="cm">// Conta normal (operável)</span>
+    ForSale              = <span class="nu">2</span>,   <span class="cm">// Conta à venda (listada no mercado PASA)</span>
+    ForAtomicAccountSwap = <span class="nu">3</span>,   <span class="cm">// Em processo de swap atômico de conta</span>
+    ForAtomicCoinSwap    = <span class="nu">4</span>,   <span class="cm">// Em processo de swap atômico de moeda</span>
+}</code></pre>
+
+  <h3>3.1 Transições de Estado</h3>
+  <div class="diagram">
+<pre>
+                    ListAccountForSale
+  Normal ──────────────────────────────────► ForSale
+    ▲                                           │
+    │          DelistAccount / BuyAccount       │
+    └───────────────────────────────────────────┘
+
+  Normal ──► ForAtomicAccountSwap ──► (swap concluído) ──► Normal
+  Normal ──► ForAtomicCoinSwap    ──► (swap concluído) ──► Normal
+</pre>
+  </div>
+
+  <h3>3.2 Regras</h3>
+  <ul>
+    <li><strong>Normal:</strong> Conta totalmente operável. Pode enviar/receber transações.</li>
+    <li><strong>ForSale:</strong> Conta anunciada para venda. <code class="inline">price</code> define o valor, <code class="inline">account_to_pay</code> o destinatário, <code class="inline">locked_until_block</code> o bloqueio temporal.</li>
+    <li><strong>ForAtomicAccountSwap:</strong> Conta bloqueada em protocolo de troca atômica de conta. Usa <code class="inline">hashed_secret</code> para HTLC.</li>
+    <li><strong>ForAtomicCoinSwap:</strong> Similar, mas para troca de moedas/coins.</li>
+  </ul>
+
+  <div class="danger-box">
+    <strong>Atenção:</strong> Contas em estado <code class="inline">ForSale</code> não podem enviar operações. Qualquer tentativa de usar uma conta à venda como sender será rejeitada na validação.
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="accountinfo">
+  <h2>4. AccountInfo — Metadados da Conta</h2>
+
+  <pre><code><span class="kw">pub struct</span> AccountInfo {
+    <span class="kw">pub</span> state:              AccountState,              <span class="cm">// Estado atual</span>
+    <span class="kw">pub</span> account_key:        HybridAccountKey,          <span class="cm">// Chave híbrida do dono</span>
+    <span class="kw">pub</span> locked_until_block: <span class="ty">u64</span>,                   <span class="cm">// Bloqueio temporal</span>
+    <span class="kw">pub</span> price:              <span class="ty">u64</span>,                   <span class="cm">// Preço de venda (em augesat)</span>
+    <span class="kw">pub</span> account_to_pay:     <span class="ty">u64</span>,                   <span class="cm">// Conta destinatária do pagamento</span>
+    <span class="kw">pub</span> new_public_key:     <span class="ty">Option</span>&lt;HybridAccountKey&gt;, <span class="cm">// Nova chave (em venda)</span>
+    <span class="kw">pub</span> hashed_secret:      [<span class="ty">u8</span>; <span class="nu">32</span>],             <span class="cm">// Hash do segredo (swap atômico)</span>
+}</code></pre>
+
+  <h3>4.1 Tamanho Serializado</h3>
+  <table>
+    <tr><th>Campo</th><th>Bytes</th></tr>
+    <tr><td>state</td><td>1</td></tr>
+    <tr><td>account_key (ed25519 + ml_dsa)</td><td>32 + 1952 = 1984</td></tr>
+    <tr><td>locked_until_block</td><td>8</td></tr>
+    <tr><td>price</td><td>8</td></tr>
+    <tr><td>account_to_pay</td><td>8</td></tr>
+    <tr><td>new_public_key (flag 1 byte + optional)</td><td>1 ou 1+1984</td></tr>
+    <tr><td>hashed_secret</td><td>32</td></tr>
+    <tr><th>Total (sem new_public_key)</th><th>2.042 bytes</th></tr>
+    <tr><th>Total (com new_public_key)</th><th>4.026 bytes</th></tr>
+  </table>
+
+  <div class="info-box">
+    <strong>Tamanho total da Account:</strong> 8 (number) + AccountInfo + 8 (balance) + 8 + 8 + 8 (n_operation) + name + 2 + account_data + account_seal. <strong>Mínimo: ~2.074 bytes. Típico: ~4.060 bytes com chave de venda.</strong>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="hybridkey">
+  <h2>5. HybridAccountKey — Criptografia Híbrida</h2>
+
+  <pre><code><span class="kw">pub const</span> ED25519_PK_LEN: <span class="ty">usize</span> = <span class="nu">32</span>;
+<span class="kw">pub const</span> ML_DSA_65_PK_LEN: <span class="ty">usize</span> = <span class="nu">1952</span>;
+
+<span class="kw">pub struct</span> HybridAccountKey {
+    <span class="kw">pub</span> ed25519_public_key: [<span class="ty">u8</span>; <span class="nu">32</span>],         <span class="cm">// Curva elíptica clássica</span>
+    <span class="kw">pub</span> ml_dsa_public_key:  [<span class="ty">u8</span>; <span class="nu">1952</span>],       <span class="cm">// Pós-quântica ML-DSA-65</span>
+}</code></pre>
+
+  <h3>5.1 Motivação</h3>
+  <p>A AugeCoin utiliza um esquema de <strong>dupla assinatura</strong>: cada conta possui simultaneamente uma chave Ed25519 (rápida, amplamente suportada) e uma chave ML-DSA-65 (resistente a ataques quânticos). Ambas devem ser válidas para que uma operação seja aceita.</p>
+
+  <h3>5.2 Métodos</h3>
+  <table>
+    <tr><th>Método</th><th>Descrição</th></tr>
+    <tr><td class="name-col">empty()</td><td class="desc-col">Cria chave zerada (todos os bytes = 0). Usada para contas recém-criadas sem dono definido.</td></tr>
+    <tr><td class="name-col">is_empty()</td><td class="desc-col">Verifica se ambas as chaves são zero. Retorna <code class="inline">true</code> para contas não reivindicadas.</td></tr>
+  </table>
+
+  <div class="warn-box">
+    <strong>Observação:</strong> O tamanho total de uma HybridAccountKey é <strong>1.984 bytes</strong>. O ML-DSA-65 (FIPS 204) produz chaves públicas de 1.952 bytes e assinaturas de 3.309 bytes — isso impacta diretamente o tamanho das transações e o throughput da rede.
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="metodos">
+  <h2>6. Métodos Públicos</h2>
+
+  <table>
+    <tr><th>Método</th><th>Linha</th><th>Visibilidade</th><th>Descrição</th></tr>
+    <tr>
+      <td class="name-col">new(number, ed_pk, ml_pk, block)</td>
+      <td>257</td>
+      <td>-&gt; Self</td>
+      <td class="desc-col">Construtor. Cria conta com saldo zero, n_operation=0, estado Normal. Recebe o bloco de criação para inicializar os timestamps.</td>
+    </tr>
+    <tr>
+      <td class="name-col">add_balance(amount)</td>
+      <td>285</td>
+      <td>-&gt; Result&lt;(), AccountError&gt;</td>
+      <td class="desc-col">Adiciona saldo com <code class="inline">checked_add</code>. Retorna <code class="inline">BalanceOverflow</code> se overflow.</td>
+    </tr>
+    <tr>
+      <td class="name-col">subtract_balance(amount)</td>
+      <td>290</td>
+      <td>-&gt; Result&lt;(), AccountError&gt;</td>
+      <td class="desc-col">Subtrai saldo com <code class="inline">checked_sub</code>. Retorna <code class="inline">InsufficientBalance</code> se saldo insuficiente.</td>
+    </tr>
+    <tr>
+      <td class="name-col">increment_n_operation()</td>
+      <td>298</td>
+      <td>&amp;mut self</td>
+      <td class="desc-col">Incrementa o contador anti-replay via <code class="inline">saturating_add(1)</code>. Usado após cada operação confirmada.</td>
+    </tr>
+    <tr>
+      <td class="name-col">is_locked(current_block)</td>
+      <td>302</td>
+      <td>-&gt; bool</td>
+      <td class="desc-col">Verifica se <code class="inline">locked_until_block >= current_block</code>. Contas bloqueadas não podem ser compradas/vendidas.</td>
+    </tr>
+    <tr>
+      <td class="name-col">to_bytes()</td>
+      <td>306</td>
+      <td>-&gt; Vec&lt;u8&gt;</td>
+      <td class="desc-col">Serialização determinística big-endian. Ordem fixa dos campos garante hash determinístico.</td>
+    </tr>
+    <tr>
+      <td class="name-col">from_bytes(data)</td>
+      <td>321</td>
+      <td>-&gt; Result&lt;Self, AccountError&gt;</td>
+      <td class="desc-col">Desserialização com validação completa. Verifica limites de account_data (32) e account_seal (32).</td>
+    </tr>
+    <tr>
+      <td class="name-col">hash()</td>
+      <td>392</td>
+      <td>-&gt; [u8; 64]</td>
+      <td class="desc-col">Hash blake3-512 do estado serializado. Usado para verificação de integridade no SafeBox.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ======================================================== -->
+<section id="serializacao">
+  <h2>7. Formato de Serialização</h2>
+
+  <p>A serialização usa <strong>big-endian</strong> determinístico com layout fixo. A ordem dos campos é imutável — qualquer alteração quebra o consenso.</p>
+
+  <h3>7.1 Layout Binário</h3>
+  <div class="diagram">
+<pre>
+Offset  Size   Field
+────────────────────────────────────────────
+ 0       8     account_number (u64 BE)
+ 8       1     state (u8)
+ 9      32     ed25519_public_key
+41    1952     ml_dsa_public_key
+1993     8     locked_until_block (u64 BE)
+2001     8     price (u64 BE)
+2009     8     account_to_pay (u64 BE)
+2017     1     has_new_public_key flag (0 ou 1)
+────────────────────────────────────────────
+[Se flag=1:]
+2018    32     new_ed25519_public_key
+2050  1952     new_ml_dsa_public_key
+────────────────────────────────────────────
+2018/4002  32  hashed_secret
+2050/4034   8  balance (u64 BE)
+2058/4042   8  updated_on_block_passive_mode (u64 BE)
+2066/4050   8  updated_on_block_active_mode (u64 BE)
+2074/4058   8  n_operation (u64 BE)
+2082/4066   2  name length (u16 BE) ou 0xFFFF
+              var name bytes (0-64)
+             2  account_type (u16 BE)
+             2  account_data length (u16 BE)
+              var account_data (max 32)
+             2  account_seal length (u16 BE)
+              var account_seal (max 32)
+</pre>
+  </div>
+
+  <h3>7.2 Representação de String Opcional</h3>
+  <p>O campo <code class="inline">name</code> usa um esquema especial:</p>
+  <ul>
+    <li><code class="inline">None</code> → serializado como <code class="inline">0xFFFF</code> (2 bytes)</li>
+    <li><code class="inline">Some(s)</code> → <code class="inline">[len: u16 BE][bytes UTF-8]</code></li>
+    <li>Nome limitado a 64 bytes (validado na desserialização, não na serialização)</li>
+  </ul>
+
+  <div class="danger-box">
+    <strong>Crítico para consenso:</strong> A função <code class="inline">to_bytes()</code> é a base do <code class="inline">hash()</code> que por sua vez alimenta o SafeBox. Qualquer não-determinismo (ordem diferente, endianness, padding) quebraria a consistência entre nós.
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="erros">
+  <h2>8. Modelo de Erros (AccountError)</h2>
+
+  <pre><code><span class="kw">pub enum</span> AccountError {
+    InsufficientBalance  { balance: <span class="ty">u64</span>, required: <span class="ty">u64</span> },
+    BalanceOverflow,
+    InvalidSerialization(<span class="ty">String</span>),
+    AccountNotFound(<span class="ty">u64</span>),
+    NameTooLong(<span class="ty">usize</span>),
+    AccountDataTooLong  { len: <span class="ty">usize</span>, max: <span class="ty">usize</span> },
+    SealTooLong(<span class="ty">usize</span>),
+}</code></pre>
+
+  <table>
+    <tr><th>Variante</th><th>Quando ocorre</th><th>Tratamento</th></tr>
+    <tr>
+      <td class="name-col">InsufficientBalance</td>
+      <td class="desc-col">Saldo menor que o valor da transação + taxa</td>
+      <td>Rejeição da operação</td>
+    </tr>
+    <tr>
+      <td class="name-col">BalanceOverflow</td>
+      <td class="desc-col">Overflow aritmético em add_balance</td>
+      <td>Rejeição do bloco</td>
+    </tr>
+    <tr>
+      <td class="name-col">InvalidSerialization</td>
+      <td class="desc-col">Dados binários malformados, EOF inesperado, UTF-8 inválido, estado inválido</td>
+      <td>Erro de storage/consenso</td>
+    </tr>
+    <tr>
+      <td class="name-col">AccountNotFound</td>
+      <td class="desc-col">Conta não existe no SafeBox</td>
+      <td>Criação lazy da conta (execution.rs)</td>
+    </tr>
+    <tr>
+      <td class="name-col">NameTooLong</td>
+      <td class="desc-col">Nome com mais de 64 bytes</td>
+      <td>Rejeição da operação ChangeAccountInfo</td>
+    </tr>
+    <tr>
+      <td class="name-col">AccountDataTooLong</td>
+      <td class="desc-col">account_data > 32 bytes</td>
+      <td>Rejeição na desserialização</td>
+    </tr>
+    <tr>
+      <td class="name-col">SealTooLong</td>
+      <td class="desc-col">account_seal > 32 bytes</td>
+      <td>Rejeição na desserialização</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ======================================================== -->
+<section id="criacao">
+  <h2>9. Criação de Contas (PASA)</h2>
+
+  <div class="info-box">
+    <strong>Modelo PASA (PascalCoin Account):</strong> Contas são criadas automaticamente pelo protocolo a cada bloco, em lotes de <code class="inline">CT_ACCOUNTS_PER_BLOCK = 5</code>. O número da conta = <code class="inline">block_number * 5 + offset</code>.
+  </div>
+
+  <h3>9.1 Processo de Criação</h3>
+  <div class="diagram">
+<pre>
+Bloco N (leader_id = L)
+┌─────────────────────────────────────────┐
+│  execute_block()                        │
+│    │                                    │
+│    ├── Fase 1-2: validação + execução   │
+│    ├── Fase 3: distribuir reward+fees   │
+│    │                                    │
+│    └── Fase 4: criar novas contas       │
+│         │                               │
+│         start = N * 5                   │
+│         │                               │
+│         for i in 0..5:                  │
+│           new_num = start + i           │
+│           Account::new(                 │
+│             new_num,                    │
+│             [0u8; 32],  ← chave zerada │
+│             [0u8; 1952],← "            │
+│             block_number                │
+│           )                             │
+│           account_key = leader's key    │
+│           balance = 0                   │
+└─────────────────────────────────────────┘
+</pre>
+  </div>
+
+  <h3>9.2 Características</h3>
+  <ul>
+    <li><strong>Contas nascem zeradas:</strong> balance = 0, n_operation = 0.</li>
+    <li><strong>Chave do líder:</strong> A nova conta recebe a chave do validador que produziu o bloco. O líder pode posteriormente transferir a conta via <code class="inline">ChangeKey</code> ou vendê-la via <code class="inline">ListAccountForSale</code>.</li>
+    <li><strong>Números previsíveis:</strong> Qualquer nó pode calcular quais contas existirão em um dado bloco.</li>
+  </ul>
+
+  <h3>9.3 Recuperação de Contas Abandonadas</h3>
+  <p>Contas com saldo zero que foram abandonadas podem ser recuperadas via operação <code class="inline">RecoverFounds</code>:</p>
+  <pre><code><span class="cm">// execution.rs - OperationPayload::RecoverFounds</span>
+<span class="kw">if</span> acc.balance &gt; <span class="nu">0</span> {
+    <span class="kw">return Err</span>(...);  <span class="cm">// Não pode recuperar conta com saldo</span>
+}
+acc.balance = <span class="nu">0</span>;
+acc.n_operation = <span class="nu">0</span>;
+acc.name = <span class="kw">None</span>;
+acc.account_type = <span class="nu">0</span>;
+acc.account_data = Vec::new();
+acc.account_seal = Vec::new();
+acc.account_info = AccountInfo::default();  <span class="cm">// Reseta chaves</span></code></pre>
+
+  <div class="warn-box">
+    <strong>Nota:</strong> <code class="inline">RecoverFounds</code> zera completamente a conta e reseta suas chaves, mas <strong>não altera o account_number</strong>. O número da conta permanece o mesmo — apenas o dono muda.
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="seguranca">
+  <h2>10. Considerações de Segurança</h2>
+
+  <h3>10.1 Prevenção de Overflow</h3>
+  <table>
+    <tr><th>Operação</th><th>Método</th><th>Proteção</th></tr>
+    <tr><td>Crédito</td><td><code class="inline">checked_add(amount)</code></td><td>Retorna <code class="inline">BalanceOverflow</code> se saldo > u64::MAX</td></tr>
+    <tr><td>Débito</td><td><code class="inline">checked_sub(amount)</code></td><td>Retorna <code class="inline">InsufficientBalance</code> se saldo < amount</td></tr>
+    <tr><td>n_operation</td><td><code class="inline">saturating_add(1)</code></td><td>Satura em u64::MAX (embora na prática nunca alcance)</td></tr>
+  </table>
+
+  <h3>10.2 Anti-Replay</h3>
+  <p>Toda operação que envolve um sender inclui <code class="inline">n_operation</code>. O execution layer verifica:</p>
+  <pre><code><span class="cm">// execution.rs</span>
+<span class="kw">if</span> sender.n_operation != acc.n_operation {
+    <span class="kw">return Err</span>(ExecutionError::OperationFailed {
+        sender: sender.account,
+        reason: <span class="st">"invalid n_operation: expected {acc}, got {op}"</span>,
+    });
+}
+acc.increment_n_operation();</code></pre>
+  <p>Isso garante que cada operação de uma conta seja única e imune a replay.</p>
+
+  <h3>10.3 Bloqueio Temporal</h3>
+  <p>Contas podem ser bloqueadas até um bloco específico (<code class="inline">locked_until_block</code>). O método <code class="inline">is_locked()</code> usa comparação <code class="inline">>=</code> — a conta só é liberada quando <code class="inline">current_block > locked_until_block</code>.</p>
+
+  <h3>10.4 Validação de Dados</h3>
+  <ul>
+    <li><code class="inline">account_data</code> limitado a 32 bytes (<code class="inline">CT_MAX_ACCOUNT_DATA</code>)</li>
+    <li><code class="inline">account_seal</code> limitado a 32 bytes</li>
+    <li><code class="inline">name</code> validado como UTF-8 válido</li>
+    <li>Estado da conta validado contra enum (valores 0-4)</li>
+  </ul>
+
+  <h3>10.5 Hash Determinístico</h3>
+  <p>O hash da conta usa blake3-512 sobre sua representação serializada. Qualquer nó que execute as mesmas operações na mesma ordem produzirá exatamente o mesmo hash — fundamental para o consenso do SafeBox.</p>
+</section>
+
+<!-- ======================================================== -->
+<section id="fluxo">
+  <h2>11. Fluxo de Vida de uma Conta</h2>
+
+  <div class="diagram">
+<pre>
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                    CICLO DE VIDA — ACCOUNT                       │
+  └─────────────────────────────────────────────────────────────────┘
+
+  [CRIAÇÃO]
+      │
+      │  execute_block()  →  Account::new(number, zeros, zeros, block)
+      │  account_key = leader_key
+      │  balance = 0, n_operation = 0
+      ▼
+  [CONTA ZERADA] ──── ChangeKey ────► [CONTA COM DONO]
+                                             │
+                    ┌────────────────────────┼────────────────────┐
+                    ▼                        ▼                    ▼
+            [OPERAÇÕES NORMais]     [VENDA DE CONTA]      [ABANDONO]
+                    │                        │                    │
+                    │ Transaction            │ ListAccountForSale │ balance = 0
+                    │ MultiOperation         ▼                    │
+                    │ Data              [ForSale]                 │
+                    │                        │                    ▼
+                    │                        │ BuyAccount    [RecoverFounds]
+                    │                        ▼                    │
+                    │                   [NORMAL] ← novo dono      │
+                    │                                             │
+                    └────────────┬────────────────────────────────┘
+                                 ▼
+                          [CONTA ATIVA]
+                          balance > 0
+                          n_operation crescente
+</pre>
+  </div>
+</section>
+
+<!-- ======================================================== -->
+<section id="integracao">
+  <h2>12. Integração com o Sistema</h2>
+
+  <h3>12.1 Consumidores da Account</h3>
+  <table>
+    <tr><th>Módulo</th><th>Arquivo</th><th>Uso</th></tr>
+    <tr>
+      <td>SafeBox</td>
+      <td>safe_box.rs</td>
+      <td class="desc-col">Armazena todas as contas em BTreeMap&lt;u64, Account&gt;. get_account(), add_account(), iter_accounts() são usados intensivamente.</td>
+    </tr>
+    <tr>
+      <td>Execution Engine</td>
+      <td>execution.rs</td>
+      <td class="desc-col">Cria contas novas, modifica saldos, chaves, nomes, dados via HashMap temporário. Commit atômico no final do bloco.</td>
+    </tr>
+    <tr>
+      <td>Mempool</td>
+      <td>mempool.rs</td>
+      <td class="desc-col">Valida n_operation e saldo do sender antes de admitir operação. Verifica existência da conta no storage.</td>
+    </tr>
+    <tr>
+      <td>Storage</td>
+      <td>storage (augecoin-storage)</td>
+      <td class="desc-col">Persiste contas via put_account()/get_account(). Abstrai o backend de armazenamento.</td>
+    </tr>
+    <tr>
+      <td>Network Sync</td>
+      <td>sync.rs</td>
+      <td class="desc-col">Transfere blocos e estados de conta entre nós durante sincronização.</td>
+    </tr>
+  </table>
+
+  <h3>12.2 Funções Relacionadas (fora de account.rs)</h3>
+  <table>
+    <tr><th>Função</th><th>Local</th><th>Descrição</th></tr>
+    <tr>
+      <td class="name-col">execute_block()</td>
+      <td>execution.rs:25</td>
+      <td class="desc-col">Pipeline de 6 fases. Modifica contas em HashMap temporário, faz commit atômico.</td>
+    </tr>
+    <tr>
+      <td class="name-col">execute_operation()</td>
+      <td>execution.rs:323</td>
+      <td class="desc-col">Executa uma operação (Transaction, ChangeKey, BuyAccount, etc.) sobre as contas.</td>
+    </tr>
+    <tr>
+      <td class="name-col">load_account()</td>
+      <td>execution.rs:36 (closure)</td>
+      <td class="desc-col">Carrega conta do storage ou do HashMap modified. Cria conta lazy se não existir.</td>
+    </tr>
+    <tr>
+      <td class="name-col">build_safebox_from_modified()</td>
+      <td>execution.rs:922</td>
+      <td class="desc-col">Overlay das contas modificadas sobre o SafeBox existente.</td>
+    </tr>
+    <tr>
+      <td class="name-col">storage.get_account()</td>
+      <td>storage</td>
+      <td class="desc-col">Leitura de conta do backend persistente.</td>
+    </tr>
+    <tr>
+      <td class="name-col">storage.put_account()</td>
+      <td>storage</td>
+      <td class="desc-col">Escrita de conta no backend persistente.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ======================================================== -->
+<section id="conclusao">
+  <h2>13. Conclusão & Recomendações</h2>
+
+  <h3>13.1 Pontos Fortes</h3>
+  <ul>
+    <li><strong>Serialização determinística</strong> — ordem fixa big-endian, sem ambiguidade</li>
+    <li><strong>Proteção contra overflow</strong> — checked_add/checked_sub em todas as operações</li>
+    <li><strong>Anti-replay robusto</strong> — n_operation validado em toda operação</li>
+    <li><strong>Criptografia híbrida</strong> — resistente a ataques clássicos e quânticos</li>
+    <li><strong>Modelo PASA</strong> — contas numeradas, previsíveis, sem colisão</li>
+    <li><strong>Hash blake3-512</strong> — rápido e determinístico para integridade do SafeBox</li>
+  </ul>
+
+  <h3>13.2 Pontos de Atenção</h3>
+  <ul>
+    <li><strong>Tamanho da chave ML-DSA-65 (1.952 bytes)</strong> — cada conta ocupa no mínimo ~2 KB. Com milhões de contas, o SafeBox pode crescer rapidamente.</li>
+    <li><strong>Assinaturas ML-DSA-65 (3.309 bytes)</strong> — transações são pesadas. O throughput da rede é limitado pelo tamanho das operações.</li>
+    <li><strong>RecoverFounds não remove a conta</strong> — apenas zera. O número nunca é reutilizado, o que pode levar a fragmentação do espaço de números.</li>
+    <li><strong>Contas sem dono (chave zerada)</strong> — contas recém-criadas têm chave do líder, mas se o líder nunca fizer ChangeKey, a conta fica permanentemente associada a ele.</li>
+  </ul>
+
+  <h3>13.3 Recomendações</h3>
+  <ol>
+    <li><strong>Compressão de chaves:</strong> Considerar compressão da chave ML-DSA no SafeBox para reduzir armazenamento.</li>
+    <li><strong>Limpeza de contas zeradas:</strong> Avaliar remoção de contas com balance=0 e n_operation=0 que nunca foram usadas.</li>
+    <li><strong>Índices secundários:</strong> Para busca por nome ou chave pública, considerar índices auxiliares fora do consenso.</li>
+  </ol>
+
+</section>
+
+</main>
+
+<footer>
+  <p>AugeCoin — Análise do Sistema de Contas | account.rs (496 linhas) | v0.1.0</p>
+  <p>Gerado em agosto de 2026</p>
+</footer>
+
+</body>
+</html>

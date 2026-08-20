@@ -1,0 +1,42 @@
+/* AUGECOIN Explorer — responsive breakpoints. */
+
+@media (max-width: 1024px) {
+  .grid-stats { grid-template-columns: repeat(2, 1fr); }
+  .mini-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 768px) {
+  .nav-toggle { display: inline-flex; }
+  .site-nav {
+    display: none;
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    gap: 2px;
+  }
+  .site-nav.open { display: flex; }
+  .nav-link { padding: 12px 10px; }
+
+  .hero { padding: 44px 0 36px; }
+  .hero-search { flex-direction: column; }
+  .hero-search input { padding-left: 46px; }
+  .hero-stats { gap: 24px; }
+
+  h1 { font-size: 1.6rem; }
+  .grid-stats { grid-template-columns: 1fr; }
+  .mini-grid { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr; }
+
+  .account-banner { text-align: left; }
+  .account-balance { text-align: left; }
+  .pagination { flex-direction: column; align-items: flex-start; }
+
+  .table-wrap { max-height: none; }
+}

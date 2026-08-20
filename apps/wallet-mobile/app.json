@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Carteira AUGECOIN",
+    "slug": "augecoin-wallet-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0f0f1a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "io.augecoin.wallet"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f0f1a"
+      },
+      "package": "io.augecoin.wallet"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "augecoin-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+augecoin-crypto = { path = "../augecoin-crypto" }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+thiserror = "2"
+zstd = "0.13"
+
+[dev-dependencies]
+proptest = "1"

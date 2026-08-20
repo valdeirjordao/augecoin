@@ -1,0 +1,9 @@
+[package]
+name = "augecoin-storage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+augecoin-core = { path = "../augecoin-core" }
+rocksdb = "0.24"
+thiserror = "2"

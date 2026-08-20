@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "augecoin-validator"
+    static_configs:
+      - targets:
+          - "validator-1:9100"
+          - "validator-2:9100"
+          - "validator-3:9100"
+          - "validator-4:9100"
+        labels:
+          network: "augecoin-testnet"
+          role: "validator"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "augecoin_.*"
+        action: keep
+
+  - job_name: "augecoin-observer"
+    static_configs:
+      - targets:
+          - "observer:9100"
+        labels:
+          network: "augecoin-testnet"
+          role: "observer"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "augecoin_.*"
+        action: keep
+    profiles:
+      - observer

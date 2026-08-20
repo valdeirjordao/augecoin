@@ -1,0 +1,96 @@
+/* AUGECOIN Wallet — responsive breakpoints. */
+
+@media (max-width: 1024px) {
+  .grid-stats { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .hero-features { grid-template-columns: repeat(2, 1fr); }
+  .quick-actions { grid-template-columns: repeat(2, 1fr); }
+  .mnemonic-grid { grid-template-columns: repeat(3, 1fr); }
+  .trust-strip-inner { grid-template-columns: repeat(2, 1fr); }
+  .how-grid, .security-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  #app-sidebar { display: none; }
+  .nav-toggle { display: inline-flex; }
+  .site-nav {
+    display: none;
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    gap: 2px;
+    box-shadow: var(--shadow);
+    z-index: 40;
+  }
+  .site-nav.open { display: flex; }
+  .nav-link { padding: 12px 10px; }
+
+  .bottom-nav { display: block; }
+  main.container { padding-bottom: 90px; }
+
+  .hero { padding: 48px 0 36px; }
+  .hero h1 { font-size: 2rem; }
+  .hero-sub { font-size: 1rem; }
+  .hero-features { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 40px; }
+  .hero-feature { padding: 18px 12px; }
+  .hero-actions { flex-direction: column; align-items: center; }
+  .hero-actions .btn { width: 100%; max-width: 280px; }
+
+  .quick-actions { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  .landing-hero { min-height: 480px; padding: 64px 0 48px; }
+  .landing-section { padding-top: 48px; }
+  .trust-strip-inner { grid-template-columns: 1fr; gap: 16px; }
+  .how-grid, .security-grid { grid-template-columns: 1fr; }
+  .brand-word { font-size: 1.6rem; }
+
+  .balance-value { font-size: 1.8rem; }
+  .balance-card { padding: 24px; }
+
+  h1 { font-size: 1.6rem; }
+  .page-head h1 { font-size: 1.6rem; }
+  .grid-stats { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr; }
+
+  .table-wrap { max-height: none; }
+  .kv { flex-direction: column; gap: 4px; }
+  .kv-value { text-align: left; justify-content: flex-start; }
+
+  .filter-bar { flex-direction: column; }
+  .search-input { min-width: 100%; }
+
+  .mnemonic-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .auth-card { padding: 0 8px; }
+  .modal { margin: 12px; max-height: 90vh; }
+
+  #toast-host { left: 12px; right: 12px; bottom: 80px; max-width: none; }
+
+  .confirm-card, .tx-detail, .augeid-transfer-card, .mnemonic-card { padding: 0 4px; }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 1.7rem; }
+  .hero-features { grid-template-columns: 1fr; }
+  .quick-actions { grid-template-columns: 1fr 1fr; }
+  .quick-action { padding: 14px 10px; }
+  .quick-action-icon { width: 36px; height: 36px; font-size: 1.1rem; }
+  .balance-value { font-size: 1.5rem; }
+  .progress-steps { flex-wrap: wrap; justify-content: center; }
+  .tabs button { padding: 8px 10px; font-size: 0.82rem; }
+  .receive-address { font-size: 0.9rem; padding: 12px; }
+}
+
+/* ── Print ───────────────────────────────────────────────────────────── */
+
+@media print {
+  .site-header, .bottom-nav, .site-footer, #toast-host, .hero-canvas { display: none !important; }
+  body { background: #fff; color: #000; }
+  .card { border: 1px solid #ccc; box-shadow: none; }
+}

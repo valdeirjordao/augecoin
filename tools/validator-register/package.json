@@ -1,0 +1,9 @@
+{
+  "name": "augecoin-validator-register",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.0"
+  }
+}

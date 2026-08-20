@@ -1,0 +1,22 @@
+[package]
+name = "augecoin-rpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+augecoin-consensus = { path = "../augecoin-consensus" }
+augecoin-core = { path = "../augecoin-core" }
+augecoin-crypto = { path = "../augecoin-crypto" }
+augecoin-storage = { path = "../augecoin-storage" }
+axum = "0.8"
+axum-server = { version = "0.8", features = ["tls-rustls"] }
+crossbeam-channel = "0.5"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = "0.4"
+rcgen = { version = "0.14", features = ["pem"] }
+rustls = { version = "0.23", features = ["std", "ring"] }
+rustls-pemfile = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }

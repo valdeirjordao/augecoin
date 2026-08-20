@@ -1,0 +1,61 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: augecoin-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - augecoin-obs
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: augecoin-grafana
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml:ro
+      - ./grafana/dashboards/augecoin-node.json:/etc/grafana/provisioning/dashboards/augecoin-node.json:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=augecoin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/augecoin-node.json
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - augecoin-obs
+
+  augecoin-node:
+    image: augecoin-node:latest
+    container_name: augecoin-node
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    ports:
+      - "9100:9100"
+      - "9443:9443"
+    restart: unless-stopped
+    networks:
+      - augecoin-obs
+    profiles:
+      - full
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  augecoin-obs:
+    driver: bridge

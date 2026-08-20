@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AUGECOIN Wallet</title>
+  <meta name="description" content="AUGECOIN Wallet — carteira para a blockchain AUGECOIN (testnet).">
+  <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#F97316">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://www.augeco.in; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+  <link rel="stylesheet" href="assets/css/themes.css">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <link rel="stylesheet" href="assets/css/wallet.css">
+  <link rel="stylesheet" href="assets/css/responsive.css">
+</head>
+<body data-page="wallet">
+  <div id="app-header"></div>
+  <div class="app-body">
+    <aside id="app-sidebar"></aside>
+    <div id="page-root">
+      <main class="landing" aria-busy="true">
+        <section class="hero landing-hero">
+          <canvas class="hero-canvas" aria-hidden="true"></canvas>
+          <div class="hero-content container">
+            <span class="hero-eyebrow">Carteira oficial da blockchain AUGECOIN</span>
+            <h1>Seus AUGE sob <span class="text-accent">custódia própria</span>.</h1>
+            <p class="hero-sub">Identidade on-chain, segurança pós-quântica e baixa latência.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="app-footer"></div>
+  <noscript><div style="padding:2rem;text-align:center">A carteira requer JavaScript.</div></noscript>
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

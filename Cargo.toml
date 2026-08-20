@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/augecoin-crypto",
+    "crates/augecoin-core",
+    "crates/augecoin-storage",
+    "crates/augecoin-consensus",
+    "crates/augecoin-network",
+    "crates/augecoin-rpc",
+    "crates/augecoin-cli",
+    "crates/augecoin-node",
+    "crates/augecoin-bench",
+    "crates/augecoin-ops",
+    "apps/wallet-desktop/src-tauri",
+    "apps/validator-desktop/src-tauri",
+]
+exclude = [
+    "crates/augecoin-core/fuzz",
+]
+
+[profile.dev]
+incremental = false

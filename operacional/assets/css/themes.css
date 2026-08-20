@@ -1,0 +1,52 @@
+/* AUGECOIN Explorer — themes (dark default + light). */
+
+:root {
+  --color-primary: #F97316;
+  --color-primary-hover: #EA580C;
+  --color-success: #22C55E;
+  --color-error: #EF4444;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+  --color-admin: #A855F7;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: 0.18s ease;
+  --font: 'Inter', 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0F172A;
+  --bg-elevated: #16213a;
+  --bg-card: #1E293B;
+  --bg-card-hover: #243149;
+  --border: #2b3a55;
+  --text: #ffffff;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --chart-grid: rgba(148, 163, 184, 0.12);
+  --chart-text: #94a3b8;
+  --chart-fill: rgba(249, 115, 22, 0.16);
+  --header-bg: rgba(15, 23, 42, 0.85);
+  --skeleton: #243149;
+  --skeleton-shine: #2f3f5c;
+}
+
+:root[data-theme='light'] {
+  --bg: #F8FAFC;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #94a3b8;
+  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --chart-grid: rgba(15, 23, 42, 0.08);
+  --chart-text: #64748b;
+  --chart-fill: rgba(249, 115, 22, 0.12);
+  --header-bg: rgba(248, 250, 252, 0.85);
+  --skeleton: #e2e8f0;
+  --skeleton-shine: #f1f5f9;
+}

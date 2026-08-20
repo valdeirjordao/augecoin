@@ -1,0 +1,37 @@
+# Rust
+target/
+
+# Node
+node_modules/
+
+# Tauri build artifacts
+**/src-tauri/binaries/
+**/src-tauri/gen/
+
+# Build / distribuicao
+dist/
+*.AppImage
+*.deb
+*.msi
+*.exe
+*.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+
+# Graphify
+/graphify-out/
+
+# Benchmarks
+/bench-*/
+
+# Dados de runtime dos validadores
+/data/
+/logs/
+*.log
+*.stdout
+*.out
+
+# Env
+.env

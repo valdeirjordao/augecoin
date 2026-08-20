@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN Technical Book</title>
+<style>
+:root {
+  --bg: #0d1117; --fg: #c9d1d9; --accent: #58a6ff;
+  --sidebar-bg: #161b22; --border: #30363d;
+  --code-bg: #1c2128; --heading: #f0f6fc;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--fg); display: flex; }
+nav { width: 280px; min-height: 100vh; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 1.5rem; position: fixed; overflow-y: auto; }
+nav h2 { color: var(--heading); font-size: 1.1rem; margin-bottom: 1rem; }
+nav ul { list-style: none; }
+nav li { margin: 0.3rem 0; }
+nav a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+nav a:hover { text-decoration: underline; }
+main { margin-left: 280px; padding: 2rem 3rem; max-width: 900px; }
+h1 { color: var(--heading); font-size: 1.8rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+h2 { color: var(--heading); font-size: 1.3rem; margin: 1.5rem 0 0.8rem; }
+h3 { color: var(--heading); font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+p { margin: 0.5rem 0; line-height: 1.6; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+code { font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.85rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { border: 1px solid var(--border); padding: 0.5rem 0.8rem; text-align: left; }
+th { background: var(--sidebar-bg); color: var(--heading); }
+hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+.chapter { margin-bottom: 3rem; }
+#search { width: 100%; padding: 0.5rem; margin-bottom: 1rem; background: var(--code-bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
+@media (max-width: 768px) { nav { display: none; } main { margin-left: 0; padding: 1rem; } }
+</style>
+</head>
+<body>
+<nav>
+  <h2>AUGECOIN Technical Book</h2>
+  <input type="text" id="search" placeholder="Search chapters..." oninput="filterTOC(this.value)">
+  <ul id="toc"><li><a href="#chapter-1">1. Overview</a></li>
+<li><a href="#chapter-2">2. Architecture</a></li>
+<li><a href="#chapter-3">3. SafeBox</a></li>
+<li><a href="#chapter-4">4. Consensus</a></li>
+<li><a href="#chapter-5">5. Storage</a></li>
+<li><a href="#chapter-6">6. Network</a></li>
+<li><a href="#chapter-7">7. RPC</a></li>
+<li><a href="#chapter-8">8. Wallet</a></li>
+<li><a href="#chapter-9">9. AUGEID</a></li>
+<li><a href="#chapter-10">10. Benchmark</a></li>
+<li><a href="#chapter-11">11. Security</a></li>
+<li><a href="#chapter-12">12. Tests</a></li>
+<li><a href="#chapter-13">13. APIs</a></li>
+<li><a href="#chapter-14">14. Annexes</a></li></ul>
+</nav>
+<main>
+<h1>AUGECOIN Technical Book</h1>
+<p>**Version:** unknown</p>
+<p>**Commit:** unknown</p>
+<p>**Generated:** 2026-08-19 13:26 UTC</p>
+<p>**Graphify:** graphify-data-present</p>
+<p>**Rust:** rustc 1.97.1 (8bab26f4f 2026-07-14)</p>
+<hr>
+<p>&gt; This document is automatically generated from the AUGECOIN codebase,</p>
+<p>&gt; Graphify knowledge graph, architecture docs and specifications.</p>
+<p>&gt; Intended for external audits, enterprise review, researchers and AI systems.</p>
+<hr>
+<div id="chapter-1" class="chapter">
+<h1>Chapter 1 — Overview</h1>
+<h2>Executive Summary</h2>
+<p>AUGECOIN is a Proof-of-Authority blockchain built in Rust, featuring:</p>
+<p>- **Hybrid signatures**: Ed25519 + CRYSTALS-Dilithium (post-quantum)</p>
+<p>- **BLAKE3-512** hashing (XOF mode)</p>
+<p>- **SafeBox** incremental state model with deterministic snapshots</p>
+<p>- **PoA consensus** with 2/3+1 quorum and round-robin leader selection</p>
+<p>- **Native numbered accounts** (AUGEID) with marketplace, gifts and name resolution</p>
+<p>- **Total supply**: 750,000,000 AUGE (75 trillion augesat), emitted over 50 years</p>
+<h2>Graphify Analysis</h2>
+<tr><td>Metric</td><td>Value</td></tr>
+<p>|---|---|</p>
+<tr><td>Nodes</td><td>3713</td></tr>
+<tr><td>Edges</td><td>8310</td></tr>
+<tr><td>Communities</td><td>217</td></tr>
+<tr><td>Extraction Confidence</td><td>99%</td></tr>
+<h3>God Nodes (Core Abstractions)</h3>
+<tr><td>Rank</td><td>Name</td><td>Edges</td></tr>
+<p>|---|---|---|</p>
+<tr><td>1</td><td>`Storage`</td><td>72</td></tr>
+<tr><td>2</td><td>`AppState`</td><td>56</td></tr>
+<tr><td>3</td><td>`AUGECOIN — PROMPTS.md`</td><td>48</td></tr>
+<tr><td>4</td><td>`Mempool`</td><td>43</td></tr>
+<tr><td>5</td><td>`Account`</td><td>40</td></tr>
+<tr><td>6</td><td>`esc()`</td><td>39</td></tr>
+<tr><td>7</td><td>`StorageError`</td><td>38</td></tr>
+<tr><td>8</td><td>`ConsensusEngine`</td><td>35</td></tr>
+<tr><td>9</td><td>`esc()`</td><td>29</td></tr>
+<tr><td>10</td><td>`fmtNum()`</td><td>27</td></tr>
+<h3>Top Communities</h3>
+<p>- **explorer/assets/js/utils.js** (? nodes, cohesion: 0.050)</p>
+<p>- **Storage** (? nodes, cohesion: 0.060)</p>
+<p>- **execution.rs** (? nodes, cohesion: 0.050)</p>
+<p>- **src/index.ts** (? nodes, cohesion: 0.060)</p>
+<p>- **operacional/assets/js/app.js** (? nodes, cohesion: 0.050)</p>
+<p>- **augecoin-cli/src/commands.rs** (? nodes, cohesion: 0.060)</p>
+<p>- **Mempool** (? nodes, cohesion: 0.100)</p>
+<p>- **augecoin-network/src/lib.rs** (? nodes, cohesion: 0.080)</p>
+<p>- **augecoin-rpc/src/lib.rs** (? nodes, cohesion: 0.090)</p>
+<p>- **operation.rs** (? nodes, cohesion: 0.110)</p>
+<h2>Architecture Summary</h2>
+<pre><code>
+<p>┌─────────────────────────────────────────────────────┐</p>
+<p>│                    AUGECOIN Node                      │</p>
+<p>│                                                       │</p>
+<p>│  ┌──────────┐  ┌──────────────┐  ┌───────────────┐  │</p>
+<p>│  │  Crypto   │  │   Consensus  │  │    Network    │  │</p>
+<p>│  │ (Ed25519  │  │ (PoA Round)  │  │ (libp2p +    │  │</p>
+<p>│  │ +Dilithium│  │              │  │  gossipsub)   │  │</p>
+<p>│  │ +BLAKE3)  │  │              │  │               │  │</p>
+<p>│  └──────────┘  └──────────────┘  └───────────────┘  │</p>
+<p>│       │              │                  │             │</p>
+<p>│       └──────────────┼──────────────────┘             │</p>
+<p>│                      │                                │</p>
+<p>│  ┌───────────────────┼─────────────────────────────┐  │</p>
+<p>│  │              Execution Engine                     │  │</p>
+<p>│  │  (mempool → execute_block → SafeBox → commit)    │  │</p>
+<p>│  └───────────────────┬─────────────────────────────┘  │</p>
+<p>│                      │                                │</p>
+<p>│  ┌───────────────────┼─────────────────────────────┐  │</p>
+<p>│  │              Storage (RocksDB)                    │  │</p>
+<p>│  │  accounts | blocks | validator_set | equivoc.    │  │</p>
+<p>│  └──────────────────────────────────────────────────┘  │</p>
+<p>│                      │                                │</p>
+<p>│  ┌───────────────────┼─────────────────────────────┐  │</p>
+<p>│  │              RPC (JSON-RPC + gRPC over TLS)      │  │</p>
+<p>│  └──────────────────────────────────────────────────┘  │</p>
+<p>└─────────────────────────────────────────────────────┘</p>
+<pre><code>
+<h2>Crate Dependency Graph</h2>
+<pre><code>
+<p>augecoin-crypto ──→ augecoin-core ──→ augecoin-storage</p>
+<p>                                      │</p>
+<p>                     augecoin-consensus┘</p>
+<p>                           │</p>
+<p>                     augecoin-network</p>
+<p>                           │</p>
+<p>                     augecoin-node</p>
+<p>                           │</p>
+<p>                     augecoin-rpc ──→ augecoin-cli</p>
+<pre><code>
+<hr>
+<div id="chapter-2" class="chapter">
+<h1>Chapter 2 — Architecture</h1>
+<h2>Rust Workspace</h2>
+<p>The project is organized as a Cargo workspace with the following crates:</p>
+<tr><td>Crate</td><td>Entry</td><td>Sources</td><td>Tests</td></tr>
+<p>|---|---|---|---|</p>
+<tr><td>`augecoin-bench`</td><td>lib.rs</td><td>10 src</td><td>1 tests</td></tr>
+<tr><td>`augecoin-cli`</td><td>main.rs</td><td>4 src</td><td>0 tests</td></tr>
+<tr><td>`augecoin-consensus`</td><td>lib.rs</td><td>5 src</td><td>2 tests</td></tr>
+<tr><td>`augecoin-core`</td><td>lib.rs</td><td>12 src</td><td>1 tests</td></tr>
+<tr><td>`augecoin-crypto`</td><td>lib.rs</td><td>6 src</td><td>0 tests</td></tr>
+<tr><td>`augecoin-network`</td><td>lib.rs</td><td>3 src</td><td>0 tests</td></tr>
+<tr><td>`augecoin-node`</td><td>lib.rs</td><td>8 src</td><td>8 tests</td></tr>
+<tr><td>`augecoin-rpc`</td><td>lib.rs</td><td>4 src</td><td>0 tests</td></tr>
+<tr><td>`augecoin-storage`</td><td>lib.rs</td><td>3 src</td><td>0 tests</td></tr>
+<h2>Crate Responsibilities</h2>
+<h3>augecoin-crypto</h3>
+<p>Cryptographic primitives: Ed25519+Dilithium hybrid signatures, BLAKE3-512 hashing,</p>
+<p>HD key derivation (HKDF-SHA3-512), Bech32m address encoding, WASM bindings.</p>
+<h3>augecoin-core</h3>
+<p>Core data types: AugeAccount, Transaction, Block, BlockHeader, Operation,</p>
+<p>SafeBox, emission logic, mempool. Protocol-level serialization.</p>
+<h3>augecoin-storage</h3>
+<p>RocksDB persistence: column families for accounts, blocks, tx_index, validator_set,</p>
+<p>equivocation_proofs. State root computation (Merkle), checkpoints, snapshots.</p>
+<h3>augecoin-consensus</h3>
+<p>PoA consensus engine: ValidatorSet, round state machine (Propose→Collect→Commit),</p>
+<p>quorum verification (2/3+1), equivocation detection, leader selection.</p>
+<h3>augecoin-network</h3>
+<p>libp2p networking: Noise encryption, gossipsub for tx/block propagation,</p>
+<p>peer discovery (static bootnodes), sync manager, rate limiting.</p>
+<h3>augecoin-node</h3>
+<p>Node orchestration: block execution, mempool validation, genesis initialization,</p>
+<p>metrics (Prometheus), alert system, main entry point.</p>
+<h3>augecoin-rpc</h3>
+<p>JSON-RPC 2.0 + gRPC server over TLS: all blockchain endpoints, auth (API key),</p>
+<p>rate limiting, account/block/transaction queries.</p>
+<h3>augecoin-cli</h3>
+<p>CLI tool: validator management, status queries, earnings, security commands.</p>
+<p>Tab completion via clap, JSON and table output.</p>
+<h3>augecoin-bench</h3>
+<p>Benchmarks: block execution, consensus, storage, networking benchmarks.</p>
+<h2>Architecture Decision Records</h2>
+<p>The project maintains decisions in `docs/DECISIONS.md` with ADRs covering:</p>
+<p>- ADR-001: Cargo workspace structure</p>
+<p>- ADR-002: RocksDB as storage backend</p>
+<p>- ADR-003: Hybrid signature scheme (Ed25519 + Dilithium)</p>
+<p>- ADR-004: BLAKE3-512 for hashing</p>
+<p>- ADR-005: ClaimAccount auto-assignment to validator leader</p>
+<hr>
+<div id="chapter-3" class="chapter">
+<h1>Chapter 3 — SafeBox</h1>
+<p>&gt; **Veja também:** Storage, Consenso, AUGEID</p>
+<h2>Executive Summary</h2>
+<p>The SafeBox is AUGECOIN's core state container — a deterministic, incrementally</p>
+<p>committed BTreeMap of accounts that forms the consensus state root.</p>
+<h2>Responsibility</h2>
+<p>Persist the full blockchain state (accounts, name index) in a deterministic,</p>
+<p>verifiable structure. Every block execution modifies the SafeBox atomically.</p>
+<h2>Architectural Flow</h2>
+<h1>AUGECOIN — SafeBox Flow</h1>
+<p>&gt; Fonte: `crates/augecoin-core/src/safe_box.rs`, `crates/augecoin-storage/src/lib.rs`,</p>
+<p>&gt; `crates/augecoin-node/src/execution.rs`. Nós do grafo: `SafeBox`,</p>
+<p>&gt; `SafeboxCache`, `compute_safe_box_hash`, `commit_safebox_incremental`.</p>
+<h2>Estrutura</h2>
+<pre><code>
+<p>SafeBox {</p>
+<p>  header: SafeBoxHeader { protocol, start_block, end_block, blocks_count, safe_box_hash }</p>
+<p>  accounts: BTreeMap&lt;u64, Account&gt;          // ordenado por número</p>
+<p>  name_index: BTreeMap&lt;String, u64&gt;         // nome → número de conta (índice de nomes)</p>
+<p>}</p>
+<pre><code>
+<h2>Ciclo de vida do AUGEID (AccountState)</h2>
+<pre><code>
+<p>Unknown → (emissão do bloco) → Reserved → (venda/doação/ativação) → Owned → Normal</p>
+<p>                                        ↘ GiftPending (aguardando aceite)</p>
+<pre><code>
+<tr><td>Estado</td><td>Descrição</td></tr>
+<p>|---|---|</p>
+<tr><td>`Reserved`</td><td>Emitido ao líder do bloco; sem chave definitiva; não envia/recebe AUGE</td></tr>
+<tr><td>`Owned`</td><td>Tem proprietário (`account_key`, `n_operation=0`, `account_seal`)</td></tr>
+<tr><td>`ForSale`</td><td>Anunciado no marketplace (`sale_index`)</td></tr>
+<tr><td>`GiftPending`</td><td>Doação pendente (`gift_index`); aguarda aceite</td></tr>
+<tr><td>`Normal`</td><td>Conta operacional</td></tr>
+<p>A numeração é determinística: **AUGEID = bloco × 10 + offset (0..9)**. Cada bloco</p>
+<p>emite exatamente 10 AUGEIDs, todos `Reserved` e pertencentes ao líder.</p>
+<h2>Hash de consenso</h2>
+<p>`compute_safe_box_hash()` = raiz Merkle (blake3_512) sobre:</p>
+<p>1. `accounts.values().map(|a| a.hash())` — folha por conta;</p>
+<p>2. `name_index` — `blake3(name || number)` por entrada.</p>
+<p>- **Empty SafeBox → `[0u8; 64]`.**</p>
+<p>- O hash é gravado no header do bloco como `initial_safe_box_hash` e realimentado</p>
+<p>  no bloco seguinte (`prev_safe_box_hash`). **É parte do consenso.**</p>
+<p>- `sale_index` e `gift_index` são índices residentes derivados (NÃO entram no hash).</p>
+<h2>Persistência incremental</h2>
+<p>Todas as escritas de um bloco (contas modificadas + bloco + altura + validator_set</p>
+<p>+ snapshot periódico) são consolidadas num único `commit_block_atomic` (WriteBatch).</p>
+<pre><code>
+<p>execute_block (por bloco)</p>
+<p>  └─ commit_block_atomic(&amp;modified, block, validator_set_bytes)</p>
+<p>        ├─ WriteBatch: put_account(contas) + put_block + put_height + put_validator_set</p>
+<p>        ├─ atualiza SafeboxCache residente (accounts + name_index + pubkey_index</p>
+<p>        │   + sale_index + gift_index) — O(k)</p>
+<p>        └─ snapshot completo periódico (intervalo configurável)</p>
+<pre><code>
+<h2>Índices residentes (O(1), sincronizados incrementalmente)</h2>
+<tr><td>Índice</td><td>Mapeamento</td><td>Uso</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`name_index`</td><td>nome → AUGEID</td><td>resolução `resolve_name("CarlosPay")`</td></tr>
+<tr><td>`pubkey_index`</td><td>pubkey → refcount</td><td>detecção de chave duplicada</td></tr>
+<tr><td>`sale_index`</td><td>AUGEID → `SaleListing`</td><td>marketplace (`list_for_sale`)</td></tr>
+<tr><td>`gift_index`</td><td>AUGEID → `GiftListing`</td><td>doações pendentes (`list_pending_gifts`)</td></tr>
+<h2>Snapshot periódico</h2>
+<p>- Intervalo: `SAFEBOX_SNAPSHOT_INTERVAL_DEV = 100` / `_MAINNET = 1000`</p>
+<p>  (override `AUGECOIN_SAFEBOX_SNAPSHOT_INTERVAL`).</p>
+<p>- `flush_safebox_snapshot()` — força snapshot (shutdown/export/recovery).</p>
+<h2>Recuperação</h2>
+<p>- O hash é **sempre** reconstruído do CF `accounts` (fonte de verdade), nunca de</p>
+<p>  um snapshot potencialmente atrasado — crash entre snapshots é seguro.</p>
+<h2>Invariantes</h2>
+<p>- `SafeBox.accounts` ≡ conteúdo do CF `accounts` após o commit.</p>
+<p>- `name_index` ≡ derivado dos `account.name`.</p>
+<p>- A emissão é fixa: exatamente 10 AUGEIDs `Reserved` por bloco, todos do líder.</p>
+<p>- `CreateAccount` nunca cria número novo — apenas ativa um `Reserved` existente.</p>
+<h2>Main File</h2>
+<p>**Arquivo:** `crates/augecoin-core/src/safe_box.rs`</p>
+<p>**Comunidade Graphify:** 2 — "Storage"</p>
+<p>**God Node:** Storage (68 edges)</p>
+<h3>Source Code (excerpt)</h3>
+<pre><code>
+<p>use crate::account::Account;</p>
+<p>use augecoin_crypto::hash::blake3_512;</p>
+<p>use std::collections::BTreeMap;</p>
+<p>use thiserror::Error;</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct MerkleProof {</p>
+<p>    /// The account as it exists in the SafeBox.</p>
+<p>    pub account: Account,</p>
+<p>    /// Sibling hashes from leaf to root (each entry is the sibling at that level).</p>
+<p>    pub siblings: Vec&lt;[u8; 64]&gt;,</p>
+<p>    /// Index of the account leaf in the full leaf list (0-based).</p>
+<p>    pub leaf_index: usize,</p>
+<p>    /// Total number of leaves in the tree when the proof was generated.</p>
+<p>    pub total_leaves: usize,</p>
+<p>}</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum MerkleProofError {</p>
+<p>    #[error("proof verification failed")]</p>
+<p>    InvalidProof,</p>
+<p>    #[error("account not found in safebox")]</p>
+<p>    AccountNotFound,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct SafeBoxHeader {</p>
+<p>    pub protocol: u16,</p>
+<p>    pub start_block: u64,</p>
+<p>    pub end_block: u64,</p>
+<p>    pub blocks_count: u64,</p>
+<p>    pub safe_box_hash: [u8; 64],</p>
+<p>}</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct SafeBox {</p>
+<p>    pub header: SafeBoxHeader,</p>
+<p>    pub accounts: BTreeMap&lt;u64, Account&gt;,</p>
+<p>    pub name_index: BTreeMap&lt;String, u64&gt;,</p>
+<p>}</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum SafeBoxError {</p>
+<p>    #[error("account not found: {0}")]</p>
+<p>    AccountNotFound(u64),</p>
+<p>    #[error("invalid safe box hash")]</p>
+<p>    InvalidHash,</p>
+<p>}</p>
+<p>impl SafeBoxHeader {</p>
+<p>    pub fn new(protocol: u16, start_block: u64, end_block: u64) -&gt; Self {</p>
+<p>        SafeBoxHeader {</p>
+<p>            protocol,</p>
+<p>            start_block,</p>
+<p>            end_block,</p>
+<p>            blocks_count: end_block.saturating_sub(start_block),</p>
+<p>            safe_box_hash: [0u8; 64],</p>
+<p>        }</p>
+<p>    }</p>
+<p>    pub fn to_bytes(&amp;self) -&gt; Vec&lt;u8&gt; {</p>
+<p>        let mut buf = Vec::new();</p>
+<p>        buf.extend_from_slice(&amp;self.protocol.to_be_bytes());</p>
+<p>        buf.extend_from_slice(&amp;self.start_block.to_be_bytes());</p>
+<p>        buf.extend_from_slice(&amp;self.end_block.to_be_bytes());</p>
+<p>        buf.extend_from_slice(&amp;self.blocks_count.to_be_bytes());</p>
+<p>        buf.extend_from_slice(&amp;self.safe_box_hash);</p>
+<p>        buf</p>
+<p>    }</p>
+<p>    pub fn from_bytes(data: &amp;[u8]) -&gt; Option&lt;Self&gt; {</p>
+<p>        if data.len() &lt; 2 + 8 + 8 + 8 + 64 {</p>
+<p>            return None;</p>
+<p>        }</p>
+<p>        let mut pos = 0;</p>
+<p>        let protocol = u16::from_be_bytes([data[pos], data[pos + 1]]);</p>
+<p>        pos += 2;</p>
+<p>        let start_block = u64::from_be_bytes(data[pos..pos + 8].try_into().unwrap());</p>
+<p>        pos += 8;</p>
+<p>        let end_block = u64::from_be_bytes(data[pos..pos + 8].try_into().unwrap());</p>
+<p>        pos += 8;</p>
+<p>        let blocks_count = u64::from_be_bytes(data[pos..pos + 8].try_into().unwrap());</p>
+<p>        pos += 8;</p>
+<p>        let safe_box_hash: [u8; 64] = data[pos..pos + 64].try_into().unwrap();</p>
+<p>        Some(SafeBoxHeader {</p>
+<p>            protocol,</p>
+<p>            start_block,</p>
+<p>            end_block,</p>
+<p>            blocks_count,</p>
+<p>            safe_box_hash,</p>
+<p>        })</p>
+<p>    }</p>
+<p>}</p>
+<p>impl SafeBox {</p>
+<p>    pub fn new(protocol: u16, start_block: u64) -&gt; Self {</p>
+<p>        SafeBox {</p>
+<p>            header: SafeBoxHeader::new(protocol, start_block, start_block),</p>
+<p>            accounts: BTreeMap::new(),</p>
+<p>            name_index: BTreeMap::new(),</p>
+<p>        }</p>
+<p>    }</p>
+<p>    pub fn get_account(&amp;self, account_number: u64) -&gt; Option&lt;&amp;Account&gt; {</p>
+<p>        self.accounts.get(&amp;account_number)</p>
+<p>    }</p>
+<p>    pub fn get_account_mut(&amp;mut self, account_number: u64) -&gt; Option&lt;&amp;mut Account&gt; {</p>
+<p>        self.accounts.get_mut(&amp;account_number)</p>
+<p>    }</p>
+<p>    pub fn add_account(&amp;mut self, account: Account) {</p>
+<p>        // Remove old name entry for this account if it had one</p>
+<p>        if let Some(old) = self.accounts.get(&amp;account.account_number) {</p>
+<p>            if let Some(ref old_name) = old.name {</p>
+<p>                self.name_index.remove(old_name);</p>
+<p>            }</p>
+<p>        }</p>
+<p>        // Insert new name if account has one</p>
+<p>        if let Some(ref name) = account.name {</p>
+<p>            self.name_index.insert(name.clone(), account.account_number);</p>
+<p>        }</p>
+<p>        self.accounts.insert(account.account_number, account);</p>
+<p>    }</p>
+<p>    pub fn account_count(&amp;self) -&gt; u64 {</p>
+<p>        self.accounts.len() as u64</p>
+<p>    }</p>
+<p>    pub fn max_account_number(&amp;self) -&gt; u64 {</p>
+<p>        self.accounts.keys().last().copied().unwrap_or(0)</p>
+<p>    }</p>
+<p>    pub fn is_name_taken(&amp;self, name: &amp;str) -&gt; Option&lt;u64&gt; {</p>
+<p>        self.name_index.get(name).copied()</p>
+<p>    }</p>
+<p>    pub fn compute_safe_box_hash(&amp;self) -&gt; [u8; 64] {</p>
+<p>        if self.accounts.is_empty() {</p>
+<p>            return [0u8; 64];</p>
+<p>        }</p>
+<p>        let mut hashes: Vec&lt;[u8; 64]&gt; = self.accounts.values().map(|a| a.hash()).collect();</p>
+<p>        // Include name_index entries in the hash for consensus</p>
+<p>        for (name, number) in &amp;self.name_index {</p>
+<p>            let mut data = Vec::new();</p>
+<p>            data.extend_from_slice(name.as_bytes());</p>
+<p>            data.extend_from_slice(&amp;number.to_be_bytes());</p>
+<p>            hashes.push(blake3_512(&amp;data));</p>
+<p>        }</p>
+<p>// ... (492 lines total)</p>
+<pre><code>
+<h2>Riscos</h2>
+<p>- Memory usage scales with account count (BTreeMap in memory)</p>
+<p>- Recovery depends on RocksDB integrity</p>
+<p>- Snapshot interval affects recovery time</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Storage** (Chapter 5): RocksDB persistence of SafeBox state</p>
+<p>- **Consenso** (Chapter 4): SafeBox hash included in block header</p>
+<p>- **AUGEID** (Chapter 9): Account lifecycle within SafeBox</p>
+<hr>
+<div id="chapter-4" class="chapter">
+<h1>Chapter 4 — Consensus</h1>
+<p>&gt; **Veja também:** SafeBox, Rede, RPC</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN uses Proof of Authority (PoA) with round-robin leader selection,</p>
+<p>2/3+1 quorum requirement, and automatic view-change on timeout.</p>
+<h2>Responsibility</h2>
+<p>Coordinate block proposal, validation, signing and finalization among</p>
+<p>authorized validators.</p>
+<h2>Architectural Flow</h2>
+<h1>AUGECOIN — Consensus Flow (PoA)</h1>
+<p>&gt; Fonte: `crates/augecoin-consensus/*`, `crates/augecoin-node/src/consensus.rs`,</p>
+<p>&gt; `crates/augecoin-node/src/main.rs`. Nós do grafo: `ConsensusEngine`,</p>
+<p>&gt; `RoundState`, `ValidatorSet`, `quorum_threshold`, `EquivocationProof`.</p>
+<h2>Modelo</h2>
+<p>- **PoA (Proof of Authority)** com líder rotativo round-robin.</p>
+<p>- `ValidatorSet.active_validators()` ordena os validadores ativos.</p>
+<p>- Líder da altura H: `leader_for(H, round, set)` = `active[(H+1+round) % len]`.</p>
+<p>- Quórum: `quorum_threshold(n)` = 2/3 (ver `quorum.rs`).</p>
+<h2>Fases de um round (`round.rs`)</h2>
+<p>1. **Propose** — líder constrói bloco (`ConsensusEngine::build_block`) com</p>
+<p>   `initial_safe_box_hash` (hash do SafeBox anterior) e assina.</p>
+<p>2. **Collect** — `add_signature` acumula assinaturas dos demais validadores.</p>
+<p>3. **Commit** — `try_commit` quando assinaturas ≥ quórum.</p>
+<p>4. **Timeout** — `check_timeout` dispara `view_change` para o próximo líder.</p>
+<h2>Eventos de rede (`ConsensusEvent`, `ConsensusTransport`)</h2>
+<p>- `BlockProposal`, `BlockResponse`, `BlockRequest`, `StatusRequest`,</p>
+<p>  `RoundChange`, `CommitNotification`, operações gossiped.</p>
+<p>- Transporte: libp2p gossipsub (mesh de consenso) + Kademlia (descoberta).</p>
+<h2>Verificação de bloco (`execution.rs::verify_block_quorum`)</h2>
+<p>1. Rejeita timestamp futuro além de `CT_MAX_FUTURE_BLOCK_TIMESTAMP_SECONDS`.</p>
+<p>2. Verifica assinatura do líder (Ed25519) sobre `block.hash()`.</p>
+<p>3. Verifica assinaturas de quórum dos validadores ativos.</p>
+<p>4. Valida `operations_hash` == Merkle das operações do bloco.</p>
+<h2>Fluxo de finalização (visão `main.rs`)</h2>
+<pre><code>
+<p>Idle → (se é líder) build_block → AwaitingSignatures</p>
+<p>     → (threshold atingido) execute_block → Executed</p>
+<p>     → grava bloco + altura + SafeBox incremental + prune</p>
+<p>     → sync_validator_set_from_storage → próximo round</p>
+<pre><code>
+<p>- Catch-up: `apply_catchup_block` (blocos recebidos fora de ordem são aplicados</p>
+<p>  após verificação de quórum).</p>
+<p>- Equivocação: `detect_equivocation` gera `EquivocationProof` persistido em</p>
+<p>  `equivocation_proofs`.</p>
+<h2>Determinismo</h2>
+<p>- `execute_block` é determinístico: mesmo bloco + mesmo estado → mesmo</p>
+<p>  `safe_box_hash` (validado por `determinism_test.rs`).</p>
+<p>- `compute_safe_box_hash` (Merkle) não mudou; a refatoração do SafeBox afetou</p>
+<p>  apenas a persistência local, nunca o hash de consenso.</p>
+<h2>Key Files</h2>
+<h3>quorum.rs</h3>
+<p>**Comunidade:** 82 — "quorum.rs"</p>
+<p>**God Node:** quorum.rs</p>
+<pre><code>
+<p>use crate::validator::{ValidatorInfo, ValidatorSet};</p>
+<p>use augecoin_crypto::signature::HybridSignature;</p>
+<p>pub fn quorum_threshold(validator_count: u64) -&gt; u64 {</p>
+<p>    if validator_count == 0 {</p>
+<p>        return 0;</p>
+<p>    }</p>
+<p>    (validator_count * 2) / 3 + 1</p>
+<p>}</p>
+<p>pub fn verify_quorum(</p>
+<p>    signatures: &amp;[HybridSignature],</p>
+<p>    validator_set: &amp;ValidatorSet,</p>
+<p>    block_hash: &amp;[u8; 64],</p>
+<p>) -&gt; bool {</p>
+<p>    let active = validator_set.active_validators();</p>
+<p>    let threshold = quorum_threshold(active.len() as u64);</p>
+<p>    let mut valid_count: u64 = 0;</p>
+<p>    for sig in signatures {</p>
+<p>        for validator in &amp;active {</p>
+<p>            if sig.verify_validator(validator, block_hash) {</p>
+<p>                valid_count += 1;</p>
+<p>                break;</p>
+<p>            }</p>
+<p>        }</p>
+<p>    }</p>
+<p>    valid_count &gt;= threshold</p>
+<p>}</p>
+<p>trait SignatureExt {</p>
+<p>    fn verify_validator(&amp;self, validator: &amp;ValidatorInfo, message: &amp;[u8]) -&gt; bool;</p>
+<p>}</p>
+<p>impl SignatureExt for HybridSignature {</p>
+<p>    fn verify_validator(&amp;self, validator: &amp;ValidatorInfo, message: &amp;[u8]) -&gt; bool {</p>
+<p>        let pk = ed25519_dalek::VerifyingKey::from_bytes(&amp;validator.ed25519_public_key).unwrap();</p>
+<p>        self.verify(&amp;pk, message)</p>
+<p>    }</p>
+<p>}</p>
+<p>#[cfg(test)]</p>
+<p>mod tests {</p>
+<p>    use super::*;</p>
+<p>    use crate::validator::ValidatorInfo;</p>
+<p>    use augecoin_crypto::hdkeys::HdWallet;</p>
+<p>    use augecoin_crypto::signature::HybridKeyPair;</p>
+<p>    #[test]</p>
+<p>    fn quorum_3_of_4() {</p>
+<p>        assert_eq!(quorum_threshold(4), 3);</p>
+<p>    }</p>
+<p>    #[test]</p>
+<p>    fn quorum_2_of_2() {</p>
+<p>        assert_eq!(quorum_threshold(2), 2);</p>
+<p>    }</p>
+<p>    #[test]</p>
+<p>    fn quorum_5_of_7() {</p>
+<p>        assert_eq!(quorum_threshold(7), 5);</p>
+<p>    }</p>
+<p>    #[test]</p>
+<p>    fn quorum_1_of_1() {</p>
+<p>        assert_eq!(quorum_threshold(1), 1);</p>
+<p>    }</p>
+<p>    #[test]</p>
+<p>    fn exactly_quorum_finalizes() {</p>
+<p>        let admin = HybridKeyPair::generate();</p>
+<p>        let validators: Vec&lt;ValidatorInfo&gt; = (0..4).map(make_test_validator).collect();</p>
+<p>        let set = ValidatorSet::new(admin.verifying_key(), validators);</p>
+<p>        let block_hash = [1u8; 64];</p>
+<p>        let sigs: Vec&lt;HybridSignature&gt; = (0..3)</p>
+<p>            .map(|i| {</p>
+<p>                let kp = make_test_keypair(i);</p>
+<p>                kp.sign(&amp;block_hash)</p>
+<p>            })</p>
+<p>            .collect();</p>
+<p>        assert!(verify_quorum(&amp;sigs, &amp;set, &amp;block_hash));</p>
+<p>    }</p>
+<p>    #[test]</p>
+<p>    fn less_than_quorum_does_not_finalize() {</p>
+<p>        let admin = HybridKeyPair::generate();</p>
+<p>        let validators: Vec&lt;ValidatorInfo&gt; = (0..4).map(make_test_validator).collect();</p>
+<p>        let set = ValidatorSet::new(admin.verifying_key(), validators);</p>
+<p>        let block_hash = [2u8; 64];</p>
+<p>        let sigs: Vec&lt;HybridSignature&gt; = (0..2)</p>
+<p>            .map(|i| {</p>
+<p>                let kp = make_test_keypair(i);</p>
+<p>                kp.sign(&amp;block_hash)</p>
+<p>            })</p>
+<p>            .collect();</p>
+<p>        assert!(!verify_quorum(&amp;sigs, &amp;set, &amp;block_hash));</p>
+<p>    }</p>
+<p>    fn make_test_keypair(index: u64) -&gt; HybridKeyPair {</p>
+<p>        let seed = [index as u8; 64];</p>
+<p>        HdWallet::from_seed(&amp;seed).derive_keypair(0)</p>
+<p>    }</p>
+<p>    fn make_test_validator(index: u64) -&gt; ValidatorInfo {</p>
+<p>        let kp = make_test_keypair(index);</p>
+<p>        let vk = kp.verifying_key();</p>
+<p>        let mut ed = [0u8; 32];</p>
+<p>        ed.copy_from_slice(&amp;vk.to_bytes());</p>
+<p>        ValidatorInfo::new_active(index, ed)</p>
+<p>    }</p>
+<p>}</p>
+<pre><code>
+<h3>round.rs</h3>
+<p>**Comunidade:** 42 — "round.rs"</p>
+<pre><code>
+<p>use crate::validator::ValidatorSet;</p>
+<p>use augecoin_core::block::OperationBlock;</p>
+<p>use augecoin_crypto::signature::HybridSignature;</p>
+<p>use thiserror::Error;</p>
+<p>#[derive(Debug, Clone, Copy, PartialEq, Eq)]</p>
+<p>pub enum RoundPhase {</p>
+<p>    Propose,</p>
+<p>    Verify,</p>
+<p>    Sign,</p>
+<p>    Commit,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone)]</p>
+<p>pub struct RoundState {</p>
+<p>    pub height: u64,</p>
+<p>    pub phase: RoundPhase,</p>
+<p>    pub leader_id: u64,</p>
+<p>    pub proposed_block: Option&lt;OperationBlock&gt;,</p>
+<p>    pub collected_signatures: Vec&lt;HybridSignature&gt;,</p>
+<p>    pub timeout_seconds: u64,</p>
+<p>    pub phase_entered_at: u64,</p>
+<p>}</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum RoundError {</p>
+<p>    #[error("invalid phase transition from {from:?} to {to:?}")]</p>
+<p>    InvalidTransition { from: RoundPhase, to: RoundPhase },</p>
+<p>    #[error("no block proposed")]</p>
+<p>    NoBlockProposed,</p>
+<p>}</p>
+<p>impl RoundState {</p>
+<p>    pub fn new(height: u64, leader_id: u64, timeout_seconds: u64, now: u64) -&gt; Self {</p>
+<p>        RoundState {</p>
+<p>            height,</p>
+<p>            phase: RoundPhase::Propose,</p>
+<p>            leader_id,</p>
+<p>            proposed_block: None,</p>
+<p>            collected_signatures: Vec::new(),</p>
+<p>            timeout_seconds,</p>
+<p>            phase_entered_at: now,</p>
+<p>        }</p>
+<p>    }</p>
+<p>    pub fn propose_block(&amp;mut self, block: OperationBlock) -&gt; Result&lt;(), RoundError&gt; {</p>
+<p>        if self.phase != RoundPhase::Propose {</p>
+<p>            return Err(RoundError::InvalidTransition {</p>
+<p>                from: self.phase,</p>
+<p>                to: RoundPhase::Verify,</p>
+<p>            });</p>
+<p>        }</p>
+<p>        self.proposed_block = Some(block);</p>
+<p>        self.phase = RoundPhase::Verify;</p>
+<p>        Ok(())</p>
+<p>    }</p>
+<p>    pub fn verify_and_advance(&amp;mut self, is_valid: bool) -&gt; Result&lt;(), RoundError&gt; {</p>
+<p>        if self.phase != RoundPhase::Verify {</p>
+<p>            return Err(RoundError::InvalidTransition {</p>
+<p>                from: self.phase,</p>
+<p>                to: RoundPhase::Sign,</p>
+<p>            });</p>
+<p>        }</p>
+<p>        if !is_valid {</p>
+<p>            return Ok(());</p>
+<p>        }</p>
+<p>        self.phase = RoundPhase::Sign;</p>
+<p>        Ok(())</p>
+<p>    }</p>
+<p>    pub fn add_signature(&amp;mut self, signature: HybridSignature) {</p>
+<p>        self.collected_signatures.push(signature);</p>
+<p>    }</p>
+<p>    pub fn try_commit(&amp;mut self, validator_set: &amp;ValidatorSet) -&gt; Result&lt;bool, RoundError&gt; {</p>
+<p>        if self.phase != RoundPhase::Sign {</p>
+<p>            return Err(RoundError::InvalidTransition {</p>
+<p>                from: self.phase,</p>
+<p>                to: RoundPhase::Commit,</p>
+<p>            });</p>
+<p>        }</p>
+<p>        let active_count = validator_set.active_validators().len() as u64;</p>
+<p>        if active_count == 0 {</p>
+<p>            return Ok(false);</p>
+<p>        }</p>
+<p>        let quorum_threshold = crate::quorum::quorum_threshold(active_count);</p>
+<p>        if self.collected_signatures.len() as u64 &gt;= quorum_threshold {</p>
+<p>            self.phase = RoundPhase::Commit;</p>
+<p>            return Ok(true);</p>
+<p>        }</p>
+<p>        Ok(false)</p>
+<p>    }</p>
+<p>    pub fn check_timeout(&amp;self, now: u64) -&gt; bool {</p>
+<p>        now &gt;= self.phase_entered_at + self.timeout_seconds</p>
+<p>    }</p>
+<p>    pub fn view_change(&amp;mut self, next_leader_id: u64, now: u64) {</p>
+<p>        self.leader_id = next_leader_id;</p>
+<p>        self.phase = RoundPhase::Propose;</p>
+<p>        self.proposed_block = None;</p>
+<p>        self.collected_signatures.clear();</p>
+<p>        self.phase_entered_at = now;</p>
+<p>    }</p>
+<p>}</p>
+<p>#[cfg(test)]</p>
+<p>mod tests {</p>
+<p>    use super::*;</p>
+<p>    use augecoin_core::block::OperationBlockHeader;</p>
+<p>    use augecoin_core::operation::{</p>
+<p>        Operation, OperationPayload, OperationType, ReceiverInfo, SenderInfo,</p>
+<p>    };</p>
+<p>    fn dummy_sig() -&gt; HybridSignature {</p>
+<p>        HybridSignature { bytes: [7u8; 64] }</p>
+<p>    }</p>
+<p>    fn dummy_block(leader_id: u64) -&gt; OperationBlock {</p>
+<p>        OperationBlock {</p>
+<p>            header: OperationBlockHeader {</p>
+<p>                block_number: 1,</p>
+<p>                account_key: [0u8; 32],</p>
+<p>                reward: 100,</p>
+<p>                fee: 0,</p>
+<p>                protocol_version: 5,</p>
+<p>                protocol_available: 6,</p>
+<p>                timestamp: 1000,</p>
+<p>                initial_safe_box_hash: [0u8; 64],</p>
+<p>                operations_hash: [0u8; 64],</p>
+<p>                block_payload: vec![],</p>
+<p>                proof_of_work: [0u8; 32],</p>
+<p>                previous_proof_of_work: [0u8; 32],</p>
+<p>                leader_id,</p>
+<p>                chain_id: 1,</p>
+<p>            },</p>
+<p>            operations: vec![Operation {</p>
+<p>                op_type: OperationType::Transaction,</p>
+<p>                chain_id: 1,</p>
+<p>                payload: OperationPayload::Transaction {</p>
+<p>                    senders: vec![SenderInfo {</p>
+<p>                        account: 1,</p>
+<p>                        n_operation: 0,</p>
+<p>                        amount: 100,</p>
+<p>                        payload: vec![],</p>
+<p>                    }],</p>
+<p>// ... (212 lines total)</p>
+<pre><code>
+<h3>validator.rs</h3>
+<p>**Comunidade:** 20 — "validator.rs"</p>
+<pre><code>
+<p>use augecoin_core::operation::{Operation, OperationPayload, ValidatorAdminOp};</p>
+<p>use augecoin_crypto::signature::HybridPublicKey;</p>
+<p>use thiserror::Error;</p>
+<p>const ED25519_PK_LEN: usize = 32;</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub enum ValidatorStatus {</p>
+<p>    PendingActivation { activation_height: u64 },</p>
+<p>    Active,</p>
+<p>    Inactive,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct ValidatorInfo {</p>
+<p>    pub id: u64,</p>
+<p>    pub ed25519_public_key: [u8; ED25519_PK_LEN],</p>
+<p>    pub status: ValidatorStatus,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone)]</p>
+<p>pub struct ValidatorSet {</p>
+<p>    admin_public_key: HybridPublicKey,</p>
+<p>    validators: Vec&lt;ValidatorInfo&gt;,</p>
+<p>    next_validator_id: u64,</p>
+<p>}</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum ValidatorSetError {</p>
+<p>    #[error("invalid admin signature")]</p>
+<p>    InvalidAdminSignature,</p>
+<p>    #[error("validator already exists")]</p>
+<p>    ValidatorAlreadyExists,</p>
+<p>    #[error("validator not found")]</p>
+<p>    ValidatorNotFound,</p>
+<p>    #[error("no active validators")]</p>
+<p>    NoActiveValidators,</p>
+<p>    #[error("cannot remove last active validator")]</p>
+<p>    CannotRemoveLastActive,</p>
+<p>    #[error("{0}")]</p>
+<p>    InvalidActivation(String),</p>
+<p>}</p>
+<p>impl ValidatorSet {</p>
+<p>    pub fn new(admin_public_key: HybridPublicKey, initial_validators: Vec&lt;ValidatorInfo&gt;) -&gt; Self {</p>
+<p>        let mut next_id = 0u64;</p>
+<p>        for v in &amp;initial_validators {</p>
+<p>            if v.id &gt;= next_id {</p>
+<p>                next_id = v.id + 1;</p>
+<p>            }</p>
+<p>        }</p>
+<p>        ValidatorSet {</p>
+<p>            admin_public_key,</p>
+<p>            validators: initial_validators,</p>
+<p>            next_validator_id: next_id,</p>
+<p>        }</p>
+<p>    }</p>
+<p>    pub fn admin_public_key(&amp;self) -&gt; &amp;HybridPublicKey {</p>
+<p>        &amp;self.admin_public_key</p>
+<p>    }</p>
+<p>    pub fn validators(&amp;self) -&gt; &amp;[ValidatorInfo] {</p>
+<p>        &amp;self.validators</p>
+<p>    }</p>
+<p>    pub fn active_validators(&amp;self) -&gt; Vec&lt;&amp;ValidatorInfo&gt; {</p>
+<p>        self.validators</p>
+<p>            .iter()</p>
+<p>            .filter(|v| v.status == ValidatorStatus::Active)</p>
+<p>            .collect()</p>
+<p>    }</p>
+<p>    pub fn leader_for_height(&amp;self, height: u64) -&gt; Result&lt;&amp;ValidatorInfo, ValidatorSetError&gt; {</p>
+<p>        let active = self.active_validators();</p>
+<p>        if active.is_empty() {</p>
+<p>            return Err(ValidatorSetError::NoActiveValidators);</p>
+<p>        }</p>
+<p>        let index = (height as usize) % active.len();</p>
+<p>        Ok(active[index])</p>
+<p>    }</p>
+<p>    pub fn apply_validator_admin(</p>
+<p>        &amp;mut self,</p>
+<p>        op: &amp;Operation,</p>
+<p>        current_height: u64,</p>
+<p>    ) -&gt; Result&lt;(), ValidatorSetError&gt; {</p>
+<p>        let va_op = match &amp;op.payload {</p>
+<p>            OperationPayload::ValidatorAdmin(op) =&gt; op,</p>
+<p>            _ =&gt; return Err(ValidatorSetError::InvalidAdminSignature),</p>
+<p>        };</p>
+<p>        let message = op.to_bytes_stripped();</p>
+<p>        let admin_pk = &amp;self.admin_public_key;</p>
+<p>        let all_ok = op</p>
+<p>            .signatures</p>
+<p>            .iter()</p>
+<p>            .any(|sig| sig.verify(admin_pk, &amp;message));</p>
+<p>        if !all_ok {</p>
+<p>            return Err(ValidatorSetError::InvalidAdminSignature);</p>
+<p>        }</p>
+<p>        match va_op {</p>
+<p>            ValidatorAdminOp::Add {</p>
+<p>                ed25519_public_key,</p>
+<p>                activation_height,</p>
+<p>                ..</p>
+<p>            } =&gt; {</p>
+<p>                let id = self.next_validator_id;</p>
+<p>                self.next_validator_id += 1;</p>
+<p>                let status = if *activation_height &lt;= current_height {</p>
+<p>                    ValidatorStatus::Active</p>
+<p>                } else {</p>
+<p>                    ValidatorStatus::PendingActivation {</p>
+<p>                        activation_height: *activation_height,</p>
+<p>                    }</p>
+<p>                };</p>
+<p>                self.validators.push(ValidatorInfo {</p>
+<p>                    id,</p>
+<p>                    ed25519_public_key: *ed25519_public_key,</p>
+<p>                    status,</p>
+<p>                });</p>
+<p>            }</p>
+<p>            ValidatorAdminOp::Remove {</p>
+<p>                validator_id,</p>
+<p>                activation_height,</p>
+<p>                ..</p>
+<p>            } =&gt; {</p>
+<p>                if *activation_height &gt; current_height {</p>
+<p>                    return Err(ValidatorSetError::InvalidActivation(</p>
+<p>                        "Remove operation requires activation_height &lt;= current_height".to_string(),</p>
+<p>                    ));</p>
+<p>                }</p>
+<p>                if !self.validators.iter().any(|v| v.id == *validator_id) {</p>
+<p>                    return Err(ValidatorSetError::ValidatorNotFound);</p>
+<p>                }</p>
+<p>                if self.active_validators().len() &lt;= 1</p>
+<p>                    &amp;&amp; self</p>
+<p>                        .validators</p>
+<p>                        .iter()</p>
+<p>                        .any(|v| v.id == *validator_id &amp;&amp; v.status == ValidatorStatus::Active)</p>
+<p>                {</p>
+<p>                    return Err(ValidatorSetError::CannotRemoveLastActive);</p>
+<p>                }</p>
+<p>                self.validators.retain(|v| v.id != *validator_id);</p>
+<p>            }</p>
+<p>            ValidatorAdminOp::Activate {</p>
+<p>// ... (576 lines total)</p>
+<pre><code>
+<h2>Comparação: Protocolo Antigo vs Novo</h2>
+<tr><td>Aspect</td><td>Original</td><td>Current</td></tr>
+<p>|---|---|---|</p>
+<tr><td>Leader selection</td><td>Random</td><td>Round-robin deterministic</td></tr>
+<tr><td>Quorum</td><td>Fixed 3/4</td><td>2/3+1 (scalable)</td></tr>
+<tr><td>Timeout</td><td>60s</td><td>120s (2x block time)</td></tr>
+<tr><td>Equivocation</td><td>Detected, not proven</td><td>On-chain proof generation</td></tr>
+<h2>Riscos</h2>
+<p>- Single admin key for validator management (centralization)</p>
+<p>- No slashing mechanism beyond admin removal</p>
+<p>- View-change depends on timeout accuracy</p>
+<h2>Referências Cruzadas</h2>
+<p>- **SafeBox** (Chapter 3): Initial safe box hash in block proposal</p>
+<p>- **Rede** (Chapter 6): Consensus transport over libp2p</p>
+<p>- **RPC** (Chapter 7): Validator set queries</p>
+<hr>
+<div id="chapter-5" class="chapter">
+<h1>Chapter 5 — Storage</h1>
+<p>&gt; **Veja também:** SafeBox, Consenso</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN uses RocksDB as its persistent storage backend with 5 column families</p>
+<p>for different data types. All block writes are atomic via WriteBatch.</p>
+<h2>Responsibility</h2>
+<p>Provide durable, consistent storage for accounts, blocks, validator set,</p>
+<p>transaction index and equivocation proofs.</p>
+<h2>RocksDB Column Families</h2>
+<tr><td>CF Name</td><td>Content</td><td>Access Pattern</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`accounts`</td><td>AugeAccount serialized</td><td>Read/write per block</td></tr>
+<tr><td>`blocks`</td><td>Block headers + bodies</td><td>Write once, read often</td></tr>
+<tr><td>`tx_index`</td><td>Transaction hash → block</td><td>Write once, index lookup</td></tr>
+<tr><td>`validator_set`</td><td>Active validator set</td><td>Write per governance change</td></tr>
+<tr><td>`equivocation_proofs`</td><td>EquivocationProof</td><td>Write on detection</td></tr>
+<h2>Atomic Writes (WriteBatch)</h2>
+<p>All state changes for a block are consolidated in a single `WriteBatch`:</p>
+<pre><code>
+<p>commit_block_atomic:</p>
+<p>  ├─ put_account(modified_accounts)</p>
+<p>  ├─ put_block(block)</p>
+<p>  ├─ put_height(height)</p>
+<p>  ├─ put_validator_set(validator_set)</p>
+<p>  └─ flush (WAL)</p>
+<pre><code>
+<h2>WAL Growth Solution</h2>
+<p>The Write-Ahead Log (WAL) growth issue was resolved by:</p>
+<p>1. Configuring `set_max_total_wal_size` to limit WAL disk usage</p>
+<p>2. Periodic compaction triggers after checkpoint snapshots</p>
+<p>3. `set_keep_log_num` for WAL file retention control</p>
+<h2>State Root (Merkle Tree)</h2>
+<p>use augecoin_core::account::Account;</p>
+<p>use augecoin_core::hash::blake3_512 as hash;</p>
+<p>use rocksdb::{IteratorMode, DB};</p>
+<p>use std::collections::BTreeMap;</p>
+<p>const EMPTY_STATE_ROOT: [u8; 64] = [0u8; 64];</p>
+<p>pub fn compute_state_root(db: &amp;DB, cf_accounts: &amp;rocksdb::ColumnFamilyRef) -&gt; [u8; 64] {</p>
+<p>    let mut accounts: BTreeMap&lt;u64, Account&gt; = BTreeMap::new();</p>
+<p>    let iter = db.iterator_cf(cf_accounts, IteratorMode::Start);</p>
+<p>    for item in iter {</p>
+<p>        let (key, value) = item.expect("rocksdb iteration error</p>
+<h2>Checkpoints</h2>
+<p>use crate::{Storage, CF_ACCOUNTS};</p>
+<p>use augecoin_core::account::Account;</p>
+<p>use rocksdb::IteratorMode;</p>
+<p>use std::collections::HashMap;</p>
+<p>const CHECKPOINT_VERSION: u8 = 1;</p>
+<p>#[derive(Debug)]</p>
+<p>pub struct AccountSnapshot {</p>
+<p>    height: u64,</p>
+<p>    accounts: HashMap&lt;u64, Account&gt;,</p>
+<p>}</p>
+<p>impl AccountSnapshot {</p>
+<p>    pub fn height(&amp;self) -&gt; u64 {</p>
+<p>        self.height</p>
+<p>    }</p>
+<p>    pub fn len(&amp;self) -&gt; usize {</p>
+<p>        self.accounts.len()</p>
+<p>    }</p>
+<p>    pub fn is_empty(&amp;self) -&gt; bool {</p>
+<p>        self.accounts.is_empty()</p>
+<p>    }</p>
+<h2>Main Storage Implementation</h2>
+<pre><code>
+<p>pub mod checkpoint;</p>
+<p>pub mod state_root;</p>
+<p>use augecoin_core::account::Account;</p>
+<p>use augecoin_core::block::OperationBlock;</p>
+<p>use augecoin_core::safe_box::SafeBox;</p>
+<p>use rocksdb::{ColumnFamilyDescriptor, DBCompressionType, Options, WriteBatch, DB};</p>
+<p>use std::collections::{BTreeMap, HashMap};</p>
+<p>use std::path::{Path, PathBuf};</p>
+<p>use std::sync::Mutex;</p>
+<p>use thiserror::Error;</p>
+<p>pub(crate) const CF_ACCOUNTS: &amp;str = "accounts";</p>
+<p>const CF_BLOCKS: &amp;str = "blocks";</p>
+<p>const CF_SAFEBOX: &amp;str = "safebox";</p>
+<p>const CF_OP_INDEX: &amp;str = "op_index";</p>
+<p>const CF_VALIDATOR_SET: &amp;str = "validator_set";</p>
+<p>const CF_EQUIVOCATION_PROOFS: &amp;str = "equivocation_proofs";</p>
+<p>const CF_FAUCET_CLAIMS: &amp;str = "faucet_claims";</p>
+<p>const ALL_COLUMN_FAMILIES: &amp;[&amp;str] = &amp;[</p>
+<p>    CF_ACCOUNTS,</p>
+<p>    CF_BLOCKS,</p>
+<p>    CF_SAFEBOX,</p>
+<p>    CF_OP_INDEX,</p>
+<p>    CF_VALIDATOR_SET,</p>
+<p>    CF_EQUIVOCATION_PROOFS,</p>
+<p>    CF_FAUCET_CLAIMS,</p>
+<p>];</p>
+<p>// RocksDB tuning — see DECISIONS: disk growth was dominated by full SafeBox</p>
+<p>// rewrites every block plus WAL-driven flushes. These options reduce write</p>
+<p>// amplification and bound the info log.</p>
+<p>const WAL_SIZE: u64 = 1024 * 1024 * 1024; // 1 GiB max total WAL</p>
+<p>const MAX_LOG_FILE_SIZE: usize = 64 * 1024 * 1024; // rotate info LOG at 64 MiB</p>
+<p>const KEEP_LOG_FILE_NUM: usize = 10; // keep at most 10 info LOG files</p>
+<p>const LOG_FILE_TIME_TO_ROLL: usize = 86400; // seconds (1 day)</p>
+<p>const WRITE_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64 MiB memtable</p>
+<p>const MAX_WRITE_BUFFER_NUMBER: i32 = 3;</p>
+<p>const MIN_WRITE_BUFFER_NUMBER_TO_MERGE: i32 = 1;</p>
+<p>const TARGET_FILE_SIZE_BASE: u64 = 64 * 1024 * 1024; // 64 MiB SST target</p>
+<p>const MAX_BYTES_FOR_LEVEL_BASE: u64 = 512 * 1024 * 1024; // 512 MiB L1</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum StorageError {</p>
+<p>    #[error("database error: {0}")]</p>
+<p>    Database(String),</p>
+<p>    #[error("serialization error: {0}")]</p>
+<p>    Serialization(String),</p>
+<p>}</p>
+<p>/// Resident in-memory SafeBox cache plus the dirty account set.</p>
+<p>///</p>
+<p>/// The SafeBox is consensus-critical (its Merkle hash is committed into each</p>
+<p>/// block header), but its *serialization* to RocksDB is only a cache: the same</p>
+<p>/// state is reconstructible from the `accounts` column family. This cache keeps</p>
+<p>/// the full SafeBox alive in memory and persists it only periodically, so a</p>
+<p>/// block commit touches only the modified accounts instead of rewriting ~76 MB.</p>
+<p>struct SafeboxCache {</p>
+<p>    /// The resident SafeBox; `None` until first load.</p>
+<p>    safebox: Option&lt;SafeBox&gt;,</p>
+<p>    /// Resident index of in-use Ed25519 public keys → number of accounts</p>
+<p>    /// currently using each key. Derived from the SafeBox accounts; used by</p>
+<p>    /// `CreateAccount` to detect duplicate keys without an O(n) account scan.</p>
+<p>    /// Ref-counted because multiple accounts can share a key (auto-created</p>
+<p>    /// accounts) and `ChangeKey` moves a key between accounts.</p>
+<p>    pubkey_index: HashMap&lt;[u8; 32], u64&gt;,</p>
+<p>    /// AUGEID → sale listing, for accounts currently in `ForSale` state.</p>
+<p>    sale_index: HashMap&lt;u64, SaleListing&gt;,</p>
+<p>    /// AUGEID → pending gift, for accounts currently in `GiftPending` state.</p>
+<p>    gift_index: HashMap&lt;u64, GiftListing&gt;,</p>
+<p>    /// Account numbers modified since the last snapshot.</p>
+<p>    dirty: std::collections::HashSet&lt;u64&gt;,</p>
+<p>    /// Blocks committed since the last snapshot.</p>
+<p>    blocks_since_snapshot: u64,</p>
+<p>    /// Snapshot interval (blocks). 0 means snapshot on every commit.</p>
+<p>    snapshot_interval: u64,</p>
+<p>    /// Total full snapshots persisted.</p>
+<p>    snapshot_total: u64,</p>
+<p>    /// Bytes of the last persisted snapshot.</p>
+<p>    last_snapshot_bytes: u64,</p>
+<p>}</p>
+<p>/// A marketplace listing for a single AUGEID.</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct SaleListing {</p>
+<p>    pub account_number: u64,</p>
+<p>    pub seller_public_key: [u8; 32],</p>
+<p>    pub price: u64,</p>
+<p>    pub listed_at_block: u64,</p>
+<p>}</p>
+<p>/// A pending AUGEID gift awaiting the recipient's accept.</p>
+<p>#[derive(Debug, Clone, PartialEq, Eq)]</p>
+<p>pub struct GiftListing {</p>
+<p>    pub account_number: u64,</p>
+<p>    pub from_account_number: u64,</p>
+<p>    pub recipient_public_key: [u8; 32],</p>
+<p>    pub gifted_at_block: u64,</p>
+<p>}</p>
+<p>impl SafeboxCache {</p>
+<p>    fn new() -&gt; Self {</p>
+<p>        SafeboxCache {</p>
+<p>            safebox: None,</p>
+<p>            pubkey_index: HashMap::new(),</p>
+<p>            sale_index: HashMap::new(),</p>
+<p>            gift_index: HashMap::new(),</p>
+<p>            dirty: std::collections::HashSet::new(),</p>
+<p>            blocks_since_snapshot: 0,</p>
+<p>            snapshot_interval: 0,</p>
+<p>            snapshot_total: 0,</p>
+<p>            last_snapshot_bytes: 0,</p>
+<p>        }</p>
+<p>    }</p>
+<p>    fn bump_pubkey(&amp;mut self, pubkey: &amp;[u8; 32], delta: i64) {</p>
+<p>        let entry = self.pubkey_index.entry(*pubkey).or_insert(0);</p>
+<p>        let next = (*entry as i64).saturating_add(delta).max(0) as u64;</p>
+<p>        if next == 0 {</p>
+<p>            self.pubkey_index.remove(pubkey);</p>
+<p>        } else {</p>
+<p>            *entry = next;</p>
+<p>        }</p>
+<p>    }</p>
+<p>    /// Refresh the `sale_index`/`gift_index` entries for a single account based</p>
+<p>    /// on its current state. Called on load and after every account mutation so</p>
+<p>    /// the derived indices stay O(1) without ever scanning the whole SafeBox.</p>
+<p>    fn sync_derived_indices(&amp;mut self, account: &amp;Account, block: u64) {</p>
+<p>        let num = account.account_number;</p>
+<p>        match account.account_info.state {</p>
+<p>            augecoin_core::account::AccountState::ForSale =&gt; {</p>
+<p>                self.sale_index.insert(</p>
+<p>                    num,</p>
+<p>                    SaleListing {</p>
+<p>                        account_number: num,</p>
+<p>                        seller_public_key: account.account_info.account_key.ed25519_public_key,</p>
+<p>                        price: account.account_info.price,</p>
+<p>                        listed_at_block: block,</p>
+<p>                    },</p>
+<p>                );</p>
+<p>            }</p>
+<p>            _ =&gt; {</p>
+<p>                self.sale_index.remove(&amp;num);</p>
+<p>            }</p>
+<p>        }</p>
+<p>        match account.account_info.state {</p>
+<p>            augecoin_core::account::AccountState::GiftPending =&gt; {</p>
+<p>// ... (1424 lines total)</p>
+<pre><code>
+<h2>Riscos</h2>
+<p>- WAL growth without proper configuration</p>
+<p>- Snapshot staleness between checkpoint intervals</p>
+<p>- No encryption at rest (relies on OS/disk encryption)</p>
+<h2>Referências Cruzadas</h2>
+<p>- **SafeBox** (Chapter 3): SafeBox state persisted via Storage</p>
+<p>- **Consenso** (Chapter 4): Validator set stored in Storage</p>
+<hr>
+<div id="chapter-6" class="chapter">
+<h1>Chapter 6 — Network</h1>
+<p>&gt; **Veja também:** Consenso, RPC</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN uses libp2p for P2P networking with Noise encryption, gossipsub</p>
+<p>for message propagation, and static bootnode discovery.</p>
+<h2>Responsibility</h2>
+<p>Peer-to-peer communication, transaction/block propagation, node synchronization.</p>
+<h2>Transport Layer</h2>
+<p>**Noise Protocol** encryption is mandatory — no unencrypted connections allowed.</p>
+<pre><code>
+<p>libp2p Transport</p>
+<p>  ├─ Noise (encryption)</p>
+<p>  ├─ TCP (transport)</p>
+<p>  └─ Yamux (multiplexing)</p>
+<pre><code>
+<h2>Gossipsub Topics</h2>
+<tr><td>Topic</td><td>Content</td><td>Propagation</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`tx`</td><td>Pending transactions</td><td>Flood to all peers</td></tr>
+<tr><td>`block`</td><td>Finalized blocks</td><td>Flood to all peers</td></tr>
+<tr><td>`consensus`</td><td>Consensus messages</td><td>Validator-only mesh</td></tr>
+<h2>MAX_TRANSMIT_SIZE</h2>
+<p>Default libp2p limit: ~1MB. AUGECOIN blocks are expected to be well under</p>
+<p>this limit given the 60-second block time.</p>
+<h2>Peer Discovery</h2>
+<p>Static bootnode list (configurable). No Kademlia DHT — chosen for simplicity</p>
+<p>and auditability in a 4-validator network.</p>
+<h2>Sync Protocol</h2>
+<p>1. New node connects to bootnodes</p>
+<p>2. Requests latest checkpoint from any peer</p>
+<p>3. Restores state from checkpoint</p>
+<p>4. Replays remaining blocks</p>
+<p>5. Joins live consensus</p>
+<h2>Textual Flowchart</h2>
+<pre><code>
+<p>New Node</p>
+<p>  │</p>
+<p>  ├─ Connect to bootnodes (Noise handshake)</p>
+<p>  │</p>
+<p>  ├─ Request latest checkpoint</p>
+<p>  │     └─ Restore SafeBox from checkpoint</p>
+<p>  │</p>
+<p>  ├─ Request blocks after checkpoint height</p>
+<p>  │     └─ Execute each block (verify quorum)</p>
+<p>  │</p>
+<p>  ├─ Join live gossipsub mesh</p>
+<p>  │     └─ Receive new blocks/tx</p>
+<p>  │</p>
+<p>  └─ Participate in consensus (if validator)</p>
+<pre><code>
+<h2>Key Source Files</h2>
+<h3>Network Core</h3>
+<pre><code>
+<p>pub mod sync;</p>
+<p>pub mod transport;</p>
+<p>pub use libp2p::Multiaddr;</p>
+<p>pub use libp2p::PeerId;</p>
+<p>use libp2p::gossipsub;</p>
+<p>use libp2p::identify;</p>
+<p>use libp2p::kad;</p>
+<p>use libp2p::multiaddr::Protocol;</p>
+<p>use libp2p::noise;</p>
+<p>use libp2p::ping;</p>
+<p>use libp2p::swarm::NetworkBehaviour;</p>
+<p>use libp2p::{identity, SwarmBuilder};</p>
+<p>use libp2p_connection_limits as connection_limits;</p>
+<p>use std::collections::HashSet;</p>
+<p>use std::time::{Duration, Instant};</p>
+<p>use thiserror::Error;</p>
+<p>pub const OPS_TOPIC: &amp;str = "augecoin/ops";</p>
+<p>pub const BLOCK_TOPIC: &amp;str = "augecoin/blocks";</p>
+<p>pub const CONSENSUS_TOPIC: &amp;str = "augecoin/consensus";</p>
+<p>pub const PEERS_TOPIC: &amp;str = "augecoin/peers";</p>
+<p>/// Maximum size of a single gossipsub message (RPC payload), in bytes.</p>
+<p>///</p>
+<p>/// This bound must comfortably carry the largest legitimate consensus message</p>
+<p>/// — a `BlockResponse` carrying a full block (Proposal/Prepare/Commit/Status</p>
+<p>/// and gossiped operations are all strictly smaller). The value is read from</p>
+<p>/// [`augecoin_core::limits::max_transmit_size`] so the g</p>
+<pre><code>
+<h3>Sync Manager</h3>
+<pre><code>
+<p>use augecoin_core::account::Account;</p>
+<p>use augecoin_core::block::OperationBlock;</p>
+<p>use augecoin_core::operation::{Operation, OperationPayload};</p>
+<p>use augecoin_storage::checkpoint::AccountSnapshot;</p>
+<p>use augecoin_storage::Storage;</p>
+<p>use std::collections::{HashMap, VecDeque};</p>
+<p>use thiserror::Error;</p>
+<p>pub const SYNC_CHECKPOINT_TOPIC: &amp;str = "augecoin/sync/checkpoint";</p>
+<p>pub const SYNC_BLOCK_TOPIC: &amp;str = "augecoin/sync/block";</p>
+<p>#[derive(Debug, Clone, Copy, PartialEq, Eq)]</p>
+<p>pub enum SyncPhase {</p>
+<p>    Idle,</p>
+<p>    RequestingCheckpoint,</p>
+<p>    RestoringCheckpoint,</p>
+<p>    ReplayingBlocks,</p>
+<p>    Complete,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone, Error)]</p>
+<p>pub enum SyncError {</p>
+<p>    #[error("checkpoint deserialization failed: {0}")]</p>
+<p>    InvalidCheckpoint(String),</p>
+<p>    #[error("block deserialization failed: {0}")]</p>
+<p>    InvalidBlock(String),</p>
+<p>    #[error("storage error: {0}")]</p>
+<p>    Storage(String),</p>
+<p>    #[error("sync already in progress")]</p>
+<p>    AlreadySyncing,</p>
+<p>    #[error("no checkpoint received yet")]</p>
+<p>    NoCheckpoint,</p>
+<p>    #[error("block number mi</p>
+<pre><code>
+<h2>Riscos</h2>
+<p>- Static bootnodes = single point of initial connectivity</p>
+<p>- No peer reputation scoring beyond rate limiting</p>
+<p>- No encrypted storage of peer data</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Consenso** (Chapter 4): Consensus messages travel over network</p>
+<p>- **RPC** (Chapter 7): RPC is separate from P2P network</p>
+<hr>
+<div id="chapter-7" class="chapter">
+<h1>Chapter 7 — RPC</h1>
+<p>&gt; **Veja também:** Wallet, CLI</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN exposes a JSON-RPC 2.0 API over TLS, with optional gRPC support.</p>
+<p>Authentication uses API keys for administrative endpoints.</p>
+<h2>RPC Methods</h2>
+<tr><td>Method</td><td>Function</td><td>Auth</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`getAccount`</td><td>Query account by number/address/name</td><td>Public</td></tr>
+<tr><td>`getAccountByAddress`</td><td>Query by Bech32m address</td><td>Public</td></tr>
+<tr><td>`getBlock`</td><td>Get block by hash</td><td>Public</td></tr>
+<tr><td>`getBlockByHeight`</td><td>Get block by height</td><td>Public</td></tr>
+<tr><td>`getBlockCount`</td><td>Current chain height</td><td>Public</td></tr>
+<tr><td>`sendTransaction`</td><td>Submit signed transaction</td><td>Public</td></tr>
+<tr><td>`getMempool`</td><td>List pending transactions</td><td>Public</td></tr>
+<tr><td>`getValidatorSet`</td><td>Active validators</td><td>Public</td></tr>
+<tr><td>`getNetworkStatus`</td><td>Node status, peers</td><td>Public</td></tr>
+<tr><td>`getValidatorEarnings`</td><td>Validator rewards</td><td>Public</td></tr>
+<tr><td>`listAccountsForSale`</td><td>Marketplace listings</td><td>Public</td></tr>
+<tr><td>`resolveName`</td><td>Name → account lookup</td><td>Public</td></tr>
+<tr><td>`buyAccount`</td><td>Purchase listed account</td><td>Public</td></tr>
+<tr><td>`sellAccount`</td><td>List account for sale</td><td>Public</td></tr>
+<tr><td>`giftAccount`</td><td>Initiate account gift</td><td>Public</td></tr>
+<tr><td>`acceptGift`</td><td>Accept pending gift</td><td>Public</td></tr>
+<tr><td>`validatorAdd`</td><td>Add validator</td><td>Admin</td></tr>
+<tr><td>`validatorRemove`</td><td>Remove validator</td><td>Admin</td></tr>
+<tr><td>`validatorActivate`</td><td>Activate validator</td><td>Admin</td></tr>
+<tr><td>`validatorDeactivate`</td><td>Deactivate validator</td><td>Admin</td></tr>
+<h2>Architecture Flow</h2>
+<h1>AUGECOIN — RPC Map</h1>
+<p>&gt; Fonte: `crates/augecoin-rpc/src/lib.rs`, `crates/augecoin-rpc/src/endpoints.rs`,</p>
+<p>&gt; `crates/augecoin-rpc/src/auth.rs`. Nós do grafo: `dispatch_method`, `AppState`,</p>
+<p>&gt; `check_auth`, `handle_*`.</p>
+<h2>Endpoints HTTP</h2>
+<tr><td>Rota</td><td>Handler</td><td>Finalidade</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`POST /`</td><td>`jsonrpc_handler`</td><td>JSON-RPC 2.0 genérico</td></tr>
+<tr><td>`POST /createaccount`</td><td>`create_account_handler`</td><td>cria conta (sensível)</td></tr>
+<tr><td>`POST /faucet`</td><td>`faucet_handler`</td><td>faucet (sensível)</td></tr>
+<tr><td>`GET /health`</td><td>`health_handler`</td><td>liveness</td></tr>
+<h2>Autenticação / rate limiting</h2>
+<p>- Header `x-api-key` → `auth::check_auth` → `AuthLevel::{Public, Admin}`.</p>
+<p>- `ApiKeyStore` valida chaves conhecidas.</p>
+<p>- `RateLimiter` global (100 req/60s) + `sensitive_rate_limiter` (5 req/60s)</p>
+<p>  para `createaccount`/`faucet`.</p>
+<p>- Métodos admin (`validator_*`) exigem `AuthLevel::Admin`.</p>
+<h2>Métodos JSON-RPC (`dispatch_method`)</h2>
+<tr><td>Método</td><td>Handler (`endpoints.rs`)</td><td>Acesso</td></tr>
+<p>|---|---|---|</p>
+<tr><td>`getaccount`</td><td>`handle_get_account`</td><td>público</td></tr>
+<tr><td>`createaccount`</td><td>`handle_create_account`</td><td>público (rate-limited)</td></tr>
+<tr><td>`getblock`</td><td>`handle_get_block`</td><td>público</td></tr>
+<tr><td>`getblockoperations`</td><td>`handle_get_block_operations`</td><td>público</td></tr>
+<tr><td>`getoperations`</td><td>`handle_get_operations`</td><td>público</td></tr>
+<tr><td>`getoperationbyhash`</td><td>`handle_get_operation_by_hash`</td><td>público</td></tr>
+<tr><td>`getblockbyhash`</td><td>`handle_get_block_by_hash`</td><td>público</td></tr>
+<tr><td>`getpendings`</td><td>`handle_get_pendings`</td><td>público</td></tr>
+<tr><td>`sendoperation`</td><td>`handle_send_operation`</td><td>público</td></tr>
+<tr><td>`findaccounts`</td><td>`handle_find_accounts`</td><td>público</td></tr>
+<tr><td>`getaccountcount`</td><td>`handle_get_account_count`</td><td>público</td></tr>
+<tr><td>`getblockcount`</td><td>`handle_get_block_count`</td><td>público</td></tr>
+<tr><td>`getnodestatus`</td><td>`handle_get_node_status`</td><td>público</td></tr>
+<tr><td>`getvalidatorset`</td><td>`handle_get_validator_set`</td><td>público</td></tr>
+<tr><td>`validator_add`</td><td>`handle_validator_add`</td><td>admin</td></tr>
+<tr><td>`validator_remove`</td><td>`handle_validator_remove`</td><td>admin</td></tr>
+<tr><td>`validator_activate`</td><td>`handle_validator_activate`</td><td>admin</td></tr>
+<tr><td>`validator_deactivate`</td><td>`handle_validator_deactivate`</td><td>admin</td></tr>
+<tr><td>`listaccountsforsale`</td><td>`handle_list_accounts_for_sale`</td><td>público</td></tr>
+<tr><td>`listvalidatorinventory`</td><td>`handle_list_validator_inventory`</td><td>público</td></tr>
+<tr><td>`listpendinggifts`</td><td>`handle_list_pending_gifts`</td><td>público</td></tr>
+<tr><td>`buyaccount`</td><td>`handle_buy_account`</td><td>público (assinado)</td></tr>
+<tr><td>`sellaccount`</td><td>`handle_sell_account`</td><td>público (assinado)</td></tr>
+<tr><td>`giftaccount`</td><td>`handle_gift_account`</td><td>público (assinado)</td></tr>
+<tr><td>`acceptgift`</td><td>`handle_accept_gift`</td><td>público (assinado)</td></tr>
+<tr><td>`cancelsale`</td><td>`handle_cancel_sale`</td><td>público (assinado)</td></tr>
+<p>&gt; **Nota sobre `createaccount`:** agora recebe `account_number` + `public_key_hex`</p>
+<p>&gt; e apenas *ativa* um AUGEID `Reserved` existente (assinado pelo admin/líder).</p>
+<p>&gt; Nunca cria números novos.</p>
+<h2>Marketplace e ciclo de vida do AUGEID</h2>
+<pre><code>
+<p>listaccountsforsale → Storage::list_for_sale() (sale_index residente)</p>
+<p>listvalidatorinventory → Storage::safebox() filtrando por validator_public_key</p>
+<p>buyaccount   → op BuyAccount  → Reserved/ForSale → Owned (atomic)</p>
+<p>sellaccount  → op ListAccountForSale → (Reserved|Owned|Normal) → ForSale</p>
+<p>giftaccount  → op GiftAccount → → GiftPending</p>
+<p>acceptgift   → op AcceptGift  → GiftPending → Owned</p>
+<p>cancelsale   → op DelistAccount → ForSale → Owned</p>
+<pre><code>
+<h2>Estado compartilhado (`AppState`)</h2>
+<pre><code>
+<p>AppState {</p>
+<p>  storage: Arc&lt;Storage&gt;              // RocksDB</p>
+<p>  mempool: Arc&lt;Mutex&lt;Mempool&gt;&gt;       // pool de operações pendentes</p>
+<p>  node_status: Arc&lt;NodeStatus&gt;       // métricas/status</p>
+<p>  faucet_keypair, faucet_account, faucet_amount</p>
+<p>  faucet_claims: Mutex&lt;HashMap&gt;      // claims por endereço (24h)</p>
+<p>  api_keys: ApiKeyStore</p>
+<p>  rate_limiter, sensitive_rate_limiter</p>
+<p>  admin_keypair</p>
+<p>  op_broadcast: sender               // gossip p/ operações admitidas</p>
+<p>}</p>
+<pre><code>
+<h2>Fluxo de `sendoperation` (caminho até o consenso)</h2>
+<pre><code>
+<p>POST / (sendoperation)</p>
+<p>  → dispatch_method → handle_send_operation</p>
+<p>  → valida assinatura + nonce + saldo</p>
+<p>  → mempool.validate_and_admit</p>
+<p>  → op_broadcast (gossip para demais validadores)</p>
+<p>  → (no próximo bloco) execute_block consome do mempool</p>
+<pre><code>
+<h2>Wallet Web — quais RPCs o frontend consome</h2>
+<p>O frontend (`apps/wallet-web/src/services/rpc.ts`) é a **única** porta de acesso à</p>
+<p>blockchain e consome **apenas** os métodos oficiais abaixo — não há RPC inventada</p>
+<p>na UI nem regra de consenso duplicada:</p>
+<p>- Consulta: `getaccount`, `findaccounts`, `listaccountsforsale`,</p>
+<p>  `listvalidatorinventory`, `listpendinggifts`, `getnodestatus`.</p>
+<p>- Ciclo de vida (assinado): `buyaccount`, `sellaccount`, `giftaccount`,</p>
+<p>  `acceptgift`, `cancelsale`.</p>
+<p>- Operações brutas: `sendoperation`.</p>
+<p>&gt; O `server/` da Wallet Web **não** é uma RPC da blockchain: ele é um serviço de</p>
+<p>&gt; identidade/registro (Conta da Plataforma + `linked_wallets`), exposto em</p>
+<p>&gt; `/api/*` (HTTP + cookies), que nunca detém saldo, estado ou chaves privadas.</p>
+<p>&gt; Ele apenas responde "quais AUGEIDs pertencem a este usuário?" — o saldo/nome/</p>
+<p>&gt; estado de cada AUGEID é sempre lido do SafeBox via `getaccount`.</p>
+<h2>Endpoint Implementation</h2>
+<pre><code>
+<p>use augecoin_consensus::validator::{ValidatorSet, ValidatorStatus};</p>
+<p>use augecoin_core::account::Account;</p>
+<p>use augecoin_core::account::AccountState;</p>
+<p>use augecoin_core::block::OperationBlockHeader;</p>
+<p>use augecoin_core::mempool::Mempool;</p>
+<p>use augecoin_core::operation::{Operation, OperationPayload, ReceiverInfo, SenderInfo};</p>
+<p>use augecoin_storage::Storage;</p>
+<p>use serde::{Deserialize, Serialize};</p>
+<p>use std::collections::HashMap;</p>
+<p>use std::sync::atomic::{AtomicU32, AtomicU64};</p>
+<p>use std::sync::Arc;</p>
+<p>use std::time::{SystemTime, UNIX_EPOCH};</p>
+<p>use crate::auth::{ApiKeyStore, RateLimiter};</p>
+<p>/// Shared runtime status snapshot, updated by the node main loop and</p>
+<p>/// read by the RPC layer. All fields use interior mutability so that</p>
+<p>/// the node can update the snapshot without re-locking the AppState.</p>
+<p>#[derive(Debug)]</p>
+<p>pub struct NodeStatus {</p>
+<p>    pub block_height: AtomicU64,</p>
+<p>    pub latest_block_hash: std::sync::Mutex&lt;[u8; 64]&gt;,</p>
+<p>    pub peers_connected: AtomicU32,</p>
+<p>    /// Peers in the gossipsub mesh of the consensus topics (the peers that</p>
+<p>    /// actually exchange consensus messages).</p>
+<p>    pub peers_gossipsub_consensus: AtomicU32,</p>
+<p>    /// Peers known via Kademlia DHT discovery (not necessarily connected).</p>
+<p>    pub peers_kademlia_total: AtomicU32,</p>
+<p>    pub syncing: AtomicU64,</p>
+<p>    pub sync_target_height: AtomicU64,</p>
+<p>    pub mempool_size: AtomicU64,</p>
+<p>    pub current_round: AtomicU64,</p>
+<p>    pub current_view: AtomicU64,</p>
+<p>    pub validator_id: AtomicU64,</p>
+<p>    pub chain_id: AtomicU64,</p>
+<p>    pub uptime_seconds: AtomicU64,</p>
+<p>    pub last_consensus_error: std::sync::Mutex&lt;Option&lt;String&gt;&gt;,</p>
+<p>}</p>
+<p>impl Default for NodeStatus {</p>
+<p>    fn default() -&gt; Self {</p>
+<p>        NodeStatus {</p>
+<p>            block_height: AtomicU64::new(0),</p>
+<p>            latest_block_hash: std::sync::Mutex::new([0u8; 64]),</p>
+<p>            peers_connected: AtomicU32::new(0),</p>
+<p>            peers_gossipsub_consensus: AtomicU32::new(0),</p>
+<p>            peers_kademlia_total: AtomicU32::new(0),</p>
+<p>            syncing: AtomicU64::new(0),</p>
+<p>            sync_target_height: AtomicU64::new(0</p>
+<pre><code>
+<h2>Authentication</h2>
+<pre><code>
+<p>use serde::Deserialize;</p>
+<p>use std::collections::HashMap;</p>
+<p>use std::sync::Mutex;</p>
+<p>use std::time::{Duration, Instant};</p>
+<p>#[derive(Debug, Clone)]</p>
+<p>pub struct ApiKeyStore {</p>
+<p>    keys: HashMap&lt;String, KeyInfo&gt;,</p>
+<p>}</p>
+<p>#[derive(Debug, Clone)]</p>
+<p>struct KeyInfo {</p>
+<p>    is_admin: bool,</p>
+<p>}</p>
+<p>impl KeyInfo {</p>
+<p>    fn new(is_admin: bool) -&gt; Self {</p>
+<p>        KeyInfo { is_admin }</p>
+<p>    }</p>
+<p>}</p>
+<p>impl ApiKeyStore {</p>
+<p>    pub fn new(admin_keys: Vec&lt;String&gt;) -&gt; Self {</p>
+<p>        let mut keys = HashMap::new();</p>
+<p>        for key in admin_keys {</p>
+<p>            keys.insert(key, KeyInfo::new(true));</p>
+<p>        }</p>
+<p>        ApiKeyStore { keys }</p>
+<p>    }</p>
+<p>    pub fn empty() -&gt; Self {</p>
+<p>        ApiKeyStore {</p>
+<p>            keys: HashMap::new(),</p>
+<p>        }</p>
+<p>    }</p>
+<p>    pub fn is_valid(&amp;self, key: &amp;str) -&gt; bool {</p>
+<p>        self.keys.contains_key(key)</p>
+<p>    }</p>
+<p>    pub fn is_admin(&amp;self, key: &amp;str) -&gt; bool {</p>
+<p>        self.keys.get(key).is_some_and(|info| info.is_admin)</p>
+<p>    }</p>
+<p>}</p>
+<p>#[derive(Debug)]</p>
+<p>struct ClientBucket {</p>
+<p>    tokens: u32,</p>
+<p>    last_refill: Instant,</p>
+<p>}</p>
+<p>impl ClientB</p>
+<pre><code>
+<h2>RPC Server Core</h2>
+<pre><code>
+<p>pub mod auth;</p>
+<p>pub mod config;</p>
+<p>pub mod endpoints;</p>
+<p>use axum::{</p>
+<p>    routing::{get, post},</p>
+<p>    Json, Router,</p>
+<p>};</p>
+<p>use axum_server::tls_rustls::RustlsConfig;</p>
+<p>use serde::{Deserialize, Serialize};</p>
+<p>use std::net::SocketAddr;</p>
+<p>use std::sync::Arc;</p>
+<p>use thiserror::Error;</p>
+<p>use tokio::net::TcpListener;</p>
+<p>#[derive(Debug, Error)]</p>
+<p>pub enum RpcError {</p>
+<p>    #[error("TLS configuration error: {0}")]</p>
+<p>    TlsConfig(String),</p>
+<p>    #[error("server error: {0}")]</p>
+<p>    Server(String),</p>
+<p>    #[error("io error: {0}")]</p>
+<p>    Io(#[from] std::io::Error),</p>
+<p>}</p>
+<p>#[derive(Debug, Clone)]</p>
+<p>pub struct RpcSettings {</p>
+<p>    pub jsonrpc_addr: SocketAddr,</p>
+<p>}</p>
+<p>impl Default for RpcSettings {</p>
+<p>    fn default() -&gt; Self {</p>
+<p>        RpcSettings {</p>
+<p>            jsonrpc_addr: "127.0.0.1:0".parse().unwrap(),</p>
+<p>        }</p>
+<p>    }</p>
+<p>}</p>
+<p>// ── JSON-RPC 2.0 types ───────────────────────────────────────────────</p>
+<p>#[derive(Debug, Deserialize)]</p>
+<p>pub struct JsonRpcRequest {</p>
+<p>    pub jsonrpc: String,</p>
+<p>    pub method: String,</p>
+<p>    #[serde(default)]</p>
+<p>    pub params: serde_json::Value,</p>
+<p>    pub id: serde_json::Value,</p>
+<p>}</p>
+<p>#[derive(Debug, Serialize)]</p>
+<p>pub struct JsonRpcResponse {</p>
+<p>    pub jsonrpc: String,</p>
+<p>    #[serde(skip_serializing_if = "Option::is_none")]</p>
+<p>    pub result: Option&lt;serde_json::Value&gt;,</p>
+<p>    #[serde(skip_serializing_if = "Option::is_none")]</p>
+<p>    pub error: Option&lt;JsonRpcError&gt;,</p>
+<p>    pub id: serde_json::Value,</p>
+<p>}</p>
+<p>#[derive(Debug, Serialize, Clone)]</p>
+<p>pub struct JsonRpcError {</p>
+<p>    pub code: i32,</p>
+<p>    pub message: String,</p>
+<p>}</p>
+<p>type AppState = endpoints::AppState;</p>
+<p>/// Methods that mint tokens or create state and are prime spam targets on a</p>
+<p>/// public testnet. These are additionally throttled by the stricter</p>
+<p>/// `sensitive_rate_limiter` on top of the global limiter.</p>
+<p>const SENSITIVE_METHODS: &amp;[&amp;str] = &amp;["createaccount", "faucet"];</p>
+<p>fn client_identifier(</p>
+<p>    api_key: Option&lt;&amp;str&gt;,</p>
+<p>    remote: Option&lt;SocketAddr&gt;,</p>
+<p>    forwarded_for: Option&lt;&amp;str&gt;,</p>
+<p>) -&gt; String {</p>
+<p>    if let Some(key) = api_key {</p>
+<p>        return format!("key:{key}");</p>
+<p>    }</p>
+<p>    // Behind a reverse proxy the TCP peer</p>
+<pre><code>
+<h2>Riscos</h2>
+<p>- TLS certificate management</p>
+<p>- API key rotation</p>
+<p>- Rate limiting effectiveness under DDoS</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Wallet** (Chapter 8): Wallet uses RPC for all blockchain interactions</p>
+<p>- **CLI** (Chapter 10): CLI wraps RPC calls</p>
+<hr>
+<div id="chapter-8" class="chapter">
+<h1>Chapter 8 — Wallet</h1>
+<p>&gt; **Veja também:** RPC, AUGEID</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN provides three wallet implementations: Web (React), Desktop (Tauri),</p>
+<p>and Mobile (React Native). All use the same cryptographic core.</p>
+<h2>Platform Account vs Blockchain Wallet</h2>
+<h3>Platform Account</h3>
+<p>- Login, profile, session management</p>
+<p>- Server-side (Express.js)</p>
+<p>- JWT-based authentication</p>
+<p>- Stores user preferences</p>
+<h3>Blockchain Wallet</h3>
+<p>- AUGEID identity</p>
+<p>- Balance, send/receive</p>
+<p>- All crypto operations client-side</p>
+<p>- Never sends private keys to server</p>
+<h2>Wallet Architecture</h2>
+<pre><code>
+<p>┌─────────────────────────────────────────┐</p>
+<p>│              Wallet Client               │</p>
+<p>│                                           │</p>
+<p>│  ┌─────────────┐  ┌──────────────────┐  │</p>
+<p>│  │  Platform    │  │  Blockchain       │  │</p>
+<p>│  │  Account     │  │  Wallet           │  │</p>
+<p>│  │  (login)     │  │  (AUGEID + keys)  │  │</p>
+<p>│  └─────────────┘  └──────────────────┘  │</p>
+<p>│         │                    │            │</p>
+<p>│         └────────┬───────────┘            │</p>
+<p>│                  │                        │</p>
+<p>│  ┌───────────────┼──────────────────┐    │</p>
+<p>│  │  Crypto Layer (WASM / Native)     │    │</p>
+<p>│  │  Ed25519 + Dilithium + BLAKE3    │    │</p>
+<p>│  └───────────────────────────────────┘    │</p>
+<p>└─────────────────────────────────────────┘</p>
+<pre><code>
+<h2>Marketplace</h2>
+<p>Accounts can be listed for sale, gifted, or transferred:</p>
+<p>- `sellAccount`: List at a price</p>
+<p>- `buyAccount`: Purchase listed account</p>
+<p>- `giftAccount`: Send as gift (pending acceptance)</p>
+<p>- `acceptGift`: Accept pending gift</p>
+<h2>Inventory</h2>
+<p>Each wallet tracks:</p>
+<p>- Owned accounts</p>
+<p>- Pending gifts</p>
+<p>- Listed accounts (for sale)</p>
+<p>- Gift history</p>
+<h2>Key Files</h2>
+<tr><td>Wallet</td><td>Framework</td><td>Crypto</td></tr>
+<p>|---|---|---|</p>
+<tr><td>wallet-web</td><td>React + Vite</td><td>WASM (@augecoin/wasm-crypto)</td></tr>
+<tr><td>wallet-desktop</td><td>Tauri (Rust)</td><td>Native (augecoin-crypto)</td></tr>
+<tr><td>wallet-mobile</td><td>React Native</td><td>Native module</td></tr>
+<h2>Riscos</h2>
+<p>- Seed backup is user responsibility</p>
+<p>- No account recovery mechanism</p>
+<p>- Keystore encryption depends on user password strength</p>
+<h2>Referências Cruzadas</h2>
+<p>- **RPC** (Chapter 7): All wallet operations go through RPC</p>
+<p>- **AUGEID** (Chapter 9): Account lifecycle managed by wallets</p>
+<hr>
+<div id="chapter-9" class="chapter">
+<h1>Chapter 9 — AUGEID</h1>
+<p>&gt; **Veja também:** SafeBox, Wallet, Consenso</p>
+<h2>Executive Summary</h2>
+<p>AUGEID is AUGECOIN's native account identity system — numbered accounts</p>
+<p>that serve as both blockchain addresses and tradeable assets.</p>
+<h2>Responsibility</h2>
+<p>Provide deterministic, sequential account numbering with full lifecycle</p>
+<p>management (creation, sale, gifting, naming).</p>
+<h2>Account Lifecycle</h2>
+<pre><code>
+<p>Bloco N</p>
+<p>  │</p>
+<p>  ↓</p>
+<p>Reserved (10 AUGEIDs per block, all to leader)</p>
+<p>  │</p>
+<p>  ├──→ ForSale (listed on marketplace)</p>
+<p>  │       └──→ Owned (purchased)</p>
+<p>  │</p>
+<p>  ├──→ GiftPending (gift initiated)</p>
+<p>  │       └──→ Owned (gift accepted)</p>
+<p>  │</p>
+<p>  └──→ Owned (direct activation)</p>
+<p>          └──→ Normal (operational account)</p>
+<pre><code>
+<h2>Account States</h2>
+<tr><td>State</td><td>Description</td></tr>
+<p>|---|---|</p>
+<tr><td>`Reserved`</td><td>Emitted to block leader; no key; cannot send/receive</td></tr>
+<tr><td>`Owned`</td><td>Has owner (account_key, n_operation=0, account_seal)</td></tr>
+<tr><td>`ForSale`</td><td>Listed on marketplace (sale_index)</td></tr>
+<tr><td>`GiftPending`</td><td>Gift pending acceptance (gift_index)</td></tr>
+<tr><td>`Normal`</td><td>Fully operational account</td></tr>
+<h2>Numbering Formula</h2>
+<p>**AUGEID = block × 10 + offset (0..9)**</p>
+<p>Each block emits exactly 10 AUGEIDs, all `Reserved` and belonging to the leader.</p>
+<h2>Why AUGEID is an Asset</h2>
+<p>1. **Scarcity**: Only 10 per block, fixed emission schedule</p>
+<p>2. **Tradeability**: Can be bought, sold, gifted</p>
+<p>3. **Identity**: Named accounts (resolve_name)</p>
+<p>4. **Speculation**: Early/lower numbers may have premium value</p>
+<p>5. **No expiration**: Accounts persist forever</p>
+<h2>Key Invariants</h2>
+<p>- `SafeBox.accounts` ≡ CF `accounts` after commit</p>
+<p>- `name_index` ≡ derived from `account.name`</p>
+<p>- Emission is fixed: exactly 10 `Reserved` per block</p>
+<p>- `CreateAccount` never creates new numbers — only activates existing `Reserved`</p>
+<h2>Riscos</h2>
+<p>- Leader controls all 10 AUGEIDs per block (centralization of issuance)</p>
+<p>- No mechanism to recover lost keys</p>
+<p>- Name squatting possible</p>
+<h2>Referências Cruzadas</h2>
+<p>- **SafeBox** (Chapter 3): AUGEIDs stored in SafeBox</p>
+<p>- **Wallet** (Chapter 8): Wallet manages AUGEID lifecycle</p>
+<p>- **Consenso** (Chapter 4): Block leader receives AUGEIDs</p>
+<hr>
+<div id="chapter-10" class="chapter">
+<h1>Chapter 10 — Benchmark</h1>
+<h2>Performance Metrics</h2>
+<tr><td>Metric</td><td>Target</td><td>Status</td></tr>
+<p>|---|---|---|</p>
+<tr><td>350,000 transactions</td><td>Stress test</td><td>✓</td></tr>
+<tr><td>117 TPS</td><td>Throughput</td><td>✓</td></tr>
+<tr><td>0 rejections</td><td>Integrity</td><td>✓</td></tr>
+<tr><td>4 validators</td><td>Quorum</td><td>✓</td></tr>
+<tr><td>60s block time</td><td>Block interval</td><td>✓</td></tr>
+<tr><td>120s timeout</td><td>View-change</td><td>✓</td></tr>
+<h2>Benchmark Files</h2>
+<p>- `crates/augecoin-bench/` — Rust benchmarks</p>
+<p>- `crates/augecoin-node/tests/load_test.rs` — Load testing</p>
+<p>- `crates/augecoin-node/tests/partition_test.rs` — Network partition</p>
+<h2>Test Categories</h2>
+<h3>Unit Tests</h3>
+<p>- Per-crate test suites</p>
+<p>- Serialization round-trips</p>
+<p>- Cryptographic verification</p>
+<h3>Integration Tests</h3>
+<p>- E2E transaction lifecycle</p>
+<p>- 4-node liveness</p>
+<p>- Determinism verification</p>
+<p>- SDK parity (Rust ↔ TypeScript)</p>
+<h3>Adversarial Tests</h3>
+<p>- Equivocation detection</p>
+<p>- Duplicate vote rejection</p>
+<p>- Invalid proposal handling</p>
+<p>- Quorum edge cases</p>
+<h3>Property Tests</h3>
+<p>- Emission total supply verification (proptest)</p>
+<p>- Block reward sum = TOTAL_SUPPLY_AUGESAT</p>
+<h2>Riscos</h2>
+<p>- Benchmarks run on single machine, not distributed</p>
+<p>- Real network latency not simulated</p>
+<p>- Storage benchmarks may vary by hardware</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Segurança** (Chapter 11): Security tests complement benchmarks</p>
+<p>- **Testes** (Chapter 12): Complete test inventory</p>
+<hr>
+<div id="chapter-11" class="chapter">
+<h1>Chapter 11 — Security</h1>
+<p>&gt; **Veja também:** Consenso, Rede, Storage</p>
+<h2>Executive Summary</h2>
+<p>AUGECOIN implements defense-in-depth with hybrid cryptography, atomic writes,</p>
+<p>replay protection and on-chain equivocation proofs.</p>
+<h2>Cryptographic Security</h2>
+<tr><td>Primitive</td><td>Algorithm</td><td>Purpose</td></tr>
+<p>|---|---|---|</p>
+<tr><td>Signature</td><td>Ed25519 + Dilithium (dual)</td><td>Transaction/block signing</td></tr>
+<tr><td>Hashing</td><td>BLAKE3-512 (XOF)</td><td>State root, block hash</td></tr>
+<tr><td>Key Derivation</td><td>HKDF-SHA3-512</td><td>HD wallet derivation</td></tr>
+<tr><td>Address</td><td>Bech32m</td><td>Human-readable addresses</td></tr>
+<h2>Replay Protection</h2>
+<p>- `op_sequence` per account: monotonically increasing</p>
+<p>- Same operation cannot be submitted twice</p>
+<p>- Mempool rejects stale sequences</p>
+<h2>Atomicity</h2>
+<p>All block execution uses RocksDB WriteBatch:</p>
+<p>- Either ALL changes commit, or NONE</p>
+<p>- No partial state visible</p>
+<p>- Crash recovery from last committed state</p>
+<h2>Attack Surfaces</h2>
+<h1>AUGECOIN — Security Surface</h1>
+<p>&gt; Mapeamento da superfície de ataque a partir do grafo (`graph.json`) e leitura</p>
+<p>&gt; de `rpc/lib.rs`, `rpc/auth.rs`, `execution.rs`, `consensus.rs`, `crypto/*`.</p>
+<h2>Superfícies de ataque</h2>
+<h3>1. RPC HTTP (porta configurável, exposta na rede)</h3>
+<p>- `POST /`, `/createaccount`, `/faucet`, `GET /health`.</p>
+<p>- Vetores: rate-limit (mitigado por `RateLimiter` global + sensível), auth</p>
+<p>  (métodos admin exigem `x-api-key` válido), `createaccount`/`faucet` são</p>
+<p>  sensíveis e têm limitador dedicado de 5 req/60s.</p>
+<h3>2. libp2p / rede (gossipsub + Kademlia)</h3>
+<p>- Vetores: nós maliciosos, mensagens oversized (mitigado por</p>
+<p>  `max_transmit_size=1MiB`), spoofing de endereço (mitigado por</p>
+<p>  `AUGECOIN_EXTERNAL_ADDRESS` e rejeição de `0.0.0.0`/`::`).</p>
+<p>- `deserialize_consensus_msg`, `read_u32_be`/`read_u64_be` — limites de</p>
+<p>  comprimento são críticos para evitar OOM/overflow.</p>
+<h3>3. Validação de assinaturas</h3>
+<p>- `verify_operation_signatures` (Ed25519) sobre `to_bytes_stripped()`.</p>
+<p>- `verify_block_quorum`: assinatura do líder + quórum 2/3 + `operations_hash`.</p>
+<p>- `Ed25519KeyPair`/`HybridSignature` — nunca usar chave com verificação frouxa.</p>
+<h3>4. Serialização crítica</h3>
+<p>- `Account::to_bytes/from_bytes`, `Operation::to_bytes_stripped`,</p>
+<p>  `SafeBox::to_bytes/from_bytes`, `OperationBlock::from_bytes`,</p>
+<p>  `ValidatorSet::to_bytes/from_bytes`.</p>
+<p>- Vetor: dados malformados → `from_bytes` deve falhar fechado (retornam</p>
+<p>  `Option`/`Result`, nunca panic em input externo).</p>
+<h3>5. Faucet</h3>
+<p>- `faucet_claims` persistido em RocksDB (`faucet_claims` CF); 1 claim por</p>
+<p>  AUGEID por 24h. `faucet_account` controlado por `faucet_keypair`.</p>
+<p>- Destino por `account_number` (AUGEID); `Reserved`/`GiftPending` não recebem.</p>
+<h3>6. Marketplace e doação (novos vetores)</h3>
+<p>- `buyaccount`/`sellaccount`/`giftaccount`/`acceptgift`/`cancelsale` são</p>
+<p>  assinados (Ed25519) e validados em `verify_operation_signatures`.</p>
+<p>- `CreateAccount` exige assinatura do admin/líder e só ativa AUGEID `Reserved`.</p>
+<p>- Proteção anti-replay via `n_operation`.</p>
+<p>- Regras de consenso: só o proprietário vende; só o líder recebe emissão;</p>
+<p>  `Reserved`/`GiftPending` não movimentam saldo; dupla venda/doação são</p>
+<p>  rejeitadas pelo estado da conta.</p>
+<h3>7. Chaves e secrets</h3>
+<p>- `AUGECOIN_VALIDATOR_KEY_HEX` / `_FILE`, `AUGECOIN_FAUCET_KEY_HEX`.</p>
+<p>- Nunca logar chaves; `genesis.rs` valida `public_key != [0u8;32]`.</p>
+<h2>Caminhos RPC privilegiados (admin)</h2>
+<p>`validator_add`, `validator_remove`, `validator_activate`, `validator_deactivate`</p>
+<p>→ exigem `AuthLevel::Admin` via `check_auth`. Qualquer bypass do `ApiKeyStore`</p>
+<p>é uma escalada de privilégio crítica (controle do conjunto de validadores).</p>
+<p>`createaccount` é assinado pelo admin (não cria números, só ativa `Reserved`).</p>
+<h2>Código sensível</h2>
+<p>- `crypto/signature.rs` — Ed25519 + assinatura híbrida.</p>
+<p>- `crypto/hash.rs` — `blake3_512`.</p>
+<p>- `crypto/address.rs` (bech32) — `derive_address`/`validate_address`.</p>
+<p>- `crypto/address.rs` (Base58Check curto) — `derive_short_address` é somente</p>
+<p>  uma representação externa; o endereço canônico Bech32m continua sendo a</p>
+<p>  identidade usada pelo protocolo.</p>
+<p>- `core/safe_box.rs` — Merkle proof + hash de consenso.</p>
+<p>- `node/execution.rs` — execução determinística + emissão (hard cap).</p>
+<h2>Wallet Web — superfície do backend de plataforma (`apps/wallet-web/server`)</h2>
+<p>Serviço separado da blockchain (HTTP `/api/*`). Nunca detém saldo, estado do</p>
+<p>SafeBox ou chave privada — apenas identidade + registro de vínculos.</p>
+<tr><td>Controle</td><td>Implementação</td></tr>
+<p>|---|---|</p>
+<tr><td>Senha</td><td>`crypto.scrypt` (N=16384, r=8, p=1), salt por usuário, `timingSafeEqual`</td></tr>
+<tr><td>Sessão</td><td>JWT access (15 min, HttpOnly/SameSite=Lax) + refresh token opaco rotativo, armazenado como `sha256`</td></tr>
+<tr><td>Logout global</td><td>revoga todos os refresh tokens do usuário</td></tr>
+<tr><td>CSRF</td><td>double-submit (`X-CSRF-Token` vs cookie não-HttpOnly) + verificação de Origin</td></tr>
+<tr><td>Rate limit login</td><td>em memória: 5/60s por IP e por e-mail</td></tr>
+<tr><td>Chave privada</td><td>**nunca** enviada ao backend; o mnemônico é gerado e criptografado (IndexedDB keystore, Argon/PBKDF2 + AES-GCM) apenas no cliente</td></tr>
+<tr><td>Registro</td><td>cria somente `platform_users` + `user_preferences` — nunca um AUGEID</td></tr>
+<p>Tabelas: `platform_users`, `user_preferences`, `linked_wallets`, `refresh_tokens`.</p>
+<p>`linked_wallets` é a camada de ponte (Wallet Registry); a autoridade sobre</p>
+<p>propriedade/saldo/transferência continua exclusiva do SafeBox.</p>
+<p>Pré-requisitos de produção: definir `AUGECOIN_WALLET_JWT_SECRET` e</p>
+<p>`AUGECOIN_WALLET_ORIGINS`; ativar `AUGECOIN_WALLET_SECURE_COOKIES=1` sob TLS.</p>
+<p>Suporte futuro planejado: WebAuthn e 2FA (sem alterar o consenso).</p>
+<h2>Recomendações</h2>
+<p>1. Fuzz continuado em `from_bytes` (existe `crates/augecoin-core/fuzz`).</p>
+<p>2. Manter `rate_limiter`/`sensitive_rate_limiter` calibrados sob carga real.</p>
+<p>3. Revisar `deserialize_consensus_msg` para limites de tamanho de cada campo.</p>
+<p>4. Monitorar `augecoin_equivocation_events_total` (equivocação) via Prometheus.</p>
+<h2>Threat Model</h2>
+<h1>AUGECOIN — Threat Model</h1>
+<p>This document catalogs known threats to the AUGECOIN network and the defenses</p>
+<p>in place (or planned) for each.</p>
+<hr>
+<h3>Threat: Byzantine Validator (Equivocation)</h3>
+<p>- **Attack:** A validator signs and broadcasts two conflicting blocks at the</p>
+<p>  same height, attempting to fork the chain.</p>
+<p>- **Impact:** Network fork; clients may see inconsistent state; double-spend</p>
+<p>  window opens.</p>
+<p>- **Existing Defense:** Built-in equivocation detection — duplicate votes at</p>
+<p>  the same height generate an equivocation proof that is gossiped and logged.</p>
+<p>  Alerts fire via Prometheus and CLI.</p>
+<p>- **Missing Defense:** Automatic slashing. The protocol detects equivocation</p>
+<p>  but relies on the admin to manually deactivate the offender.</p>
+<p>- **Mitigation:** Monitor equivocation alerts; run `augecoin-cli security</p>
+<p>  equivocations` on every alert; have a pre-signed deactivation transaction</p>
+<p>  ready.</p>
+<h3>Threat: Malicious Peer (Spam / Gossip Abuse)</h3>
+<p>- **Attack:** A peer floods the gossip mesh with invalid messages (empty</p>
+<p>  blocks, malformed transactions, duplicate votes) to waste bandwidth and CPU.</p>
+<p>- **Impact:** Degraded performance for honest validators; increased mempool</p>
+<p>  pressure; potential for eclipse attacks on specific nodes.</p>
+<p>- **Existing Defense:** libp2p Noise authentication ensures only peers with</p>
+<p>  valid Ed25519 identities can join the mesh. Invalid messages are dropped</p>
+<p>  before gossip relay.</p>
+<p>- **Missing Defense:** No peer reputation scoring. A peer that sends 10 000</p>
+<p>  invalid messages is treated the same as one that sends none.</p>
+<p>- **Mitigation:** Operators should configure firewall rules to rate-limit</p>
+<p>  incoming P2P connections per IP. Consider a future peer-scoring subsystem</p>
+<p>  that banishes repeat offenders.</p>
+<h3>Threat: Stolen Validator Key</h3>
+<p>- **Attack:** An attacker gains access to a validator's Ed25519 private key</p>
+<p>  through filesystem compromise, backup exfiltration, or supply-chain attack.</p>
+<p>- **Impact:** Attacker can sign conflicting votes (equivocate), stall</p>
+<p>  cons</p>
+<h2>Security Audit</h2>
+<h1>AUGECOIN — Security Policy</h1>
+<h2>Reporting a Vulnerability</h2>
+<p>If you discover a security vulnerability in AUGECOIN, please do **not** open a</p>
+<p>public issue. Instead, send an encrypted report to:</p>
+<p>- **Email:** [security@augecoin.org] &lt;!-- TODO: replace with real contact --&gt;</p>
+<p>- **PGP Key:** [TODO: publish PGP public key fingerprint]</p>
+<p>We aim to acknowledge reports within 48 hours and provide an initial assessment</p>
+<p>within 7 days. Please include as much detail as possible: affected component,</p>
+<p>steps to reproduce, and potential impact.</p>
+<hr>
+<h2>Supported Versions</h2>
+<tr><td>Version</td><td>Status</td></tr>
+<p>|--------------------|---------------------|</p>
+<tr><td>`v1.x` (latest)</td><td>:white_check_mark: Supported</td></tr>
+<tr><td>`v0.x` (pre-mainnet)</td><td>:x: End of life</td></tr>
+<p>Only the latest stable release line receives security patches. Pre-mainnet</p>
+<p>releases are unsupported and may contain known vulnerabilities.</p>
+<hr>
+<h2>Security Model</h2>
+<h3>Consensus Security</h3>
+<p>AUGECOIN uses a Proof-of-Authority consensus based on Byzantine Fault</p>
+<p>Tolerance (BFT). The validator set is fixed at **4 validators** and a</p>
+<p>quorum of **2/3 + 1** (i.e., 3 out of 4) is required to finalize a block.</p>
+<p>- A single malicious validator cannot halt or corrupt the chain.</p>
+<p>- Two colluding validators can stall finality but cannot forge committed</p>
+<p>  blocks, because 3 votes are needed for a commit.</p>
+<p>- Validators that equivocate (sign conflicting blocks at the same height)</p>
+<p>  are detected automatically and an alert is raised. The admin can</p>
+<p>  deactivate and replace a misbehaving validator on-chain.</p>
+<h3>Key Management</h3>
+<p>AUGECOIN separates cryptographic keys by role:</p>
+<tr><td>Key</td><td>Purpose</td></tr>
+<p>|--------|------------------------------------------------------|</p>
+<tr><td>**Validator key**</td><td>Sign consensus votes (pre-prepare, prepare, commit)</td></tr>
+<tr><td>**Admin key**</td><td>Validator-set management (add/remove validators), protocol upgrades</td></tr>
+<tr><td>**User key**</td><td>Sign transactions (transfer, mint, burn)</td></tr>
+<p>- Validator ke</p>
+<h2>Known Limitations</h2>
+<p>- No atomic swaps</p>
+<p>- No blockchain deletion</p>
+<p>- No coin-recovery from lost keys</p>
+<p>- Admin key is single-key (not multisig)</p>
+<h2>Riscos</h2>
+<p>- Centralized validator management</p>
+<p>- No formal verification</p>
+<p>- Dilithium key sizes increase transaction size</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Consenso** (Chapter 4): Quorum prevents Byzantine behavior</p>
+<p>- **Rede** (Chapter 6): Noise encryption prevents network attacks</p>
+<p>- **Storage** (WriteBatch): Atomicity prevents partial writes</p>
+<hr>
+<div id="chapter-12" class="chapter">
+<h1>Chapter 12 — Tests</h1>
+<h2>Test Inventory</h2>
+<h3>Cargo Test Suites</h3>
+<tr><td>Crate</td><td>Tests</td><td>Type</td></tr>
+<p>|---|---|---|</p>
+<tr><td>augecoin-crypto</td><td>Signature, hash, hdkeys, address</td><td>Unit</td></tr>
+<tr><td>augecoin-core</td><td>Account, block, transaction, emission</td><td>Unit + Property</td></tr>
+<tr><td>augecoin-storage</td><td>RocksDB round-trip, checkpoint, state_root</td><td>Integration</td></tr>
+<tr><td>augecoin-consensus</td><td>Quorum, round, validator, equivocation</td><td>Unit + Adversarial</td></tr>
+<tr><td>augecoin-network</td><td>Transport, gossip, sync, rate_limit</td><td>Integration</td></tr>
+<tr><td>augecoin-node</td><td>Mempool, execution, genesis, e2e</td><td>Integration</td></tr>
+<tr><td>augecoin-rpc</td><td>Endpoints, auth, TLS</td><td>Integration</td></tr>
+<tr><td>augecoin-cli</td><td>Commands, admin auth</td><td>Integration</td></tr>
+<h3>Integration Tests (crate-level)</h3>
+<p>- `crates/augecoin-node/tests/e2e_transaction.rs` — Full transaction lifecycle</p>
+<p>- `crates/augecoin-node/tests/end_to_end_block_execution.rs` — Block execution</p>
+<p>- `crates/augecoin-node/tests/determinism_test.rs` — Determinism verification</p>
+<p>- `crates/augecoin-consensus/tests/four_node_liveness.rs` — 4-node consensus</p>
+<p>- `crates/augecoin-consensus/tests/adversarial_tests.rs` — Attack scenarios</p>
+<p>- `crates/augecoin-node/tests/sdk_parity.rs` — Cross-language parity</p>
+<p>- `crates/augecoin-node/tests/load_test.rs` — Performance testing</p>
+<p>- `crates/augecoin-node/tests/partition_test.rs` — Network partition</p>
+<h3>Fuzz Targets</h3>
+<p>- `crates/augecoin-core/fuzz/fuzz_targets/tx_deserialize.rs`</p>
+<p>- `crates/augecoin-core/fuzz/fuzz_targets/block_deserialize.rs`</p>
+<h3>Clippy</h3>
+<pre><code>
+<p>cargo clippy --workspace --all-targets</p>
+<pre><code>
+<h3>Graphify Analysis</h3>
+<p>Graphify provides semantic analysis of the codebase:</p>
+<p>- 3167 nodes, 6966 edges, 167 communities</p>
+<p>- 99% extraction confidence</p>
+<p>- Automatic architecture documentation</p>
+<h2>Test Commands</h2>
+<pre><code>
+<h1>All tests</h1>
+<p>cargo test --workspace</p>
+<h1>Specific crate</h1>
+<p>cargo test -p augecoin-crypto</p>
+<p>cargo test -p augecoin-core</p>
+<p>cargo test -p augecoin-consensus</p>
+<h1>Linting</h1>
+<p>cargo clippy --workspace --all-targets</p>
+<h1>Formatting</h1>
+<p>cargo fmt --all -- --check</p>
+<h1>Benchmarks</h1>
+<p>cargo bench --workspace</p>
+<h1>Fuzzing</h1>
+<p>cargo fuzz run tx_deserialize -- -max_total_time=300</p>
+<pre><code>
+<h2>Riscos</h2>
+<p>- No CI/CD pipeline in repository</p>
+<p>- Fuzzing coverage limited</p>
+<p>- No mutation testing</p>
+<h2>Referências Cruzadas</h2>
+<p>- **Benchmark** (Chapter 10): Performance metrics</p>
+<p>- **Segurança** (Chapter 11): Security test categories</p>
+<hr>
+<div id="chapter-13" class="chapter">
+<h1>Chapter 13 — APIs</h1>
+<h2>JSON-RPC 2.0 Interface</h2>
+<p>Base URL: `https://&lt;node&gt;:9443` (TLS required)</p>
+<h3>Request Format</h3>
+<pre><code>
+<p>{{</p>
+<p>  "jsonrpc": "2.0",</p>
+<p>  "method": "getAccount",</p>
+<p>  "params": [42],</p>
+<p>  "id": 1</p>
+<p>}}</p>
+<pre><code>
+<h3>Response Format</h3>
+<pre><code>
+<p>{{</p>
+<p>  "jsonrpc": "2.0",</p>
+<p>  "result": {{</p>
+<p>    "account_number": 42,</p>
+<p>    "balance": 1000000000,</p>
+<p>    "name": "MyAccount",</p>
+<p>    "state": "Normal"</p>
+<p>  }},</p>
+<p>  "id": 1</p>
+<p>}}</p>
+<pre><code>
+<h2>Method Reference</h2>
+<h3>getAccount</h3>
+<p>**Parameters:**</p>
+<p>- `account_number` (u64): Account number, OR</p>
+<p>- `address` (string): Bech32m address, OR</p>
+<p>- `name` (string): Account name</p>
+<p>**Returns:** AccountInfo object</p>
+<p>**Example:**</p>
+<pre><code>
+<p>curl -k https://localhost:9443 \</p>
+<p>  -d '{{"jsonrpc":"2.0","method":"getAccount","params":[42],"id":1}}'</p>
+<pre><code>
+<h3>sendTransaction</h3>
+<p>**Parameters:**</p>
+<p>- `transaction` (hex): Signed transaction bytes</p>
+<p>**Returns:** SendOperationResult</p>
+<p>**Example:**</p>
+<pre><code>
+<p>curl -k https://localhost:9443 \</p>
+<p>  -d '{{"jsonrpc":"2.0","method":"sendTransaction","params":["0x..."],"id":1}}'</p>
+<pre><code>
+<h3>buyAccount</h3>
+<p>**Parameters:**</p>
+<p>- `account_number` (u64): Account to buy</p>
+<p>- `price` (u64): Price in augesat</p>
+<p>**Returns:** Operation result</p>
+<h3>sellAccount</h3>
+<p>**Parameters:**</p>
+<p>- `account_number` (u64): Account to list</p>
+<p>- `price` (u64): Price in augesat</p>
+<p>**Returns:** Operation result</p>
+<h3>giftAccount</h3>
+<p>**Parameters:**</p>
+<p>- `account_number` (u64): Account to gift</p>
+<p>- `recipient` (string): Recipient address</p>
+<p>**Returns:** Operation result (GiftPending)</p>
+<h3>acceptGift</h3>
+<p>**Parameters:**</p>
+<p>- `account_number` (u64): Gifted account to accept</p>
+<p>**Returns:** Operation result (Owned → Normal)</p>
+<h3>listAccountsForSale</h3>
+<p>**Parameters:** None</p>
+<p>**Returns:** Array of marketplace listings</p>
+<h3>resolveName</h3>
+<p>**Parameters:**</p>
+<p>- `name` (string): Account name to resolve</p>
+<p>**Returns:** Account number</p>
+<h2>gRPC Interface</h2>
+<p>Proto definition available in `crates/augecoin-rpc/proto/`.</p>
+<p>Service: `augecoin.v1.NodeService`</p>
+<h2>Endereço Curto Externo</h2>
+<p>O protocolo mantém `auge1...` como endereço canônico. Para pagamento e</p>
+<p>exibição, o SDK oferece `getShortAddress()` e `validateShortAddress()`.</p>
+<p>O formato usa Base58Check com payload de 24 bytes derivado de BLAKE3 e</p>
+<p>checksum de 4 bytes, resultando em aproximadamente 39 caracteres.</p>
+<pre><code>
+<p>const canonical = getAddress(publicKey);       // identidade interna</p>
+<p>const short = getShortAddress(publicKey);      // pagamento/exibição</p>
+<p>validateShortAddress(short);                   // valida checksum</p>
+<pre><code>
+<p>O endereço curto não substitui nem altera endereços canônicos existentes.</p>
+<h2>Riscos</h2>
+<p>- No API versioning</p>
+<p>- No request batching</p>
+<p>- No WebSocket subscription for real-time updates</p>
+<h2>Referências Cruzadas</h2>
+<p>- **RPC** (Chapter 7): Server implementation details</p>
+<p>- **Wallet** (Chapter 8): Client-side API usage</p>
+<hr>
+<div id="chapter-14" class="chapter">
+<h1>Chapter 14 — Annexes</h1>
+<h2>Project Tree</h2>
+<pre><code>
+<p>opt/augecoin/</p>
+<p>  Cargo.toml (workspace)</p>
+<p>  crates/augecoin-bench/</p>
+<p>    client.rs</p>
+<p>    exporters.rs</p>
+<p>    lib.rs</p>
+<p>    main.rs</p>
+<p>    metrics.rs</p>
+<p>    ... (10 files)</p>
+<p>  crates/augecoin-cli/</p>
+<p>    commands.rs</p>
+<p>    main.rs</p>
+<p>    output.rs</p>
+<p>    rpc.rs</p>
+<p>  crates/augecoin-consensus/</p>
+<p>    equivocation.rs</p>
+<p>    lib.rs</p>
+<p>    quorum.rs</p>
+<p>    round.rs</p>
+<p>    validator.rs</p>
+<p>  crates/augecoin-core/</p>
+<p>    account.rs</p>
+<p>    block.rs</p>
+<p>    constants.rs</p>
+<p>    emission.rs</p>
+<p>    lib.rs</p>
+<p>    ... (12 files)</p>
+<p>  crates/augecoin-crypto/</p>
+<p>    address.rs</p>
+<p>    hash.rs</p>
+<p>    hdkeys.rs</p>
+<p>    lib.rs</p>
+<p>    signature.rs</p>
+<p>    ... (6 files)</p>
+<p>  crates/augecoin-network/</p>
+<p>    lib.rs</p>
+<p>    sync.rs</p>
+<p>    transport.rs</p>
+<p>  crates/augecoin-node/</p>
+<p>    alerts.rs</p>
+<p>    keygen.rs</p>
+<p>    consensus.rs</p>
+<p>    execution.rs</p>
+<p>    genesis.rs</p>
+<p>    ... (8 files)</p>
+<p>  crates/augecoin-rpc/</p>
+<p>    auth.rs</p>
+<p>    config.rs</p>
+<p>    endpoints.rs</p>
+<p>    lib.rs</p>
+<p>  crates/augecoin-storage/</p>
+<p>    checkpoint.rs</p>
+<p>    lib.rs</p>
+<p>    state_root.rs</p>
+<p>  docs/</p>
+<p>    SPEC.md</p>
+<p>    DECISIONS.md</p>
+<p>    architecture/</p>
+<p>  graphify-out/</p>
+<p>    graph.json</p>
+<p>    GRAPH_REPORT.md</p>
+<p>  apps/</p>
+<p>    wallet-web/</p>
+<p>    wallet-desktop/</p>
+<p>    wallet-mobile/</p>
+<p>  packages/</p>
+<p>    sdk-ts/</p>
+<p>    wasm-crypto/</p>
+<p>  infra/</p>
+<p>    testnet-4node.yml</p>
+<p>    observability/</p>
+<p>  tools/</p>
+<p>    technical-book/</p>
+<pre><code>
+<h2>Build Metadata</h2>
+<tr><td>Field</td><td>Value</td></tr>
+<p>|---|---|</p>
+<tr><td>Generated</td><td>2026-08-19 13:26 UTC</td></tr>
+<tr><td>Git Commit</td><td>unknown</td></tr>
+<tr><td>Git Version</td><td>unknown</td></tr>
+<tr><td>Rust Version</td><td>rustc 1.97.1 (8bab26f4f 2026-07-14)</td></tr>
+<tr><td>Graphify</td><td>data present</td></tr>
+<h2>Cargo Workspace</h2>
+<pre><code>
+<p>[workspace]</p>
+<p>resolver = "2"</p>
+<p>members = [</p>
+<p>    "crates/augecoin-crypto",</p>
+<p>    "crates/augecoin-core",</p>
+<p>    "crates/augecoin-storage",</p>
+<p>    "crates/augecoin-consensus",</p>
+<p>    "crates/augecoin-network",</p>
+<p>    "crates/augecoin-rpc",</p>
+<p>    "crates/augecoin-cli",</p>
+<p>    "crates/augecoin-node",</p>
+<p>    "crates/augecoin-bench",</p>
+<p>    "apps/wallet-desktop/src-tauri",</p>
+<p>]</p>
+<pre><code>
+<h2>Protocol Constants</h2>
+<tr><td>Constant</td><td>Value</td></tr>
+<p>|---|---|</p>
+<tr><td>TOTAL_SUPPLY_AUGE</td><td>750,000,000</td></tr>
+<tr><td>TOTAL_SUPPLY_AUGESAT</td><td>75,000,000,000,000,000</td></tr>
+<tr><td>DECIMALS</td><td>8</td></tr>
+<tr><td>BLOCK_TIME_SECONDS</td><td>60</td></tr>
+<tr><td>EMISSION_YEARS</td><td>50</td></tr>
+<tr><td>TOTAL_EMISSION_BLOCKS</td><td>26,298,000</td></tr>
+<tr><td>BASE_REWARD_AUGESAT</td><td>2,852,383</td></tr>
+<tr><td>QUORUM</td><td>2/3 + 1</td></tr>
+<h2>Emission Schedule</h2>
+<pre><code>
+<p>block_reward(h) for h in 1..=26,298,000:</p>
+<p>  base = 2,852,383 augesat</p>
+<p>  if h &lt;= 10,266 (REMAINDER):</p>
+<p>    reward = base + 1</p>
+<p>  else:</p>
+<p>    reward = base</p>
+<p>  (after TOTAL_EMISSION_BLOCKS: reward = 0)</p>
+<pre><code>
+<p>Sum verification: `sum(block_reward(h)) == TOTAL_SUPPLY_AUGESAT` exactly.</p>
+</main>
+<script>
+function filterTOC(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#toc li').forEach(li => {
+    li.style.display = li.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

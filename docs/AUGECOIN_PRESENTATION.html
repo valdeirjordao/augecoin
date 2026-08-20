@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Blockchain PoA Pós-Quântica</title>
+<style>
+  :root {
+    --bg: #0a0a14;
+    --surface: #12122a;
+    --card: #1a1a35;
+    --border: #2a2a4a;
+    --primary: #7c5cfc;
+    --primary-dim: #5a3fd4;
+    --accent: #a78bfa;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --green: #4ade80;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --cyan: #22d3ee;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #0a0a14 0%, #1a1040 40%, #0d0628 100%);
+    padding: 80px 20px 60px;
+    text-align: center;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(124,92,252,0.15) 0%, transparent 70%);
+  }
+  .hero h1 {
+    font-size: 3.5em;
+    font-weight: 800;
+    background: linear-gradient(135deg, #7c5cfc, #a78bfa, #c4b5fd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+  }
+  .hero .subtitle {
+    font-size: 1.2em;
+    color: var(--text-dim);
+    margin-top: 12px;
+    position: relative;
+  }
+  .hero .badge-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .badge {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-pq  { background: rgba(34,211,238,0.1); color: var(--cyan);   border-color: rgba(34,211,238,0.3); }
+  .badge-poa { background: rgba(167,139,250,0.1); color: var(--accent); border-color: rgba(167,139,250,0.3); }
+  .badge-50y { background: rgba(74,222,128,0.1); color: var(--green);  border-color: rgba(74,222,128,0.3); }
+
+  /* Sections */
+  .section { max-width: 1100px; margin: 0 auto; padding: 50px 20px; }
+  .section h2 {
+    font-size: 1.8em;
+    color: var(--accent);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--primary);
+    padding-left: 14px;
+  }
+  .section .desc {
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    font-size: 0.95em;
+    padding-left: 17px;
+  }
+
+  /* Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+    margin-top: 12px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--primary-dim); }
+  .card h3 {
+    font-size: 1.05em;
+    color: var(--primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 .icon { font-size: 1.3em; }
+  .card p, .card li { color: var(--text-dim); font-size: 0.9em; }
+  .card ul { padding-left: 18px; margin-top: 6px; }
+
+  /* Feature table */
+  .feature-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 0.9em;
+  }
+  .feature-table th {
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+  }
+  .feature-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .feature-table .check { color: var(--green); font-weight: 700; }
+  .feature-table tr:hover td { background: rgba(124,92,252,0.04); }
+
+  /* Stats row */
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 20px 0;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 24px;
+    text-align: center;
+    min-width: 150px;
+  }
+  .stat .value {
+    font-size: 2em;
+    font-weight: 800;
+    background: linear-gradient(135deg, #7c5cfc, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat .label { color: var(--text-dim); font-size: 0.8em; margin-top: 4px; }
+
+  /* Architecture diagram */
+  .arch-diagram {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+  }
+  .arch-layer {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+    font-size: 0.8em;
+  }
+  .arch-layer .layer-name {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 0.9em;
+    margin-bottom: 6px;
+  }
+  .arch-layer .crate {
+    display: block;
+    color: var(--text-dim);
+    font-family: monospace;
+    font-size: 0.75em;
+  }
+
+  /* Timeline */
+  .timeline { margin-top: 16px; }
+  .tl-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tl-phase {
+    background: var(--primary-dim);
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 700;
+    white-space: nowrap;
+    min-width: 80px;
+    text-align: center;
+  }
+  .tl-text { color: var(--text-dim); font-size: 0.85em; }
+  .tl-done .tl-phase { background: var(--green); color: #000; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-dim);
+    font-size: 0.8em;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 2.2em; }
+    .arch-diagram { grid-template-columns: repeat(2, 1fr); }
+    .stats-row { gap: 8px; }
+    .stat { min-width: 120px; padding: 12px; }
+    .stat .value { font-size: 1.4em; }
+  }
+
+  /* Code blocks */
+  code {
+    background: rgba(124,92,252,0.1);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+  }
+
+  pre {
+    background: #0d0d20;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+    font-size: 0.8em;
+    color: var(--accent);
+    margin: 10px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <h1>AUGECOIN</h1>
+  <p class="subtitle">Blockchain Proof-of-Authority com Criptografia Pós-Quântica Híbrida</p>
+  <div class="badge-row">
+    <span class="badge badge-pq">Ed25519 + ML-DSA-65</span>
+    <span class="badge badge-poa">PoA · Quórum 2/3+1</span>
+    <span class="badge badge-50y">Emissão 50 anos · 750M AUGE</span>
+  </div>
+</section>
+
+<!-- ═══ KEY METRICS ═══ -->
+<section class="section">
+  <div class="stats-row">
+    <div class="stat"><div class="value">AUGE</div><div class="label">Símbolo</div></div>
+    <div class="stat"><div class="value">8</div><div class="label">Casas decimais</div></div>
+    <div class="stat"><div class="value">750M</div><div class="label">Suprimento total</div></div>
+    <div class="stat"><div class="value">60s</div><div class="label">Tempo de bloco</div></div>
+    <div class="stat"><div class="value">50</div><div class="label">Anos de emissão</div></div>
+    <div class="stat"><div class="value">2/3+1</div><div class="label">Quórum</div></div>
+    <div class="stat"><div class="value">~38</div><div class="label">tx/s sustentado</div></div>
+    <div class="stat"><div class="value">3</div><div class="label">Wallets</div></div>
+  </div>
+</section>
+
+<!-- ═══ CRYPTO ═══ -->
+<section class="section">
+  <h2>Fundação Criptográfica</h2>
+  <p class="desc">Assinatura híbrida obrigatória desde o bloco gênesis — ambas as assinaturas devem verificar.</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🔐</span> Assinatura Híbrida</h3>
+      <p>Ed25519 (clássica, 64 bytes) + ML-DSA-65 / CRYSTALS-Dilithium (pós-quântica, NIST FIPS 204, 3309 bytes). Transação ou bloco só é válido se <strong>ambas</strong> as assinaturas verificarem.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">#️⃣</span> Hash BLAKE3-512</h3>
+      <p>Modo XOF com saída de 512 bits. Usado para hash de estado, bloco, transação e derivação de endereços. Mais rápido que SHA-256 com segurança equivalente.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔑</span> HD Wallet (HKDF-SHA3-512)</h3>
+      <p>Derivação determinística: seed BIP39 → HKDF-SHA3-512 → sementes por índice → par Ed25519 + Dilithium. Vetores de teste fixos garantem reprodutibilidade Rust ↔ TypeScript ↔ Mobile.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🏷️</span> Endereços Bech32m</h3>
+      <p>Prefix <code>auge1...</code> com checksum. Derivados de <code>blake3_512(ed25519_pk || dilithium_pk)</code>. Validação rigorosa com detecção de erros de digitação.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔄</span> Crypto Agility</h3>
+      <p>Campo <code>sig_scheme_version</code> em cada transação permite trocar/adicionar esquemas de assinatura via hard fork governado pelos validadores.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CONSENSUS ═══ -->
+<section class="section">
+  <h2>Consenso Proof-of-Authority</h2>
+  <p class="desc">Rede permissionada com 4 validadores iniciais, seleção de líder round-robin determinística e finalidade por quórum.</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">👥</span> ValidatorSet</h3>
+      <p>Estado on-chain com add/remove/activate/deactivate via operação <code>ValidatorAdmin</code> assinada pela chave administradora. <code>activation_height</code> futuro obrigatório — mudanças nunca são imediatas.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🎯</span> Líder Round-Robin</h3>
+      <p><code>leader_for_height(h) = active_validators[h % active_validators.len()]</code>. Seleção 100% determinística, previsível e auditável.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">✅</span> Máquina de Estados</h3>
+      <p>Ciclo Propose → Verify → Sign → Commit com timeout configurável (padrão 120s = 2× block time). ViewChange automático para o próximo validador se o líder não propõe a tempo.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">⚖️</span> Quórum 2/3+1</h3>
+      <p>3 de 4 assinaturas válidas finalizam um bloco. Se <3 validadores ativos, blocos <strong>não</strong> são finalizados — fail-safe contra partição de rede.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🚨</span> Detecção de Equivocation</h3>
+      <p>Duas assinaturas do mesmo validador na mesma altura geram <code>EquivocationProof</code> on-chain. Validador marcado como slashable, removível pelo administrador.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ EMISSION ═══ -->
+<section class="section">
+  <h2>Emissão Monetária</h2>
+  <p class="desc">100% do suprimento gerado via recompensa de bloco. Zero pré-mineração. Propriedade matemática verificada por proptest.</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🪙</span> Regra de Emissão</h3>
+      <pre>BASE_REWARD = 75.000.000.000.000.000 / 26.298.000
+           = ~2,85 bilhões augesat por bloco
+
+Restante distribuído como +1 augesat
+nos primeiros REMAINDER_AUGESAT blocos
+
+Após bloco 26.298.000 → recompensa 0</pre>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📊</span> Verificação Formal</h3>
+      <p>Teste <code>proptest</code> soma <code>block_reward(h)</code> para <code>h = 1..26.298.000</code> e verifica que o total é <strong>exatamente</strong> 75.000.000.000.000.000 augesat — nem 1 a mais, nem 1 a menos.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🏆</span> Distribuição por Bloco</h3>
+      <pre>BLOCO N
+ ├── 1 nova Conta AUGE #N (líder)
+ ├── block_reward(N) augesat
+ └── soma(fee_i) augesat
+         ↓
+ 100% para o validador líder</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ARCHITECTURE ═══ -->
+<section class="section">
+  <h2>Arquitetura de Crates (Rust Workspace)</h2>
+  <p class="desc">8 crates Rust + 3 wallets + SDK TypeScript + infraestrutura DevOps.</p>
+  <div class="arch-diagram">
+    <div class="arch-layer"><div class="layer-name">🔐 Criptografia</div><span class="crate">augecoin-crypto</span></div>
+    <div class="arch-layer"><div class="layer-name">📦 Core Types</div><span class="crate">augecoin-core</span></div>
+    <div class="arch-layer"><div class="layer-name">💾 Storage</div><span class="crate">augecoin-storage</span></div>
+    <div class="arch-layer"><div class="layer-name">⚖️ Consenso</div><span class="crate">augecoin-consensus</span></div>
+    <div class="arch-layer"><div class="layer-name">🌐 Rede P2P</div><span class="crate">augecoin-network</span></div>
+    <div class="arch-layer"><div class="layer-name">📡 RPC</div><span class="crate">augecoin-rpc</span></div>
+    <div class="arch-layer"><div class="layer-name">🖥️ CLI</div><span class="crate">augecoin-cli</span></div>
+    <div class="arch-layer"><div class="layer-name">🖧 Node</div><span class="crate">augecoin-node</span></div>
+  </div>
+</section>
+
+<!-- ═══ NETWORK ═══ -->
+<section class="section">
+  <h2>Rede P2P</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🔒</span> Transporte libp2p + Noise</h3>
+      <p>Criptografia obrigatória via Noise Protocol. Conexão sem Noise é rejeitada. Handshake criptográfico entre peers.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📢</span> Gossipsub</h3>
+      <p>Propagação de transações e blocos via tópicos gossipsub. Mensagem malformada não derruba o nó.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🛡️</span> Autenticação de Canal</h3>
+      <p>Só nós com chave de validador reconhecida participam do canal de consenso. Observadores só recebem dados públicos via RPC.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">⚡</span> Fast Sync</h3>
+      <p>Sincronização inicial via checkpoint mais recente + replay dos blocos restantes. Sync interrompido pode ser retomado sem corromper o estado.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🚫</span> Rate Limiting & Banimento</h3>
+      <p>Contador de infrações por peer. Banimento temporário configurável. Peer bem comportado nunca é afetado. Ban expira automaticamente.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ RPC ═══ -->
+<section class="section">
+  <h2>API RPC</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">📡</span> JSON-RPC 2.0 sobre TLS</h3>
+      <p>Servidor JSON-RPC 2.0 com TLS obrigatório. Conexão HTTP pura rejeitada em produção. Porta padrão: 9443.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔌</span> gRPC sobre TLS</h3>
+      <p>Servidor gRPC com TLS para clientes de alta performance. Health check service incluído.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔑</span> Auth & Rate Limiting</h3>
+      <p>API key para endpoints administrativos. Rate limiting por IP/API key via token bucket. Endpoints públicos não exigem autenticação.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📋</span> Endpoints</h3>
+      <ul>
+        <li><code>getAccount</code> — consultar conta por número</li>
+        <li><code>getBlock</code> / <code>getBlockByHeight</code></li>
+        <li><code>sendTransaction</code> — enviar transação assinada</li>
+        <li><code>getMempool</code> — transações pendentes</li>
+        <li><code>getValidatorSet</code> — validadores ativos</li>
+        <li><code>getNetworkStatus</code> — altura, peers, sync</li>
+        <li><code>getValidatorEarnings</code> — ganhos por validador</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ WALLETS ═══ -->
+<section class="section">
+  <h2>Wallets</h2>
+  <p class="desc">Três wallets oficiais. Nenhum dado sensível (seed/chave privada) sai do dispositivo.</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🌐</span> Wallet Web</h3>
+      <p>React 19 + TypeScript + Vite. WASM crypto. Fluxo completo: seed BIP39 12 palavras (exibida 1× com confirmação), verificação (digitar palavra N), senha (mín 8 chars).<br>
+      <strong>Keystore:</strong> IndexedDB + PBKDF2-SHA256 (600k iters) + AES-256-GCM. QR code Bech32m.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🖥️</span> Wallet Desktop (Tauri)</h3>
+      <p>Rust nativo + React. Crypto via <code>augecoin-crypto</code> diretamente (sem WASM).<br>
+      <strong>Keystore:</strong> Keychain (macOS) / Credential Manager (Windows) / libsecret (Linux).</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📱</span> Wallet Mobile (React Native)</h3>
+      <p>Expo SDK 52. Módulo nativo para operações criptográficas.<br>
+      <strong>Keystore:</strong> Secure Enclave (iOS) / Android Keystore + PBKDF2-SHA256 + AES-256-GCM. QR code nativo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CLI ═══ -->
+<section class="section">
+  <h2>CLI Administrativa</h2>
+  <p class="desc">Interface de linha de comando completa com saída tabular Unicode e <code>--json</code>. Autocomplete de shell via clap.</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">👥</span> Validator</h3>
+      <pre>augecoin-cli validator list [--json]
+augecoin-cli validator add --ed25519-key ... \
+    --ml-dsa-key ... --activation-height N
+augecoin-cli validator remove --id N
+augecoin-cli validator activate --id N
+augecoin-cli validator deactivate --id N</pre>
+      <p>Admin commands exigem <code>--mnemonic</code>. Transação assinada localmente com Ed25519 + Dilithium.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📊</span> Status & Earnings</h3>
+      <pre>augecoin-cli status [--json]
+augecoin-cli validator earnings --all [--json]
+augecoin-cli validator earnings --id N</pre>
+      <p>Status: altura, peers, sincronização, saúde do quórum. Earnings: ranking por total AUGE ganho (recompensa + taxas).</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🛡️</span> Security</h3>
+      <pre>augecoin-cli security equivocations
+augecoin-cli security banned-peers
+augecoin-cli security alerts --tail</pre>
+      <p>Equivocations: provas registradas. Banned-peers: lista de banidos. Alerts --tail: stream em tempo real (equivocation, peer malicioso, replay).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ OBSERVABILITY ═══ -->
+<section class="section">
+  <h2>Observabilidade</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">📈</span> Prometheus Metrics</h3>
+      <table class="feature-table">
+        <tr><th>Métrica</th><th>Tipo</th></tr>
+        <tr><td><code>augecoin_block_height</code></td><td>Gauge</td></tr>
+        <tr><td><code>augecoin_block_time_seconds</code></td><td>Gauge</td></tr>
+        <tr><td><code>augecoin_peers_connected</code></td><td>Gauge</td></tr>
+        <tr><td><code>augecoin_mempool_size</code></td><td>Gauge</td></tr>
+        <tr><td><code>augecoin_equivocation_events_total</code></td><td>Counter</td></tr>
+        <tr><td><code>augecoin_block_propagation_latency_ms</code></td><td>Gauge</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📊</span> Grafana Dashboard</h3>
+      <p>Dashboard pré-configurado versionado no repositório:</p>
+      <ul>
+        <li><strong>Network Status:</strong> altura, peers, mempool, block time, latência</li>
+        <li><strong>Quorum Health:</strong> altura timeline, peers conectados</li>
+        <li><strong>Validator Earnings:</strong> taxa de produção, equivocation rate</li>
+        <li><strong>Security Events:</strong> total equivocations, latência, mempool</li>
+      </ul>
+      <p>Login: <code>admin</code> / <code>augecoin</code>. Dashboard como home page.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🚨</span> Alertas Ativos</h3>
+      <ul>
+        <li><strong>Equivocation:</strong> nível Critical — validador assinou 2 blocos na mesma altura</li>
+        <li><strong>Malicious Peer:</strong> nível Warning — infrações repetidas, auto-ban</li>
+        <li><strong>Validator Absent:</strong> nível Warning — líder não propôs dentro do timeout</li>
+        <li><strong>Replay Attempt:</strong> nível Info — op_sequence reutilizado</li>
+      </ul>
+      <p>Webhook genérico configurável (Slack/Discord/Telegram). Log estruturado via stderr.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SDK ═══ -->
+<section class="section">
+  <h2>SDK TypeScript</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">📦</span> @augecoin/wasm-crypto</h3>
+      <p><code>augecoin-crypto</code> compilado para WASM via <code>wasm-pack</code>. Expõe geração de chaves, assinatura e verificação para JavaScript/TypeScript.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🧰</span> @augecoin/sdk</h3>
+      <p>SDK de alto nível: criação de carteira HD, assinatura de transação, chamadas RPC tipadas (geradas a partir do <code>.proto</code> gRPC), utilitários de formatação de saldo (augesat ↔ AUGE).</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔬</span> Paridade de Vetores</h3>
+      <p>Mesmos vetores de teste fixos (<code>hdkeys.json</code>) usados para confirmar que a derivação de chave em TypeScript bate byte-a-byte com Rust. Reprodutibilidade garantida entre todas as plataformas.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SECURITY ═══ -->
+<section class="section">
+  <h2>Segurança & Hardening</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🎯</span> Fuzzing</h3>
+      <ul>
+        <li><code>tx_deserialize</code>: 5.4M iterações, <strong>0 crashes</strong></li>
+        <li><code>block_deserialize</code>: 287K iterações limpas (bug OOM encontrado e corrigido: bounds checks em tx_count e qs_count)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="icon">⚡</span> Load Test</h3>
+      <ul>
+        <li><strong>36-38 tx/s</strong> sustentado</li>
+        <li>Bloco de 1000 transações: 27s (limite: 60s)</li>
+        <li>Bloco de 500 transações: 14s</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔀</span> Partição de Rede</h3>
+      <ul>
+        <li>2/4 validadores isolados: quórum <strong>não</strong> atingido (fail-safe)</li>
+        <li>3/4 validadores: finalização normal</li>
+        <li>Atomicidade preservada durante recuperação</li>
+        <li>State root consistente pós-partição</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🔒</span> TLS Everywhere</h3>
+      <ul>
+        <li>JSON-RPC sobre TLS (rejeita HTTP puro)</li>
+        <li>gRPC sobre TLS</li>
+        <li>libp2p + Noise para P2P</li>
+        <li>API keys para endpoints admin</li>
+        <li>Rate limiting token-bucket</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INFRA ═══ -->
+<section class="section">
+  <h2>Infraestrutura</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="icon">🐳</span> Docker Compose 4 Nós</h3>
+      <p>Testnet completa com 4 validadores + 1 observador + Prometheus + Grafana. Cada nó com identidade criptográfica própria, volume persistente e bootnodes dos outros pares.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">🌱</span> Script de Gênesis</h3>
+      <p><code>scripts/genesis/generate.sh</code>: gera seeds determinísticas, chaves Ed25519 + ML-DSA-65 via HKDF-SHA3-512, bloco 0 com parâmetros SPEC.md seção 3, configs por nó.</p>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📋</span> CI/CD</h3>
+      <p>GitHub Actions: build, test, clippy e fmt em todo push/PR. Workflow configurado em <code>.github/workflows/ci.yml</code>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURE CHECKLIST ═══ -->
+<section class="section">
+  <h2>Checklist de Funcionalidades</h2>
+  <table class="feature-table">
+    <tr><th>Funcionalidade</th><th>Status</th><th>Detalhes</th></tr>
+    <tr><td>Assinatura Híbrida Ed25519 + ML-DSA-65</td><td class="check">✓</td><td>Obrigatória desde bloco gênesis</td></tr>
+    <tr><td>Hash BLAKE3-512 XOF</td><td class="check">✓</td><td>Estado, bloco, transação, endereços</td></tr>
+    <tr><td>HD Wallet (BIP39 + HKDF-SHA3-512)</td><td class="check">✓</td><td>Derivação determinística cross-platform</td></tr>
+    <tr><td>Endereços Bech32m (auge1...)</td><td class="check">✓</td><td>Com checksum e validação</td></tr>
+    <tr><td>Contas numeradas (AugeAccount)</td><td class="check">✓</td><td>Sem expiração, saldo u64 (augesat)</td></tr>
+    <tr><td>Transações (7 tipos de operação)</td><td class="check">✓</td><td>Transfer, ChangeKey, ClaimAccount, SetAccountName, AttachData, ValidatorAdmin</td></tr>
+    <tr><td>Blocos com serialização canônica</td><td class="check">✓</td><td>Determinística byte-a-byte</td></tr>
+    <tr><td>Emissão monetária (50 anos, 750M AUGE)</td><td class="check">✓</td><td>Verificada por proptest (soma exata)</td></tr>
+    <tr><td>Storage RocksDB (5 column families)</td><td class="check">✓</td><td>accounts, blocks, tx_index, validator_set, equivocation_proofs</td></tr>
+    <tr><td>State root via Merkle Tree</td><td class="check">✓</td><td>BLAKE3-512, determinístico</td></tr>
+    <tr><td>Checkpoints / Snapshots</td><td class="check">✓</td><td>Restauração rápida de estado</td></tr>
+    <tr><td>Testes de reorg / corrupção / recuperação</td><td class="check">✓</td><td>Rollback, detecção de corrupção</td></tr>
+    <tr><td>ValidatorSet + líder round-robin</td><td class="check">✓</td><td>Com activation_height futuro</td></tr>
+    <tr><td>Máquina de estados Propose→Verify→Sign→Commit</td><td class="check">✓</td><td>Timeout + ViewChange</td></tr>
+    <tr><td>Quórum 2/3+1</td><td class="check">✓</td><td>3/4 finaliza; &lt;3 não finaliza</td></tr>
+    <tr><td>Detecção de equivocation</td><td class="check">✓</td><td>Prova on-chain, validator slashable</td></tr>
+    <tr><td>Teste integração 4 nós</td><td class="check">✓</td><td>Liveness + equivocation</td></tr>
+    <tr><td>Rede P2P libp2p + Noise</td><td class="check">✓</td><td>Criptografia obrigatória</td></tr>
+    <tr><td>Gossipsub (tx + blocos)</td><td class="check">✓</td><td>Tópicos dedicados</td></tr>
+    <tr><td>Descoberta de peers + auth</td><td class="check">✓</td><td>Bootnodes estáticos, canal de consenso restrito</td></tr>
+    <tr><td>Fast sync via checkpoint</td><td class="check">✓</td><td>Retomável em caso de interrupção</td></tr>
+    <tr><td>Rate limiting + banimento</td><td class="check">✓</td><td>Expiração configurável</td></tr>
+    <tr><td>Mempool com validação completa</td><td class="check">✓</td><td>Assinatura, op_sequence, saldo, taxa</td></tr>
+    <tr><td>execute_block() atômico</td><td class="check">✓</td><td>All-or-nothing, rollback em falha</td></tr>
+    <tr><td>ClaimAccount (ADR-005)</td><td class="check">✓</td><td>Auto-atribuição ao líder</td></tr>
+    <tr><td>Teste end-to-end de bloco</td><td class="check">✓</td><td>Mempool → bloco → saldo</td></tr>
+    <tr><td>JSON-RPC 2.0 + gRPC sobre TLS</td><td class="check">✓</td><td>Rejeita HTTP puro</td></tr>
+    <tr><td>8 endpoints RPC</td><td class="check">✓</td><td>Conta, bloco, tx, mempool, validators, status, earnings</td></tr>
+    <tr><td>Auth admin + rate limiting</td><td class="check">✓</td><td>API key, token bucket</td></tr>
+    <tr><td>augecoin-crypto → WASM</td><td class="check">✓</td><td>@augecoin/wasm-crypto (npm)</td></tr>
+    <tr><td>SDK TypeScript (@augecoin/sdk)</td><td class="check">✓</td><td>Wallet HD, RPC tipado, formatação</td></tr>
+    <tr><td>Paridade vetores Rust ↔ TS</td><td class="check">✓</td><td>hdkeys.json compartilhado</td></tr>
+    <tr><td>Wallet Web (React + WASM)</td><td class="check">✓</td><td>Seed 1×, verificação, senha, QR</td></tr>
+    <tr><td>Wallet Desktop (Tauri)</td><td class="check">✓</td><td>Keystore nativo do SO</td></tr>
+    <tr><td>Wallet Mobile (React Native)</td><td class="check">✓</td><td>Secure Enclave, QR nativo</td></tr>
+    <tr><td>CLI: validator admin</td><td class="check">✓</td><td>Add/remove/activate/deactivate/list</td></tr>
+    <tr><td>CLI: status & earnings</td><td class="check">✓</td><td>Saúde do quórum, ranking AUGE</td></tr>
+    <tr><td>CLI: security</td><td class="check">✓</td><td>Equivocations, banned-peers, alerts --tail</td></tr>
+    <tr><td>Prometheus metrics (6 métricas)</td><td class="check">✓</td><td>Porta 9100, formato texto</td></tr>
+    <tr><td>Grafana dashboard versionado</td><td class="check">✓</td><td>12 painéis, 4 linhas</td></tr>
+    <tr><td>Alertas ativos (4 tipos)</td><td class="check">✓</td><td>Webhook genérico, log estruturado</td></tr>
+    <tr><td>Docker 4 nós + script gênesis</td><td class="check">✓</td><td>Identidades próprias, bloco 0</td></tr>
+    <tr><td>Fuzzing (tx + block)</td><td class="check">✓</td><td>0 crashes após correção de bug</td></tr>
+    <tr><td>Load test</td><td class="check">✓</td><td>38 tx/s, 1000 tx em 27s</td></tr>
+    <tr><td>Partition test</td><td class="check">✓</td><td>Fail-safe, recuperação atômica</td></tr>
+    <tr><td>Checklist pré-mainnet</td><td class="check">✓</td><td>Incident response plan incluso</td></tr>
+  </table>
+</section>
+
+<!-- ═══ ROADMAP ═══ -->
+<section class="section">
+  <h2>Roadmap de Desenvolvimento</h2>
+  <div class="timeline">
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-00</span><span class="tl-text">Monorepo Rust + CI/CD</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-01</span><span class="tl-text">Criptografia: assinatura híbrida, BLAKE3, HD keys, Bech32m</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-02</span><span class="tl-text">Core types: Account, Transaction, Block, Emissão monetária</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-03</span><span class="tl-text">Storage: RocksDB, Merkle tree, Checkpoints, Robustez</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-04</span><span class="tl-text">Consenso: ValidatorSet, Round states, Quórum, Equivocation</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-05</span><span class="tl-text">Rede P2P: libp2p, Noise, Gossipsub, Sync, Rate limit</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-06</span><span class="tl-text">Execução: Mempool, execute_block, ClaimAccount, E2E tests</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-07</span><span class="tl-text">RPC: JSON-RPC 2.0, gRPC, TLS, Auth, Rate limiting</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-08</span><span class="tl-text">SDK: WASM crypto, SDK TypeScript, Paridade de vetores</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-09</span><span class="tl-text">Wallets: Web, Desktop (Tauri), Mobile (React Native)</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-10</span><span class="tl-text">CLI: Validator admin, Status, Earnings, Security</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-11</span><span class="tl-text">Observabilidade: Prometheus, Grafana, Alertas ativos</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-12</span><span class="tl-text">DevOps: Docker 4 nós, Gênesis, Hardening (fuzz, load, partição)</span></div>
+    <div class="tl-row tl-done"><span class="tl-phase">FASE-13</span><span class="tl-text">Checklist pré-mainnet: auditoria, incident response plan</span></div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer">
+  <p>AUGECOIN · Blockchain PoA Pós-Quântica · 38 fases concluídas · Pronto para mainnet</p>
+  <p style="margin-top:6px;">Especificação: SPEC.md · Decisões: DECISIONS.md · Progresso: PROGRESS.md · Resposta a Incidentes: INCIDENT_RESPONSE.md</p>
+</footer>
+
+</body>
+</html>
