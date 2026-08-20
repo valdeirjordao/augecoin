@@ -484,6 +484,7 @@ fn check_name_available(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_operation(
     op: &Operation,
     block_number: u64,

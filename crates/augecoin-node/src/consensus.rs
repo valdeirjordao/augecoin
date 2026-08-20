@@ -744,7 +744,11 @@ impl ConsensusEngine {
         let (ops, serialized_size) = {
             let mp = self.mempool.lock().unwrap();
             let pending = mp.pending_cloned();
-            eprintln!("[debug-build_block] block={block_number} pending={} mempool_len={}", pending.len(), mp.len());
+            eprintln!(
+                "[debug-build_block] block={block_number} pending={} mempool_len={}",
+                pending.len(),
+                mp.len()
+            );
             augecoin_core::block::select_block_operations(
                 &header,
                 &pending,

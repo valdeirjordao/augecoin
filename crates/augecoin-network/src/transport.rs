@@ -394,17 +394,23 @@ pub fn start_consensus_network(
                                 }
                             }
                             SwarmEvent::Behaviour(AugecoinBehaviourEvent::Kademlia(
-                                libp2p::kad::Event::OutboundQueryProgressed { result, .. },
+                                libp2p::kad::Event::OutboundQueryProgressed {
+                                    result: libp2p::kad::QueryResult::Bootstrap(Ok(ok)),
+                                    ..
+                                },
                             )) => {
-                                if let libp2p::kad::QueryResult::Bootstrap(res) = result {
-                                    match res {
-                                        Ok(ok) => println!(
-                                            "[network] kademlia bootstrap ok: peer={} remaining={}",
-                                            ok.peer, ok.num_remaining
-                                        ),
-                                        Err(e) => eprintln!("[network] kademlia bootstrap failed: {e:?}"),
-                                    }
-                                }
+                                println!(
+                                    "[network] kademlia bootstrap ok: peer={} remaining={}",
+                                    ok.peer, ok.num_remaining
+                                );
+                            }
+                            SwarmEvent::Behaviour(AugecoinBehaviourEvent::Kademlia(
+                                libp2p::kad::Event::OutboundQueryProgressed {
+                                    result: libp2p::kad::QueryResult::Bootstrap(Err(e)),
+                                    ..
+                                },
+                            )) => {
+                                eprintln!("[network] kademlia bootstrap failed: {e:?}");
                             }
                             SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
                                 let remote = strip_p2p(&endpoint.get_remote_address().to_owned());

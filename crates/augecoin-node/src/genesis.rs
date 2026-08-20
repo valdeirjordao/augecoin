@@ -96,7 +96,7 @@ pub fn initialize(storage: &Storage, path: Option<&Path>) -> Result<(), String> 
         }
         let key = public_key(entry)?;
         let mut account = Account::new(entry.account_number, key, 0);
-        account.balance = entry.balance.unwrap_or_else(|| match entry.role.as_str() {
+        account.balance = entry.balance.unwrap_or(match entry.role.as_str() {
             "treasury" => config.genesis.treasury_balance,
             "faucet" => config.genesis.faucet_balance,
             "validator_treasury" => config.genesis.validator_balance,

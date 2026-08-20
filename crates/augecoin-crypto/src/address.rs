@@ -43,7 +43,9 @@ pub fn derive_short_address(verifying_key: &VerifyingKey) -> String {
 
 pub fn validate_short_address(address: &str) -> bool {
     let bytes = match base58_decode(address) {
-        Some(bytes) if bytes.len() == SHORT_ADDRESS_PAYLOAD_LEN + SHORT_ADDRESS_CHECKSUM_LEN => bytes,
+        Some(bytes) if bytes.len() == SHORT_ADDRESS_PAYLOAD_LEN + SHORT_ADDRESS_CHECKSUM_LEN => {
+            bytes
+        }
         _ => return false,
     };
 
@@ -88,7 +90,9 @@ fn base58_encode(bytes: &[u8]) -> String {
 fn base58_decode(value: &str) -> Option<Vec<u8>> {
     let mut bytes = vec![0u8];
     for character in value.bytes() {
-        let digit = BASE58.iter().position(|&candidate| candidate == character)? as u32;
+        let digit = BASE58
+            .iter()
+            .position(|&candidate| candidate == character)? as u32;
         let mut carry = digit;
         for byte in &mut bytes {
             let value = (*byte as u32) * 58 + carry;
@@ -164,13 +168,15 @@ mod tests {
     #[test]
     fn short_address_cross_language_vector() {
         let public_key = [
-            0x65, 0x89, 0xbf, 0xd8, 0xbb, 0xf0, 0xe3, 0x49,
-            0x91, 0xb0, 0xcf, 0x5c, 0xf3, 0x46, 0x7a, 0x27,
-            0x55, 0xdd, 0xf4, 0xa7, 0x44, 0x80, 0x9c, 0xb7,
-            0x18, 0xb8, 0xf0, 0x40, 0xcf, 0x3d, 0x78, 0x0c,
+            0x65, 0x89, 0xbf, 0xd8, 0xbb, 0xf0, 0xe3, 0x49, 0x91, 0xb0, 0xcf, 0x5c, 0xf3, 0x46,
+            0x7a, 0x27, 0x55, 0xdd, 0xf4, 0xa7, 0x44, 0x80, 0x9c, 0xb7, 0x18, 0xb8, 0xf0, 0x40,
+            0xcf, 0x3d, 0x78, 0x0c,
         ];
         let key = VerifyingKey::from_bytes(&public_key).unwrap();
-        assert_eq!(derive_short_address(&key), "274rGuUx9XozCeJ2LBXggKLp5dd31fugXWKNinW");
+        assert_eq!(
+            derive_short_address(&key),
+            "274rGuUx9XozCeJ2LBXggKLp5dd31fugXWKNinW"
+        );
     }
 
     #[test]
@@ -179,7 +185,9 @@ mod tests {
         let key = wallet.derive_keypair(0).verifying_key();
         let mut address = derive_short_address(&key).into_bytes();
         address[0] = if address[0] == b'1' { b'2' } else { b'1' };
-        assert!(!validate_short_address(std::str::from_utf8(&address).unwrap()));
+        assert!(!validate_short_address(
+            std::str::from_utf8(&address).unwrap()
+        ));
     }
 
     #[test]

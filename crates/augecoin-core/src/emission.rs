@@ -83,12 +83,8 @@ mod tests {
 
     #[test]
     fn total_emission_in_auge_equals_hard_cap() {
-        let total_augesat: u128 =
-            TOTAL_EMISSION_BLOCKS as u128 * CT_BLOCK_REWARD_AUGESAT as u128;
-        assert_eq!(
-            total_augesat / ONE_AUGE as u128,
-            HARD_CAP_AUGE as u128
-        );
+        let total_augesat: u128 = TOTAL_EMISSION_BLOCKS as u128 * CT_BLOCK_REWARD_AUGESAT as u128;
+        assert_eq!(total_augesat / ONE_AUGE as u128, HARD_CAP_AUGE as u128);
     }
 
     #[test]

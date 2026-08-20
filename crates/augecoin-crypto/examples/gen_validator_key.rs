@@ -15,15 +15,14 @@ use augecoin_crypto::signature::HybridKeyPair;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let (seed_hex, mnemonic): (Option<String>, Option<String>) = if let Some(pos) =
-        args.iter().position(|a| a == "--seed")
-    {
-        (args.get(pos + 1).cloned(), None)
-    } else if let Some(pos) = args.iter().position(|a| a == "--mnemonic") {
-        (None, args.get(pos + 1).cloned())
-    } else {
-        (None, None)
-    };
+    let (seed_hex, mnemonic): (Option<String>, Option<String>) =
+        if let Some(pos) = args.iter().position(|a| a == "--seed") {
+            (args.get(pos + 1).cloned(), None)
+        } else if let Some(pos) = args.iter().position(|a| a == "--mnemonic") {
+            (None, args.get(pos + 1).cloned())
+        } else {
+            (None, None)
+        };
 
     let kp: HybridKeyPair;
     let mut mnemonic_out = String::new();
