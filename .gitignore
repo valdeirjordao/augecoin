@@ -35,3 +35,10 @@ __pycache__/
 
 # Env
 .env
+
+# Banco de dados runtime
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db
