@@ -3,6 +3,7 @@ target/
 
 # Node
 node_modules/
+**/.vite/
 
 # Tauri build artifacts
 **/src-tauri/binaries/
