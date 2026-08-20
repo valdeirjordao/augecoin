@@ -1,0 +1,78 @@
+══════════════════════════════════════════
+       AUGECOIN NODE - Validator #3     
+══════════════════════════════════════════
+ Data dir:    /tmp/augecoin-node-3        
+ Chain ID:    2                           
+ RPC:         0.0.0.0:9008                   
+ Wallet:      0.0.0.0:8084                   
+ Metrics:     0.0.0.0:9130                   
+ P2P LibP2P:  0.0.0.0:9203                   
+ Block time:  10s                         
+══════════════════════════════════════════
+
+[init] opening RocksDB at /tmp/augecoin-node-3
+[init] storing genesis validator set
+[init] current block height: 0
+[init] validators: 4
+[init]   validator #0: ed25519=2833361084c028f6...
+[init]   validator #1: ed25519=a7c10f7286e09c58...
+[init]   validator #2: ed25519=09a349ab25081303...
+[init]   validator #3: ed25519=307b08ae5db5ddec...
+[metrics] listening on 0.0.0.0:9130
+WARNING: AUGECOIN_TLS_CERT/AUGECOIN_TLS_KEY not set; using self-signed certificate. Configure real TLS certs for production.
+[network] gossipsub max_transmit_size=1048576
+[wallet] static file server listening on 0.0.0.0:8084
+[network] LibP2P consensus transport initialized on port 9203
+[network] LibP2P consensus network listening on port 9203
+[network] local peer_id: 12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo
+[network] dialing bootnode /ip4/127.0.0.1/tcp/9200
+[network] listening on /ip4/127.0.0.1/tcp/9203
+[network] listening on /ip4/184.174.36.240/tcp/9203
+[network] kademlia bootstrap skipped: NoKnownPeers
+[network] peer connected: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd (unique peers: 1)
+[network] dial to 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd failed: Dial error
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] self external address: /ip4/127.0.0.1/tcp/9203
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[rpc] JSON-RPC over TLS listening on 0.0.0.0:9008
+[rpc] WARNING: no AUGECOIN_ADMIN_API_KEYS set; admin methods (validatorAdd/Remove/Activate/Deactivate) are blocked
+[faucet] disabled (start with --enable-faucet to enable)
+[network] peer connected: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi (unique peers: 2)
+[network] kademlia: peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi unroutable
+[network] peer identified: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] peer connected: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 (unique peers: 3)
+[network] peer disconnected: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 (unique peers: 2, cause: Some(IO(Custom { kind: Other, error: Error(Right(Closed)) })))
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] peer connected: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 (unique peers: 3)
+[network] kademlia: peer 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 unroutable
+[network] peer identified: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] dial to 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 failed: Dial error
+[network] kademlia bootstrap ok: peer=1AeK2i7GcGpP6FhfoyDFSkmrjAgzemR5iATg6vwzyw9q2J remaining=1
+[network] kademlia bootstrap ok: peer=1AgtVPgcbH3kJBiWpJvmFEB9yKiA1BLNV7M2DGDhBqJeXi remaining=0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AngmNrZkyEzeRE4tvyNKddMhKmGBfetNuFp1Q1exkuxwE remaining=1
+[network] kademlia bootstrap ok: peer=1AcgzxttXQHiAFfidp95KZsZ8F6fNjgh8K2qsQroGxbEnd remaining=0
+[consensus] waiting for peer discovery...
+[network] 3 peers discovered after 0s
+
+[consensus] starting multi-validator consensus (4 validators)
+
+[consensus] received block proposal height=1 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/3)
+[consensus] collected signature from v0 (3/3)
+[block 1] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] received block proposal height=2 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/3)
+[block 2] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] proposing block height=3 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/3)
+[consensus] collected signature from v1 (3/3)
+[consensus] collected signature from v2 (4/3)
+[block 3] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AaNobKTDT5dtdZwiZSpxkSYN4thiJzRKc8xRa1URu2q11 remaining=1
+[network] kademlia bootstrap ok: peer=1Ab4erhbgfaLAU1rvAMjKcFpE9mxNocq5Quvdk5Tns7SeB remaining=0
+[consensus] received block proposal height=4 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/3)
+[consensus] collected signature from v2 (3/3)
+[block 4] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4

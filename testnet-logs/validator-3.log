@@ -1,0 +1,976 @@
+══════════════════════════════════════════
+       AUGECOIN NODE - Validator #3     
+══════════════════════════════════════════
+ Data dir:    /tmp/augecoin-node-3        
+ Chain ID:    2                           
+ RPC:         0.0.0.0:9008                   
+ Wallet:      0.0.0.0:8084                   
+ Metrics:     0.0.0.0:9130                   
+ P2P LibP2P:  0.0.0.0:9203                   
+ Block time:  5s                         
+══════════════════════════════════════════
+
+[init] opening RocksDB at /tmp/augecoin-node-3
+[genesis] initialized role=faucet account=1 balance=10000000000000000 key=3b8c3c1e21aef42e40a229904b74504d1e4568f336a886b686cce9eb96e9488c
+[init] storing genesis validator set
+[init] current block height: 0
+[init] validators: 4
+[init]   validator #0: ed25519=2833361084c028f6...
+[init]   validator #1: ed25519=a7c10f7286e09c58...
+[init]   validator #2: ed25519=09a349ab25081303...
+[init]   validator #3: ed25519=307b08ae5db5ddec...
+[metrics] listening on 0.0.0.0:9130
+[wallet] static file server listening on 0.0.0.0:8084
+WARNING: AUGECOIN_TLS_CERT/AUGECOIN_TLS_KEY not set; using self-signed certificate. Configure real TLS certs for production.
+[network] LibP2P consensus transport initialized on port 9203
+[network] LibP2P consensus network listening on port 9203
+[network] local peer_id: 12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo
+[network] dialing bootnode /ip4/127.0.0.1/tcp/9200
+[network] listening on /ip4/127.0.0.1/tcp/9203
+[network] listening on /ip4/184.174.36.240/tcp/9203
+[network] kademlia bootstrap skipped: NoKnownPeers
+[network] peer connected: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd (unique peers: 1)
+[network] dial to 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd failed: Dial error
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] self external address: /ip4/127.0.0.1/tcp/9203
+[rpc] JSON-RPC over TLS listening on 0.0.0.0:9008
+[rpc] WARNING: no AUGECOIN_ADMIN_API_KEYS set; admin methods (validatorAdd/Remove/Activate/Deactivate) are blocked
+[faucet] disabled (start with --enable-faucet to enable)
+[network] peer connected: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi (unique peers: 2)
+[network] kademlia: peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi unroutable
+[network] peer identified: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] peer connected: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 (unique peers: 3)
+[network] peer identified: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AkTDDPQSQPL6o5SXb1wKpq2FBVYwZpERymaMK39sU2Qzr remaining=1
+[network] kademlia bootstrap ok: peer=1AWQPpjkN3TGLFZiZ9YAVb4iU4cC3yWMpbdYbNAQr4zKZT remaining=0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AjUwxCagL1JFZYSMQcgNYo2433oin1smKHxj41jCRGGC1 remaining=1
+[network] kademlia bootstrap ok: peer=1AWfCEpos4xGcaCsdavLSZZ17rz1AWNxMqGP3NGcMwXCq2 remaining=0
+[consensus] waiting for peer discovery...
+[network] 3 peers discovered after 0s
+
+[consensus] starting multi-validator consensus (4 validators)
+
+[consensus] received block proposal height=1 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/3)
+[consensus] collected signature from v0 (3/3)
+[block 1] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[block 2] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] proposing block height=3 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/3)
+[consensus] collected signature from v1 (3/3)
+[consensus] collected signature from v2 (4/3)
+[block 3] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/4
+[consensus] received block proposal height=4 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/3)
+[consensus] collected signature from v2 (3/3)
+[block 4] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] received block proposal height=5 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/3)
+[consensus] collected signature from v2 (3/3)
+[block 5] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AhHLyujACGtr1yw5c6ipj1LjcEoCeoMP5WSKwRyjpTbB6 remaining=1
+[network] kademlia bootstrap ok: peer=1AhqTpEpHyGUTS1cdXXQsmaGJWtmTk6b3oCk5kA1AthRjk remaining=0
+[consensus] received block proposal height=6 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/3)
+[consensus] collected signature from v0 (3/3)
+[block 6] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] proposing block height=7 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/3)
+[consensus] collected signature from v0 (3/3)
+[block 7] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] received block proposal height=8 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/3)
+[consensus] collected signature from v2 (3/3)
+[block 8] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] received block proposal height=9 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/3)
+[consensus] collected signature from v0 (3/3)
+[block 9] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=3/4
+[consensus] received block proposal height=10 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/3)
+[consensus] collected signature from v0 (3/3)
+[validator] validator added: ValidatorSet updated 4 -> 5 active validators
+[validator] quorum recalculated: 4/5
+[block 10] COMMITTED  reward=29.00000000 AUGE  ops=1  quorum=3/5
+[network] peer connected: 12D3KooWA2iD4XPL24X1VCyF4KCeBsAcni1ZtfCVnQtEe4odyTYH (unique peers: 4)
+[network] kademlia: peer 12D3KooWA2iD4XPL24X1VCyF4KCeBsAcni1ZtfCVnQtEe4odyTYH unroutable
+[network] peer identified: 12D3KooWA2iD4XPL24X1VCyF4KCeBsAcni1ZtfCVnQtEe4odyTYH protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AYvQBvMinDf5xunvCK7SmpCWH3rmw9tdzmzh67Y2dxNo5 remaining=1
+[network] kademlia bootstrap ok: peer=1Ad9MyE1UjG3nzGXLhwZhSEcchd5zDeCvcrydoiePd7pmg remaining=0
+[consensus] received block proposal height=11 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 11] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AWU9oMRCviGGnsUkNgQ5gZpv9u6LNMrLvRgqa1rLi9iUz remaining=1
+[network] kademlia bootstrap ok: peer=1AZzi514W8EWwcSvE5jC6i1Lroa6q4nzaxisifkneefQ9J remaining=0
+[consensus] received block proposal height=12 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 12] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=13 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 13] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] round timeout height=14 round=0; broadcasting round-change to round 1
+[consensus] VIEW-CHANGE to round 1 (quorum 4/4) voters=Some({3, 2, 1, 0})
+[consensus] received block proposal height=14 from validator #0 (round 1)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 14] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=15 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 15] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AWkf6ipV7ZxBf84oAMHVE2d7W6FjG1caBNzHbW6RXvXYP remaining=1
+[network] kademlia bootstrap ok: peer=1AWk1MEfB7A4tDAjaPsXgY5XkPEVknCXR4A4bKr336Sqeq remaining=0
+[consensus] received block proposal height=16 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 16] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=17 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 17] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=18 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v1 (4/4)
+[consensus] collected signature from v0 (5/4)
+[block 18] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=19 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 19] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=20 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 20] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=21 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 21] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AeJgUxN93mcNkDowoMpu22JeRQHquSRDvX7nXX7iRQs43 remaining=1
+[network] kademlia bootstrap ok: peer=1AWscpZAP7hkbv3iKXDAcrTqvjkhmyRto3P1ZMJ551ESwi remaining=0
+[consensus] received block proposal height=22 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 22] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=23 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 23] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=24 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 24] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=25 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 25] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=26 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 26] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1Aj5wq49iCqv47PKUaFnsbGXUjxk3TB2ZK6s1n2mfgStrm remaining=1
+[network] kademlia bootstrap ok: peer=1AXvVvSqPcS9bty173Bc9QH5GLmqqSvizMkEBJMiDSv5Ad remaining=0
+[consensus] received block proposal height=27 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 27] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=28 (leader=v3, round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v2 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 28] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=29 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 29] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=30 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 30] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=31 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 31] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1Abmw6KzKTnHMd2uQmNDqXbh428MBmB5Mp5ztA3a1sAemD remaining=1
+[network] kademlia bootstrap ok: peer=1AYpU1hNm7TPmbhkPskfjUywVS2soATL73junhcq6AjSWw remaining=0
+[consensus] received block proposal height=32 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 32] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=33 (leader=v3, round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[consensus] collected signature from v0 (5/4)
+[block 33] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=34 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 34] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=35 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[block 35] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=36 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 36] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AhQerad6wnx4ov1ffvyAv4eN7x5kqH7t9KusUwScpSC6j remaining=1
+[network] kademlia bootstrap ok: peer=1AdNZeKPQ8AJsigGgGsTpkdTwmXsVy4HYi6vsrjU2NoPfS remaining=0
+[consensus] received block proposal height=37 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 37] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=38 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 38] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=39 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[block 39] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=40 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 40] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=41 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 41] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AgBzFLUYGFTc2zKwVQJRYfxHxFzg7shUsjnihSm9bTniS remaining=1
+[network] kademlia bootstrap ok: peer=1AX2CeavFsyNA7fixQB26h3k73nNjnpj7AiooamxhwsF7u remaining=0
+[consensus] received block proposal height=42 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 42] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=43 (leader=v3, round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 43] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=44 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 44] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=45 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 45] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=46 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 46] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1Ab88Rkz7FVJab3xGy6WFRnzNgotE2aEfPX16zh3hWH141 remaining=1
+[network] kademlia bootstrap ok: peer=1AheJbYU3L4RbEYFdX3W8vAPhoHo6RpDWYugFYrukidDZu remaining=0
+[consensus] received block proposal height=47 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 47] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=48 (leader=v3, round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 48] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=49 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 49] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=50 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 50] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer disconnected: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi (unique peers: 3, cause: Some(IO(Custom { kind: Other, error: Error(Right(Closed)) })))
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/184.174.36.240/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/184.174.36.240/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing discovered peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] kademlia bootstrap ok: peer=1AhEjGeTyrdxjxKqLmiPr7JRkwrB3rLBgcfnstCMh9PBT3 remaining=1
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] kademlia bootstrap ok: peer=1AhQbC8HW8Gs7A9htThJBDEUcsShEzAJJEnM5cZM5bgXxt remaining=0
+[consensus] round timeout height=51 round=0; broadcasting round-change to round 1
+[consensus] VIEW-CHANGE to round 1 (quorum 4/4) voters=Some({2, 3, 0, 4})
+[consensus] received block proposal height=51 from validator #2 (round 1)
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 51] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] received block proposal height=52 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 52] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] proposing block height=53 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[block 53] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] received block proposal height=54 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 54] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] received block proposal height=55 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 55] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing discovered peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] kademlia bootstrap ok: peer=1AoTQ6tDV6gbaRHvX1GFK9i67CLNr8VjxA9eHkpb8VjqW4 remaining=1
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] kademlia bootstrap ok: peer=1AWXHDTc4jkNGB7oMv3noFmdVUfTsifAojcKBf8F14MC8V remaining=0
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] round timeout height=56 round=0; broadcasting round-change to round 1
+[consensus] VIEW-CHANGE to round 1 (quorum 4/4) voters=Some({4, 3, 2, 0})
+[consensus] received block proposal height=56 from validator #2 (round 1)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 56] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[consensus] received block proposal height=57 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 57] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] dialing exchanged peer 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi at /ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi
+[network] dial to 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi failed: Failed to negotiate transport protocol(s): [(/ip4/127.0.0.1/tcp/9201/p2p/12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi: : Connection refused (os error 111): Connection refused (os error 111))]
+[network] peer connected: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi (unique peers: 4)
+[network] peer identified: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[consensus] proposing block height=58 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 58] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=59 from validator #4 (round 0)
+[block 59] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWA2iD4XPL24X1VCyF4KCeBsAcni1ZtfCVnQtEe4odyTYH protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[consensus] received block proposal height=60 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AgEcRCN2rBJ5tCYdv7emDi5XqsTsuwpwqRMo877bv1Ue1 remaining=1
+[network] kademlia bootstrap ok: peer=1AoKxzPS2rQfsfuCdd7K1rwr4VBrit87pY13qgz9iEU3bx remaining=0
+[block 60] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=61 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 61] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=62 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 62] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=63 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[consensus] collected signature from v0 (5/4)
+[block 63] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[sync] requesting block 64 (target 64)
+[sync] applied block 64 (0 behind)
+[sync] catch-up complete at height 64
+[consensus] received block proposal height=65 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 65] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AjFPD7JVo4DeEB5cBVRemoRYbG1cRdYchaCFa6HsJmjL1 remaining=1
+[network] kademlia bootstrap ok: peer=1AWdKYAZgKwwxA2wUMEo6GsbNZTrntRi9p5wiDSKshhqwp remaining=0
+[consensus] received block proposal height=66 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 66] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=67 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 67] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=68 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 68] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=69 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 69] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=70 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 70] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1Ab5AcD2H1VD4PZEz8WiKeRAQXxXRxffPbBLdmEvP9tjr9 remaining=1
+[network] kademlia bootstrap ok: peer=1AeMhmNugvCgSxTujmTjuhgHngfTTSw4s6CoqFkkQuxYfG remaining=0
+[consensus] received block proposal height=71 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 71] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=72 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 72] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=73 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v1 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 73] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=74 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 74] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[block 75] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1An6vb3owcft5tGDhuoocbEih7LswoySZXSXPEgkEQexNM remaining=1
+[network] kademlia bootstrap ok: peer=1AghP8dTEyPRdosdsR8xmzaFzdfTNjp5EETYU1bXAjbu7o remaining=0
+[consensus] received block proposal height=76 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 76] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=77 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 77] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=78 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 78] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=79 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 79] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=80 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 80] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AghZUK5wwjky3rLRiibDw43qGe57dkh69LQfsTr4Doou7 remaining=1
+[network] kademlia bootstrap ok: peer=1AkEZntwdVXtoq6GwL9Gk4Eq4WD8ZUfe5xbRZ3Aod5QY9i remaining=0
+[consensus] received block proposal height=81 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 81] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[block 82] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=83 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[consensus] collected signature from v0 (5/4)
+[block 83] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=84 from validator #4 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 84] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=85 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 85] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AksLqfqtcQ8WEUB3agF2dXsFcw7Szxc3J9y529eQ86R9P remaining=1
+[network] kademlia bootstrap ok: peer=1AoUbTWFDZdidh3shMYJRxJRCQTExRe9L5cKjwWctyZrDM remaining=0
+[consensus] received block proposal height=86 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 86] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=87 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 87] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=88 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v2 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 88] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=89 from validator #4 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 89] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=90 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 90] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AmE93Rp9ChXpor5g78Djw9QXUCkh8FmFy4DhoBgRYgoMi remaining=1
+[network] kademlia bootstrap ok: peer=1AWVcreFbvkatQQ5gTkpoDRcSmrhhXwL5kPMB9LvsswncF remaining=0
+[consensus] received block proposal height=91 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 91] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=92 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 92] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=93 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 93] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=94 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 94] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=95 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 95] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AYfJuZKd1JtbWLm3XNJwLgbGxPtkFEkpEWpY3nohHzfgw remaining=1
+[network] kademlia bootstrap ok: peer=1AoSMvyZxQAh8CXyWToqDmV2Yy2BhYSXyx3oUDxxaTb3it remaining=0
+[consensus] received block proposal height=96 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 96] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=97 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 97] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=98 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 98] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=99 from validator #4 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 99] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=100 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 100] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=101 from validator #1 (round 0)
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AkbTGXBazAtjuCs9v3rvfye2sinPg1x31f2idAW4UN6QY remaining=1
+[network] kademlia bootstrap ok: peer=1AkpqW3rVjyhjmomzxzjMDFETKhaYZKwxKwDmj8yxfa69Z remaining=0
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 101] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[consensus] received block proposal height=102 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 102] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=103 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[consensus] collected signature from v2 (5/4)
+[block 103] pruned 2 old blocks
+[block 103] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=104 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 104] pruned 1 old blocks
+[block 104] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=105 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 105] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1Amfamg2MTwCPEMGStcK4kVceMQrThkdMdyXwngdyoigDk remaining=1
+[network] kademlia bootstrap ok: peer=1AaDZUy8RQiRUezXB5RdTSBCNJGrDmvyuWYpck7DdTsANo remaining=0
+[consensus] received block proposal height=106 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 106] pruned 2 old blocks
+[block 106] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=107 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 107] pruned 1 old blocks
+[block 107] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[consensus] proposing block height=108 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 108] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=109 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 109] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=110 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 110] pruned 3 old blocks
+[block 110] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWA2iD4XPL24X1VCyF4KCeBsAcni1ZtfCVnQtEe4odyTYH protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AjDVvf4vdvPDEBvdbPqX4hyRrnJGoSvH9iDwS4EctJjLM remaining=1
+[network] kademlia bootstrap ok: peer=1AjBJvWKm6ibZAeu8FH5XrsY8FcaLQihELYZqNToveSuCR remaining=0
+[consensus] received block proposal height=111 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[block 111] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=112 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 112] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=113 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 113] pruned 3 old blocks
+[block 113] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=114 from validator #4 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 114] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=115 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 115] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AYr9nvzH8HeFZeAnjzhPsRZx11pBy8tn85YPE6NyuDNTi remaining=1
+[network] kademlia bootstrap ok: peer=1AZE9i7rQ2hQyRCWY579YXPwuvABLvjdmFnqQm3j3kUeX7 remaining=0
+[consensus] received block proposal height=116 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 116] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=117 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[block 117] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=118 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[consensus] collected signature from v0 (5/4)
+[block 118] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=119 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 119] pruned 6 old blocks
+[block 119] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=120 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 120] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AkZ8WJTGinJm5A9q65MouxMPiYhRJ4Ax7Zobg8WK2avGg remaining=1
+[network] kademlia bootstrap ok: peer=1AemsxuxBZuAybUJn6dMMiNALNs2GBdMEtiHo89ZwvSVqU remaining=0
+[consensus] received block proposal height=121 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 121] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[block 122] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=123 (leader=v3, round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 123] pruned 4 old blocks
+[block 123] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=124 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 124] pruned 1 old blocks
+[block 124] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=125 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 125] pruned 1 old blocks
+[block 125] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AnQi7J3JSdasGHYGaeoD1qy9Kpv8jVWn7LznDabfDt8rA remaining=1
+[network] kademlia bootstrap ok: peer=1Aa9j3ETAeNEREEhCUkbqJkjdfCY65hGoDYoeh8WN9tpvp remaining=0
+[consensus] received block proposal height=126 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 126] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=127 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 127] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=128 (leader=v3, round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v1 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 128] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=129 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 129] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=130 from validator #0 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 130] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AnW4xjqPPKKLLmPwQuBhuQ5Jj5tLPbf8L2iLNpJFLUqTH remaining=1
+[network] kademlia bootstrap ok: peer=1Ae5JDu4qEyhZPyn76bv6DkimF4mhz8wvhUoHkEPNPEfpP remaining=0
+[consensus] received block proposal height=131 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 131] pruned 6 old blocks
+[block 131] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=132 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 132] pruned 1 old blocks
+[block 132] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=133 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 133] pruned 1 old blocks
+[block 133] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=134 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[block 134] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AZKWXBQvefeHgzj2bRQg7puwU899XeVo18YTMYx3p8izW remaining=1
+[consensus] received block proposal height=135 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[network] kademlia bootstrap ok: peer=1AhcDGTKBfTKGoxeciVDyh7PfJ77faDbnrtzzmYryK5gUi remaining=0
+[block 135] pruned 2 old blocks
+[block 135] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=136 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 136] pruned 1 old blocks
+[block 136] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=137 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 137] pruned 1 old blocks
+[block 137] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=138 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v1 (5/4)
+[block 138] pruned 1 old blocks
+[block 138] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=5/5
+[consensus] received block proposal height=139 from validator #4 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 139] pruned 1 old blocks
+[block 139] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=140 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 140] pruned 1 old blocks
+[block 140] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AdBFAmfuA5t6tbKCn5Wysp5XZga6iUQMqTK7uaaFwCpcW remaining=1
+[network] kademlia bootstrap ok: peer=1AazqkzcyW1GqazwnYULVsACXRvGyHFbxRKrZYZfo3B6Zn remaining=0
+[consensus] received block proposal height=141 from validator #1 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 141] pruned 1 old blocks
+[block 141] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=142 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[block 142] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=143 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 143] pruned 2 old blocks
+[block 143] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=144 from validator #4 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 144] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=145 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 145] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AYhXaugWBuxUmsBg2Gub93VRiG1bp9jWjXRysNzapj8Dp remaining=1
+[network] kademlia bootstrap ok: peer=1AcswjDTKJqYfnWkstL5KQcQaseqpSVvWT5QxrhGJ9q3tP remaining=0
+[consensus] received block proposal height=146 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[block 146] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=147 from validator #2 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 147] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=148 (leader=v3, round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v0 (4/4)
+[consensus] collected signature from v4 (5/4)
+[block 148] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=149 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 149] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=150 from validator #0 (round 0)
+[consensus] collected signature from v2 (2/4)
+[consensus] collected signature from v4 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 150] pruned 7 old blocks
+[block 150] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AmzBu6p33HHLKL6UZwTHLcXnU3hqbpGk5GbWGC46LMw5k remaining=1
+[network] peer identified: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[network] kademlia bootstrap ok: peer=1AiEo8hdGV463uLwT9Zv5tLw17KjnkUfUopYt3NefwWT2m remaining=0
+[network] peer identified: 12D3KooWATzFVLaFeU6h5FgUH6vCsSuPCfipix3nZwxLj853TXA5 protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
+[consensus] received block proposal height=151 from validator #1 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 151] pruned 1 old blocks
+[block 151] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=152 from validator #2 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v1 (4/4)
+[block 152] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] proposing block height=153 (leader=v3, round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 153] pruned 2 old blocks
+[block 153] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=154 from validator #4 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v2 (3/4)
+[consensus] collected signature from v0 (4/4)
+[block 154] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=155 from validator #0 (round 0)
+[consensus] collected signature from v4 (2/4)
+[consensus] collected signature from v1 (3/4)
+[consensus] collected signature from v2 (4/4)
+[block 155] pruned 2 old blocks
+[block 155] COMMITTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] kademlia bootstrap ok: peer=12D3KooWD5cYrr7WgUmjb9d7ev1fQfn1UTdNd7AVtAPKP1Hh4XKo remaining=2
+[network] kademlia bootstrap ok: peer=1AfXHWc2WBhy439S3TpmYeH9j6AvQbeGJj1YtxG2fSpnzZ remaining=1
+[network] kademlia bootstrap ok: peer=1AhvmX6hgaaTdHDxQE6FhnjgLdgMygokQpdGCLdws9wCGo remaining=0
+[consensus] received block proposal height=156 from validator #1 (round 0)
+[consensus] collected signature from v0 (2/4)
+[consensus] collected signature from v4 (3/4)
+[block 156] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[consensus] received block proposal height=157 from validator #2 (round 0)
+[consensus] collected signature from v1 (2/4)
+[consensus] collected signature from v0 (3/4)
+[consensus] collected signature from v4 (4/4)
+[block 157] EXECUTED  reward=29.00000000 AUGE  ops=0  quorum=4/5
+[network] peer identified: 12D3KooWM7Czq8DYn8tTxj6LAgSUG5xEgN2F9MLG6WP5EFbC1PSi protocol=/augecoin/1.0.0 agent=rust-libp2p/0.47.0
