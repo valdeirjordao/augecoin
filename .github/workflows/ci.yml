@@ -50,22 +50,18 @@ jobs:
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf
 
+      - name: Prepare Linux Tauri sidecar for workspace checks
+        run: |
+          cargo build -p augecoin-node --release
+          mkdir -p apps/validator-desktop/src-tauri/binaries
+          cp target/release/augecoin-node \
+            apps/validator-desktop/src-tauri/binaries/augecoin-node-x86_64-unknown-linux-gnu
+
       - name: Format check
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: |
-          set -o pipefail
-          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/clippy.log
-          code=$?
-          if [ $code -ne 0 ]; then
-            URL=$(curl -sf --max-time 30 -F "file=@/tmp/clippy.log" https://0x0.st || echo upload-failed)
-            echo "::error title=clippy-log-url::$URL"
-            ERRS=$(grep -E '^error' -A 5 /tmp/clippy.log | head -c 3500 | sed 's/%/%25/g' | awk '{printf "%s%%0A",$0}')
-            echo "::error title=clippy-errors::$ERRS"
-            df -h / >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
-            exit $code
-          fi
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build
         run: cargo build --workspace --release
