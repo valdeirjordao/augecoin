@@ -156,65 +156,39 @@ export function accountStateInfo(state) {
   }
 }
 
-/** Derive the AUGECOIN address (bech32m "auge1…") from an Ed25519 pubkey hex. */
-export async function deriveAddress(pubkeyHex) {
-  const pk = hexToBytes(pubkeyHex);
-  const hash = blake3_512(pk);
-  return bech32mEncode('auge', hash);
+/** Derive the canonical AUGECOIN address (Base58) from an Ed25519 pubkey hex. */
+export function deriveAddress(pubkeyHex) {
+  const hash = blake3_512(hexToBytes(pubkeyHex));
+  const payload = hash.slice(0, 24);
+  const checksum = blake3_512(new Uint8Array([
+    ...new TextEncoder().encode('AUGECOIN-SHORT-ADDRESS-V1'), ...payload,
+  ])).slice(0, 4);
+  return base58Encode(new Uint8Array([...payload, ...checksum]));
+}
+
+function base58Encode(bytes) {
+  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  const digits = [0];
+  for (const byte of bytes) {
+    let carry = byte;
+    for (let i = 0; i < digits.length; i++) {
+      const value = digits[i] * 256 + carry;
+      digits[i] = value % 58;
+      carry = Math.floor(value / 58);
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = Math.floor(carry / 58);
+    }
+  }
+  const firstNonZero = bytes.findIndex((byte) => byte !== 0);
+  const zeroCount = firstNonZero === -1 ? bytes.length : firstNonZero;
+  return '1'.repeat(zeroCount) + digits.reverse().map((digit) => alphabet[digit]).join('');
 }
 
 function hexToBytes(hex) {
   const clean = String(hex).replace(/^0x/, '');
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
-  return out;
-}
-
-// bech32m encoder (BIP-350) — self-contained.
-const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-function bech32mEncode(hrp, data) {
-  const words = bech32ToWords(data);
-  const checksum = bech32CreateChecksum(hrp, words, 0x2bc830a3);
-  const combined = words.concat(checksum);
-  let out = hrp + '1';
-  for (const w of combined) out += BECH32_CHARSET[w];
-  return out;
-}
-function bech32HrpExpand(hrp) {
-  const out = [];
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >> 5);
-  out.push(0);
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31);
-  return out;
-}
-function bech32ToWords(data) {
-  const out = [];
-  let bits = 0, value = 0;
-  for (const byte of data) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      out.push((value >> (bits - 5)) & 31);
-      bits -= 5;
-    }
-  }
-  if (bits > 0) out.push((value << (5 - bits)) & 31);
-  return out;
-}
-const BECH32_GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-function bech32Polymod(values) {
-  let chk = 1;
-  for (const v of values) {
-    const b = chk >>> 25;
-    chk = ((chk & 0x1ffffff) << 5) ^ v;
-    for (let i = 0; i < 5; i++) if ((b >>> i) & 1) chk ^= BECH32_GEN[i];
-  }
-  return chk;
-}
-function bech32CreateChecksum(hrp, data, constant) {
-  const values = bech32HrpExpand(hrp).concat(data, [0, 0, 0, 0, 0, 0]);
-  const polymod = bech32Polymod(values) ^ constant;
-  const out = [];
-  for (let i = 0; i < 6; i++) out.push((polymod >>> (5 * (5 - i))) & 31);
   return out;
 }

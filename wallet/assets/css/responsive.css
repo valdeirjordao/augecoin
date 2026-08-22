@@ -3,6 +3,7 @@
 @media (max-width: 1024px) {
   .grid-stats { grid-template-columns: repeat(2, 1fr); }
   .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .footer-grid { grid-template-columns: 1fr 1fr; }
   .hero-features { grid-template-columns: repeat(2, 1fr); }
   .quick-actions { grid-template-columns: repeat(2, 1fr); }
@@ -56,6 +57,7 @@
   h1 { font-size: 1.6rem; }
   .page-head h1 { font-size: 1.6rem; }
   .grid-stats { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr; }
 
   .table-wrap { max-height: none; }

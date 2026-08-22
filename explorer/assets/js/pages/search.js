@@ -47,7 +47,7 @@ export async function render() {
     document.getElementById('search-results').innerHTML = `
       <div class="empty-state">
         <h3>No results for "${esc(q)}"</h3>
-        <p>Try a block height, an account number/name, a bech32 address (auge1…), or a block hash.</p>
+        <p>Try a block height, an account number/name, a Base58 address, or a block hash.</p>
       </div>`;
     return;
   }

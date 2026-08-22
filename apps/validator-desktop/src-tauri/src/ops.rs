@@ -23,10 +23,9 @@ pub struct OpsClient {
 
 #[derive(Debug, Serialize)]
 pub struct ActivatePayload<'a> {
-    pub license_key: &'a str,
+    pub augeid: &'a str,
     pub machine_id: &'a str,
     pub public_key: &'a str,
-    pub augeid: Option<&'a str>,
     pub os: Option<&'a str>,
     pub cpu: Option<i32>,
     pub ram: Option<i32>,
@@ -166,7 +165,7 @@ impl OpsClient {
 
     pub async fn heartbeat(
         &self,
-        license_key: &str,
+        augeid: &str,
         uptime: i64,
         cpu: Option<i32>,
         ram: Option<i32>,
@@ -176,7 +175,7 @@ impl OpsClient {
             .http
             .post(format!("{}/validator/heartbeat", self.base))
             .json(&serde_json::json!({
-                "license": license_key,
+                "augeid": augeid,
                 "uptime": uptime,
                 "cpu": cpu,
                 "ram": ram,
@@ -200,11 +199,11 @@ impl OpsClient {
             .unwrap_or(false))
     }
 
-    pub async fn stats(&self, license_key: &str) -> Result<StatsResponse, String> {
+    pub async fn stats(&self, augeid: &str) -> Result<StatsResponse, String> {
         let res = self
             .http
             .get(format!("{}/validator/stats", self.base))
-            .query(&[("license", license_key)])
+            .query(&[("augeid", augeid)])
             .send()
             .await
             .map_err(|e| e.to_string())?;

@@ -20,7 +20,7 @@ use crate::node::NodeClient;
 use crate::validator::ValidatorRepo;
 
 /// Consensus rule: every block emits exactly this many AUGEIDs to the leader.
-const AUGEIDS_PER_BLOCK: i32 = 10;
+const AUGEIDS_PER_BLOCK: i32 = 3;
 /// Default batch size per sync tick.
 const DEFAULT_BATCH: u64 = 500;
 /// Cursor key in the `sync_state` table.

@@ -94,3 +94,25 @@ export const linkWallet = (accountNumber) =>
 
 export const unlinkWallet = (accountNumber) =>
   apiFetch('/linked-wallets/' + accountNumber, { method: 'DELETE', csrf: true });
+
+// ── Validador (SaaS de licenças de validador) ──────────────────────────
+
+export const listPlans = () => apiFetch('/validator/plans');
+
+export const listOrders = async () => (await apiFetch('/validator/orders')).orders;
+
+export const createOrder = (args) =>
+  apiFetch('/validator/orders', { method: 'POST', body: args, csrf: true });
+
+export const issueLicense = (orderId) =>
+  apiFetch(`/validator/orders/${orderId}/issue`, { method: 'POST', body: {}, csrf: true });
+
+export const getOverview = () => apiFetch('/validator/overview');
+
+export const getDownloads = () => apiFetch('/validator/downloads');
+
+// ── Faturas & Assinaturas (serviços recorrentes) ──────────────────────
+
+export const getBilling = () => apiFetch('/billing');
+
+export const getPaymentInfo = () => apiFetch('/payment-info');

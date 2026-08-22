@@ -73,8 +73,8 @@ Cada conta recebe um número sequencial único e perpétuo. A estrutura em
 
 ### 2.2 Criação de contas
 
-A cada bloco finalizado, **10 contas novas** são criadas
-(`CT_ACCOUNTS_PER_BLOCK = 10`), com numeração sequencial. As contas são
+A cada bloco finalizado, **3 contas novas** são criadas
+(`CT_ACCOUNTS_PER_BLOCK = 3`), com numeração sequencial. As contas são
 auto-atribuídas ao validador líder da rodada durante `execute_block()`.
 
 **Propriedades:**

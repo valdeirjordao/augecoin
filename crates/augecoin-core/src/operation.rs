@@ -1,3 +1,4 @@
+use augecoin_crypto::address::AddressHash;
 use augecoin_crypto::signature::Ed25519Signature;
 use augecoin_crypto::signature::HybridSignature;
 use thiserror::Error;
@@ -8,6 +9,7 @@ const ED25519_PK_LEN: usize = 32;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationType {
     Transaction = 0x01,
+    AddressTransaction = 0x0F,
     ChangeKey = 0x02,
     RecoverFounds = 0x03,
     ListAccountForSale = 0x04,
@@ -27,6 +29,7 @@ impl OperationType {
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             0x01 => Some(OperationType::Transaction),
+            0x0F => Some(OperationType::AddressTransaction),
             0x02 => Some(OperationType::ChangeKey),
             0x03 => Some(OperationType::RecoverFounds),
             0x04 => Some(OperationType::ListAccountForSale),
@@ -58,6 +61,21 @@ pub struct ReceiverInfo {
     pub account: u64,
     pub amount: u64,
     pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddressReceiverInfo {
+    pub address: AddressHash,
+    pub amount: u64,
+    pub payload: Vec<u8>,
+}
+
+/// Destination abstraction used by address-aware callers. Legacy operations
+/// continue to use `ReceiverInfo { account, ... }` unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Receiver {
+    Account(u64),
+    Address(AddressHash),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +116,11 @@ pub enum OperationPayload {
         senders: Vec<SenderInfo>,
         receivers: Vec<ReceiverInfo>,
         changers: Vec<ChangerInfo>,
+        fee: u64,
+    },
+    AddressTransaction {
+        senders: Vec<SenderInfo>,
+        receivers: Vec<AddressReceiverInfo>,
         fee: u64,
     },
     ChangeKey {
@@ -491,6 +514,7 @@ impl OperationPayload {
     fn op_type(&self) -> OperationType {
         match self {
             OperationPayload::Transaction { .. } => OperationType::Transaction,
+            OperationPayload::AddressTransaction { .. } => OperationType::AddressTransaction,
             OperationPayload::ChangeKey { .. } => OperationType::ChangeKey,
             OperationPayload::RecoverFounds { .. } => OperationType::RecoverFounds,
             OperationPayload::ListAccountForSale { .. } => OperationType::ListAccountForSale,
@@ -528,6 +552,27 @@ impl OperationPayload {
                 write_u32(&mut buf, changers.len() as u32);
                 for c in changers {
                     write_changer(&mut buf, c);
+                }
+                write_u64(&mut buf, *fee);
+            }
+            OperationPayload::AddressTransaction {
+                senders,
+                receivers,
+                fee,
+            } => {
+                write_u32(&mut buf, senders.len() as u32);
+                for sender in senders {
+                    write_sender(&mut buf, sender);
+                }
+                write_u32(&mut buf, receivers.len() as u32);
+                for receiver in receivers {
+                    write_fixed(&mut buf, &receiver.address.hash);
+                    match receiver.address.public_key {
+                        Some(public_key) => { write_u8(&mut buf, 1); write_fixed(&mut buf, &public_key); }
+                        None => write_u8(&mut buf, 0),
+                    }
+                    write_u64(&mut buf, receiver.amount);
+                    write_bytes_with_len(&mut buf, &receiver.payload);
                 }
                 write_u64(&mut buf, *fee);
             }
@@ -724,6 +769,32 @@ impl OperationPayload {
                     senders,
                     receivers,
                     changers,
+                    fee,
+                })
+            }
+            0x0F => {
+                let sender_count = read_u32(data, pos)? as usize;
+                let mut senders = Vec::with_capacity(sender_count);
+                for _ in 0..sender_count {
+                    senders.push(read_sender(data, pos)?);
+                }
+                let receiver_count = read_u32(data, pos)? as usize;
+                let mut receivers = Vec::with_capacity(receiver_count);
+                for _ in 0..receiver_count {
+                    let hash = read_fixed(data, pos)?;
+                    let public_key = if read_u8(data, pos)? == 1 { Some(read_fixed(data, pos)?) } else { None };
+                    let amount = read_u64(data, pos)?;
+                    let payload = read_bytes_with_len(data, pos)?;
+                    receivers.push(AddressReceiverInfo {
+                        address: AddressHash { hash, public_key },
+                        amount,
+                        payload,
+                    });
+                }
+                let fee = read_u64(data, pos)?;
+                Ok(OperationPayload::AddressTransaction {
+                    senders,
+                    receivers,
                     fee,
                 })
             }
@@ -996,6 +1067,35 @@ mod tests {
             chain_id: 1,
         };
         roundtrip(&op);
+    }
+
+    #[test]
+    fn address_transaction_roundtrip() {
+        let public_key = [9u8; 32];
+        let op = Operation {
+            payload: OperationPayload::AddressTransaction {
+                senders: vec![SenderInfo {
+                    account: 1,
+                    n_operation: 0,
+                    amount: 100,
+                    payload: vec![],
+                }],
+                receivers: vec![AddressReceiverInfo {
+                    address: augecoin_crypto::address::AddressHash::from_public_key(public_key),
+                    amount: 90,
+                    payload: vec![1, 2],
+                }],
+                fee: 10,
+            },
+            signatures: vec![dummy_sig()],
+            op_type: OperationType::AddressTransaction,
+            chain_id: 1,
+        };
+        roundtrip(&op);
+        assert_eq!(
+            Operation::from_bytes(&op.to_bytes()).unwrap().op_type,
+            OperationType::AddressTransaction
+        );
     }
 
     #[test]

@@ -7,7 +7,6 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-bech32 = "0.12"
 bip39 = { version = "2", features = ["rand"] }
 blake3 = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }

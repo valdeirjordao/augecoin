@@ -16,9 +16,9 @@ const MNEMONIC: &str =
 const STRIPPED_HEX: &str = "010000000100000000000000640000000000000000000000003b9aca0000000000000100000000000000c8000000003b9aca0000000000000000000000000000000000000000000002";
 const PUBKEY_HEX: &str = "6589bfd8bbf0e34991b0cf5cf3467a2755ddf4a744809cb718b8f040cf3d780c";
 const SIG_HEX: &str = "76aa57e857703d30e1282ce21388bc6c025346cdf6d5b1b895ed5a4429ec469251f32f7fe8ff47dfc3ec88e5c8d20677b0060db12812304703f0716055c08601";
-// bech32m("auge", blake3-512(PUBKEY_HEX)) with the BIP-350 1023-char limit,
-// locked against packages/sdk-ts/tests/address.test.ts.
-const ADDRESS: &str = "auge1ddj5hphrcz0snh0ctvp6300rf6rhre4yuv4jeltgg60zq3svdcvqgf8k2jqf2a9x0qjngue84vf9u593k2dxschd4t8l2nd4g9hzjlqm2ysay";
+// Base58 address: first 24 bytes of blake3-512(PUBKEY_HEX) plus a 4-byte
+// domain-separated checksum, locked against packages/sdk-ts/tests/address.test.ts.
+const ADDRESS: &str = "274rGuUx9XozCeJ2LBXggKLp5dd31fugXWKNinW";
 
 fn transfer_op() -> Operation {
     Operation {

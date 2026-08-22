@@ -98,12 +98,11 @@ pub fn clear_state() -> Result<(), String> {
 
 #[tauri::command]
 pub async fn activate(
-    license_key: String,
-    augeid: Option<String>,
+    augeid: String,
 ) -> Result<ActivationSummary, String> {
-    let key = license_key.trim().to_string();
-    if key.is_empty() {
-        return Err("licença é obrigatória".into());
+    let aug = augeid.trim().to_string();
+    if aug.is_empty() {
+        return Err("AUGEID é obrigatório".into());
     }
 
     // Generate the validator keypair on-device. The seed never leaves here.
@@ -116,10 +115,9 @@ pub async fn activate(
 
     let response = ops()
         .activate(&crate::ops::ActivatePayload {
-            license_key: &key,
+            augeid: &aug,
             machine_id: &machine_id,
             public_key: &public_key_hex,
-            augeid: augeid.as_deref(),
             os: Some(&os),
             cpu,
             ram,
@@ -128,8 +126,8 @@ pub async fn activate(
         .await?;
 
     let state = SavedState {
-        license_key: key,
-        augeid,
+        license_key: String::new(),
+        augeid: Some(aug),
         public_key: public_key_hex,
         machine_id,
         activated_at: Some(chrono::Utc::now().to_rfc3339()),
@@ -275,7 +273,7 @@ fn start_heartbeat() {
                 None
             };
             let _ = ops()
-                .heartbeat(&state.license_key, uptime, None, None, block)
+                .heartbeat(state.augeid.as_deref().unwrap_or(""), uptime, None, None, block)
                 .await;
         }
     });
@@ -349,7 +347,7 @@ pub async fn get_dashboard() -> Result<DashboardData, String> {
         return Err("validador ainda não ativado".into());
     }
 
-    let stats = ops().stats(&state.license_key).await?;
+    let stats = ops().stats(state.augeid.as_deref().unwrap_or("")).await?;
     let node = query_node_status().await;
 
     Ok(DashboardData {

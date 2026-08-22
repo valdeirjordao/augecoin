@@ -185,6 +185,10 @@ fn dispatch_method(
             let result = endpoints::handle_get_account(p, state)?;
             serde_json::to_value(result).map_err(|e| e.to_string())
         }
+        "resolve_address" | "resolveaddress" => {
+            let p: endpoints::ResolveAddressParams = serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            serde_json::to_value(endpoints::handle_resolve_address(p, state)?).map_err(|e| e.to_string())
+        }
         "createaccount" => {
             let p: endpoints::CreateAccountParams =
                 serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
@@ -226,6 +230,10 @@ fn dispatch_method(
                 serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
             let result = endpoints::handle_send_operation(p, state)?;
             serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "send" => {
+            let p: endpoints::SendParams = serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            serde_json::to_value(endpoints::handle_send(p, state)?).map_err(|e| e.to_string())
         }
         "sendoperations" => {
             let p: endpoints::SendOperationsParams =
@@ -474,6 +482,12 @@ async fn create_account_handler(
     Json(params): Json<endpoints::CreateAccountParams>,
 ) -> Result<Json<endpoints::CreateAccountResult>, (axum::http::StatusCode, String)> {
     let api_key = headers.get("x-api-key").and_then(|v| v.to_str().ok());
+    if auth::check_auth(api_key, &state.api_keys) != auth::AuthLevel::Admin {
+        return Err((
+            axum::http::StatusCode::UNAUTHORIZED,
+            "admin API key required for createaccount".into(),
+        ));
+    }
     let forwarded = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
     let client_id = client_identifier(api_key, Some(remote), forwarded);
     if !state.rate_limiter.check(&client_id) || !state.sensitive_rate_limiter.check(&client_id) {

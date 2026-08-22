@@ -180,6 +180,7 @@ h2 { font-size: 1.35rem; }
 .kv-value { font-weight: 500; text-align: right; word-break: break-all; display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 
 /* ── Toast ───────────────────────────────────────────────────────────── */
 

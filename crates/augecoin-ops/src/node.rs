@@ -31,7 +31,8 @@ pub struct AdminResult {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChainValidator {
     pub id: u64,
-    pub ed25519_public_key: String,
+    #[serde(alias = "ed25519_public_key")]
+    pub ed25519_public_key_hex: String,
 }
 
 /// A block header as reported by `getblock` (subset used for reward sync).
@@ -48,6 +49,11 @@ impl NodeClient {
     pub fn new(rpc_url: String, admin_key: String) -> Self {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
+            // The node serves JSON-RPC over TLS with a self-signed certificate
+            // (see augecoin-rpc `load_tls_pem` fallback). Accept it for the
+            // loopback bridge; the admin key still authenticates the caller.
+            .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true)
             .build()
             .expect("reqwest client");
         Self {
@@ -177,7 +183,7 @@ impl NodeClient {
         Ok(validators
             .into_iter()
             .find(|v| {
-                v.ed25519_public_key
+                v.ed25519_public_key_hex
                     .eq_ignore_ascii_case(ed25519_public_key_hex)
             })
             .map(|v| v.id))

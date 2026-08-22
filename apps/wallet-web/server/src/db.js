@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS platform_users (
   password_hash  TEXT NOT NULL,
   display_name   TEXT NOT NULL,
   public_key_hex TEXT NOT NULL DEFAULT '',
+  address        TEXT NOT NULL DEFAULT '',
+  augeid         TEXT,
+  activation_tx  TEXT,
+  first_receive  TEXT,
   created_at     TEXT NOT NULL,
   last_login     TEXT
 );
@@ -63,9 +67,21 @@ CREATE TABLE IF NOT EXISTS validator_orders (
   status     TEXT NOT NULL DEFAULT 'pending'
              CHECK (status IN ('pending', 'paid', 'issued', 'cancelled')),
   license_id TEXT,
+  license_key TEXT,
   created_at TEXT NOT NULL,
   paid_at    TEXT,
   issued_at  TEXT
+);
+
+-- Financial configuration (single row) for manual payment instructions
+-- shown to the member on purchase and edited by the operator in the panel.
+CREATE TABLE IF NOT EXISTS payment_config (
+  id            INTEGER PRIMARY KEY CHECK (id = 1),
+  pix_key       TEXT NOT NULL DEFAULT '',
+  usdt_address  TEXT NOT NULL DEFAULT '',
+  usdt_network  TEXT NOT NULL DEFAULT '',
+  auge_address  TEXT NOT NULL DEFAULT '',
+  auge_network  TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
@@ -80,7 +96,20 @@ export function getDb() {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Additive migrations for databases created before a column was introduced. */
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(validator_orders)').all();
+  if (!cols.some((c) => c.name === 'license_key')) {
+    db.exec('ALTER TABLE validator_orders ADD COLUMN license_key TEXT;');
+  }
+  const userCols = db.prepare('PRAGMA table_info(platform_users)').all();
+  for (const [name, definition] of [['address', "TEXT NOT NULL DEFAULT ''"], ['augeid', 'TEXT'], ['activation_tx', 'TEXT'], ['first_receive', 'TEXT']]) {
+    if (!userCols.some((c) => c.name === name)) db.exec(`ALTER TABLE platform_users ADD COLUMN ${name} ${definition};`);
+  }
 }
 
 export function closeDb() {

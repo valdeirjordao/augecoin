@@ -29,8 +29,8 @@ Unknown → (emissão do bloco) → Reserved → (venda/doação/ativação) →
 | `GiftPending` | Doação pendente (`gift_index`); aguarda aceite |
 | `Normal` | Conta operacional |
 
-A numeração é determinística: **AUGEID = bloco × 10 + offset (0..9)**. Cada bloco
-emite exatamente 10 AUGEIDs, todos `Reserved` e pertencentes ao líder.
+A numeração é determinística: **AUGEID = bloco × 3 + offset (0..2)**. Cada bloco
+emite exatamente 3 AUGEIDs, todos `Reserved` e pertencentes ao líder.
 
 ## Hash de consenso
 
@@ -81,5 +81,5 @@ execute_block (por bloco)
 
 - `SafeBox.accounts` ≡ conteúdo do CF `accounts` após o commit.
 - `name_index` ≡ derivado dos `account.name`.
-- A emissão é fixa: exatamente 10 AUGEIDs `Reserved` por bloco, todos do líder.
+- A emissão é fixa: exatamente 3 AUGEIDs `Reserved` por bloco, todos do líder.
 - `CreateAccount` nunca cria número novo — apenas ativa um `Reserved` existente.

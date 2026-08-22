@@ -13,14 +13,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::auth::{ApiKeyStore, RateLimiter};
 
-fn address_matches_public_key(address: &str, key: &ed25519_dalek::VerifyingKey) -> bool {
-    augecoin_crypto::address::derive_address(key) == address
-        || augecoin_crypto::address::derive_short_address(key) == address
-}
-
-fn valid_canonical_or_short_address(address: &str) -> bool {
+fn valid_address(address: &str) -> bool {
     augecoin_crypto::address::validate_address(address)
-        || augecoin_crypto::address::validate_short_address(address)
 }
 
 /// Shared runtime status snapshot, updated by the node main loop and
@@ -100,8 +94,8 @@ impl AppState {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateAccountParams {
-    /// The existing Reserved AUGEID number to activate. CreateAccount no longer
-    /// mints new numbers.
+    /// The Reserved AUGEID number to activate. Pass `0` to auto-select the
+    /// first available Reserved AUGEID (recommended for wallet on-boarding).
     pub account_number: u64,
     pub public_key_hex: String,
     #[serde(default)]
@@ -128,7 +122,7 @@ pub struct FaucetParams {
     #[serde(default)]
     pub address: Option<String>,
     /// Destination AUGEID (account number). Payments target AUGEIDs, not
-    /// bech32 addresses.
+    /// addresses.
     #[serde(default)]
     pub account_number: Option<u64>,
 }
@@ -170,6 +164,7 @@ pub struct AccountInfoResponse {
     pub price: u64,
     pub account_to_pay: u64,
     pub account_key_ed_hex: String,
+    pub address: String,
 }
 
 // ── getblockoperations / getblock ────────────────────────────────────
@@ -219,11 +214,60 @@ pub struct SendOperationParams {
     pub hex: String,
 }
 
+/// Unified send envelope. The wallet signs locally and supplies `hex`; `to`
+/// and `amount` are retained for clients that build the operation themselves.
+#[derive(Debug, Deserialize)]
+pub struct SendParams {
+    #[serde(default)]
+    pub hex: Option<String>,
+    #[serde(default)]
+    pub to: Option<String>,
+    #[serde(default)]
+    pub amount: Option<u64>,
+}
+
+pub fn handle_send(params: SendParams, state: &AppState) -> Result<SendOperationResult, String> {
+    if let Some(hex) = params.hex {
+        return handle_send_operation(SendOperationParams { hex }, state);
+    }
+    let _ = (params.to, params.amount);
+    Err("send requires a locally signed operation in 'hex'; private keys are never sent to the node".into())
+}
+
 #[derive(Debug, Serialize)]
 pub struct SendOperationResult {
     pub accepted: bool,
     pub op_hash_hex: String,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveAddressParams {
+    pub address: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResolveAddressResult {
+    pub exists: bool,
+    pub account: Option<u64>,
+    pub public_key: Option<String>,
+}
+
+pub fn handle_resolve_address(
+    params: ResolveAddressParams,
+    state: &AppState,
+) -> Result<ResolveAddressResult, String> {
+    let hash = augecoin_crypto::address::AddressHash::parse(params.address.trim())
+        .ok_or_else(|| "invalid AUGE address".to_string())?;
+    let account = state
+        .storage
+        .resolve_address(&hash)
+        .map_err(|e| e.to_string())?;
+    Ok(ResolveAddressResult {
+        exists: account.is_some(),
+        account,
+        public_key: None,
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -408,22 +452,18 @@ pub fn handle_get_account(
             .map_err(|e| format!("storage error: {e}"))?
             .ok_or_else(|| format!("account {} not found", number))?,
         (None, Some(address)) => {
-            if !valid_canonical_or_short_address(address) {
-                return Err("invalid AUGE address or compact payment address".into());
-            }
+            let hash = augecoin_crypto::address::AddressHash::parse(address)
+                .ok_or_else(|| "invalid AUGE address".to_string())?;
+            let number = state
+                .storage
+                .resolve_address(&hash)
+                .map_err(|e| format!("storage error: {e}"))?
+                .ok_or_else(|| format!("account with address {address} not found"))?;
             state
                 .storage
-                .iter_accounts()
-                .map_err(|e| format!("storage error: {e}"))?
-                .into_iter()
-                .find(|a| {
-                    ed25519_dalek::VerifyingKey::from_bytes(
-                        &a.account_info.account_key.ed25519_public_key,
-                    )
-                    .ok()
-                    .is_some_and(|pk| address_matches_public_key(address, &pk))
-                })
-                .ok_or_else(|| format!("account with address {address} not found"))?
+                .get_account(number)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "account disappeared".to_string())?
         }
         (None, None) => return Err("account_number or address is required".into()),
     };
@@ -453,13 +493,19 @@ pub fn handle_create_account(
         return Err("metadata must be at most 32 bytes".to_string());
     }
 
-    if let Some(existing) = state
+    if state
         .storage
-        .iter_accounts()
-        .map_err(|e| format!("storage error: {e}"))?
-        .into_iter()
-        .find(|a| a.account_info.account_key.ed25519_public_key == key)
+        .pubkey_in_use(&key)
+        .map_err(|e| e.to_string())?
     {
+        let existing = state
+            .storage
+            .safebox()
+            .map_err(|e| e.to_string())?
+            .accounts
+            .into_values()
+            .find(|a| a.account_info.account_key.ed25519_public_key == key)
+            .ok_or_else(|| "public key index inconsistency".to_string())?;
         return Ok(CreateAccountResult {
             accepted: true,
             status: "exists".into(),
@@ -476,10 +522,27 @@ pub fn handle_create_account(
         .as_ref()
         .ok_or_else(|| "admin keypair not configured".to_string())?;
 
+    // account_number == 0 → auto-select the first available Reserved AUGEID.
+    // Skip accounts that accumulated rewards (validator accounts whose number
+    // collides with the emission range) so we never hijack a validator's funds.
+    let account_number = if params.account_number == 0 {
+        state
+            .storage
+            .safebox()
+            .map_err(|e| e.to_string())?
+            .accounts
+            .into_values()
+            .find(|a| a.account_info.state == AccountState::Reserved && a.balance == 0)
+            .map(|a| a.account_number)
+            .ok_or_else(|| "no Reserved AUGEID available to activate".to_string())?
+    } else {
+        params.account_number
+    };
+
     let op = Operation {
         op_type: augecoin_core::operation::OperationType::CreateAccount,
         payload: OperationPayload::CreateAccount {
-            account_number: params.account_number,
+            account_number,
             pubkey: key,
             initial_metadata: metadata,
         },
@@ -543,7 +606,7 @@ pub fn handle_faucet(
         .as_secs();
 
     // Resolve the destination AUGEID: by account number, or (legacy) by
-    // bech32 address. New payments use the AUGEID exclusively.
+    // address. New payments use the AUGEID exclusively.
     let recipient = if let Some(number) = params.account_number {
         state
             .storage
@@ -551,22 +614,21 @@ pub fn handle_faucet(
             .map_err(|e| e.to_string())?
             .ok_or_else(|| format!("AUGEID {number} not found; register or buy one first"))?
     } else if let Some(address) = params.address.as_deref() {
-        if !valid_canonical_or_short_address(address) {
-            return Err("invalid AUGE address or compact payment address".into());
+        if !valid_address(address) {
+            return Err("invalid AUGE address".into());
         }
+        let hash = augecoin_crypto::address::AddressHash::parse(address)
+            .ok_or_else(|| "invalid AUGE address".to_string())?;
+        let number = state
+            .storage
+            .resolve_address(&hash)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "address has no account; first receive will activate it".to_string())?;
         state
             .storage
-            .iter_accounts()
+            .get_account(number)
             .map_err(|e| e.to_string())?
-            .into_iter()
-            .find(|a| {
-                ed25519_dalek::VerifyingKey::from_bytes(
-                    &a.account_info.account_key.ed25519_public_key,
-                )
-                .ok()
-                .is_some_and(|pk| address_matches_public_key(address, &pk))
-            })
-            .ok_or_else(|| "address has no account; register or buy an AUGEID first".to_string())?
+            .ok_or_else(|| "account disappeared".to_string())?
     } else {
         return Err("provide account_number (AUGEID) or address".into());
     };
@@ -1426,6 +1488,10 @@ fn validator_status_string(status: &ValidatorStatus) -> String {
 }
 
 fn account_to_response(acc: &Account) -> AccountInfoResponse {
+    let address =
+        ed25519_dalek::VerifyingKey::from_bytes(&acc.account_info.account_key.ed25519_public_key)
+            .map(|vk| augecoin_crypto::address::derive_address(&vk))
+            .unwrap_or_default();
     AccountInfoResponse {
         account_number: acc.account_number,
         balance: acc.balance,
@@ -1441,6 +1507,7 @@ fn account_to_response(acc: &Account) -> AccountInfoResponse {
         price: acc.account_info.price,
         account_to_pay: acc.account_info.account_to_pay,
         account_key_ed_hex: hex::encode(acc.account_info.account_key.ed25519_public_key),
+        address,
     }
 }
 
@@ -1477,6 +1544,7 @@ fn op_to_info(op: &Operation) -> OperationInfo {
 fn operation_type_name(op: &Operation) -> String {
     match op.payload {
         OperationPayload::Transaction { .. } => "Transaction".into(),
+        OperationPayload::AddressTransaction { .. } => "AddressTransaction".into(),
         OperationPayload::ChangeKey { .. } => "ChangeKey".into(),
         OperationPayload::RecoverFounds { .. } => "RecoverFounds".into(),
         OperationPayload::ListAccountForSale { .. } => "ListAccountForSale".into(),
@@ -1508,6 +1576,16 @@ fn operation_payload_to_json(payload: &OperationPayload) -> serde_json::Value {
                 "fee": fee,
             })
         }
+        OperationPayload::AddressTransaction {
+            senders,
+            receivers,
+            fee,
+        } => serde_json::json!({
+            "senders": senders.iter().map(sender_to_json).collect::<Vec<_>>(),
+            "receivers": receivers.iter().map(|r| serde_json::json!({
+                "address": r.address.to_address(), "amount": r.amount, "payload_hex": hex::encode(&r.payload)
+            })).collect::<Vec<_>>(), "fee": fee
+        }),
         OperationPayload::ChangeKey {
             account,
             n_operation,
@@ -2834,18 +2912,6 @@ mod endpoint_tests {
         )
         .unwrap();
         assert_eq!(by_addr.account_number, augeid);
-
-        let by_short_addr = handle_get_account(
-            GetAccountParams {
-                account_number: None,
-                address: Some(augecoin_crypto::address::derive_short_address(
-                    &kp.verifying_key(),
-                )),
-            },
-            &state,
-        )
-        .unwrap();
-        assert_eq!(by_short_addr.account_number, augeid);
 
         std::fs::remove_dir_all(&path).ok();
     }

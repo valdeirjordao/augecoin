@@ -37,8 +37,9 @@ impl LicenseService {
         }
     }
 
-    /// Issue a license for `user_id` under `plan`. Returns the full key once.
-    pub async fn issue(&self, user_id: Uuid, plan: Plan) -> Result<IssuedLicense> {
+    /// Issue a license for `user_id` under `plan`, optionally bound to an AUGEID
+    /// number (the on-chain account used to activate). Returns the full key once.
+    pub async fn issue(&self, user_id: Uuid, plan: Plan, augeid: Option<String>) -> Result<IssuedLicense> {
         let key = LicenseKey::generate();
         let expires_at = Utc::now() + Duration::days(plan.duration_days());
         let license = self
@@ -49,6 +50,7 @@ impl LicenseService {
                 license_key_prefix: key.prefix().to_string(),
                 user_id,
                 plan,
+                augeid,
                 expires_at,
             })
             .await?;
@@ -70,6 +72,15 @@ impl LicenseService {
         let parsed = LicenseKey::parse(key).map_err(|_| AppError::InvalidLicenseKey)?;
         self.repo
             .find_by_key_hash(&parsed.hash_hex())
+            .await?
+            .ok_or(AppError::InvalidLicenseKey)
+    }
+
+    /// Resolve a license by its bound AUGEID number. Unknown numbers map to
+    /// [`AppError::InvalidLicenseKey`] so activation behaves uniformly.
+    pub async fn resolve_by_augeid(&self, augeid: &str) -> Result<License> {
+        self.repo
+            .find_by_augeid(augeid)
             .await?
             .ok_or(AppError::InvalidLicenseKey)
     }

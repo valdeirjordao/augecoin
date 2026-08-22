@@ -1,6 +1,8 @@
 use crate::account::Account;
+use augecoin_crypto::address::AddressHash;
 use augecoin_crypto::hash::blake3_512;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +39,9 @@ pub struct SafeBox {
     pub header: SafeBoxHeader,
     pub accounts: BTreeMap<u64, Account>,
     pub name_index: BTreeMap<String, u64>,
+    /// Resident O(1) address resolution index. It is derived state and is not
+    /// included in the SafeBox hash or legacy wire format.
+    pub address_index: HashMap<AddressHash, u64>,
 }
 
 #[derive(Debug, Error)]
@@ -99,6 +104,7 @@ impl SafeBox {
             header: SafeBoxHeader::new(protocol, start_block, start_block),
             accounts: BTreeMap::new(),
             name_index: BTreeMap::new(),
+            address_index: HashMap::new(),
         }
     }
 
@@ -120,6 +126,14 @@ impl SafeBox {
         // Insert new name if account has one
         if let Some(ref name) = account.name {
             self.name_index.insert(name.clone(), account.account_number);
+        }
+        if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+            &account.account_info.account_key.ed25519_public_key,
+        ) {
+            self.address_index.insert(
+                AddressHash::from_public_key(key.to_bytes()),
+                account.account_number,
+            );
         }
         self.accounts.insert(account.account_number, account);
     }
@@ -328,10 +342,22 @@ impl SafeBox {
                 name_index.insert(name, number);
             }
         }
+        let mut address_index = HashMap::new();
+        for account in accounts.values() {
+            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                &account.account_info.account_key.ed25519_public_key,
+            ) {
+                address_index.insert(
+                    AddressHash::from_public_key(key.to_bytes()),
+                    account.account_number,
+                );
+            }
+        }
         Some(SafeBox {
             header,
             accounts,
             name_index,
+            address_index,
         })
     }
 }
@@ -382,6 +408,24 @@ mod tests {
         assert_eq!(sb.max_account_number(), 2);
         assert!(sb.get_account(1).is_some());
         assert!(sb.get_account(99).is_none());
+    }
+
+    #[test]
+    fn address_index_resolves_without_account_iteration() {
+        let mut sb = SafeBox::new(5, 0);
+        let mut account = make_test_account(7, 100);
+        let wallet = augecoin_crypto::hdkeys::HdWallet::from_mnemonic(
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        ).unwrap();
+        account.account_info.account_key.ed25519_public_key =
+            wallet.derive_keypair(0).verifying_key().to_bytes();
+        let key = ed25519_dalek::VerifyingKey::from_bytes(
+            &account.account_info.account_key.ed25519_public_key,
+        )
+        .unwrap();
+        let address = augecoin_crypto::address::AddressHash::from_public_key(key.to_bytes());
+        sb.add_account(account);
+        assert_eq!(sb.address_index.get(&address), Some(&7));
     }
 
     #[test]

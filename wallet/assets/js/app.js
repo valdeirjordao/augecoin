@@ -8,7 +8,7 @@
 import { CONFIG } from './config.js';
 import { initTheme } from './theme.js';
 import { initHomepageBg } from './homepage-bg.js';
-import { esc, auge, fmtNum, fmtTime, shortHash, copy, hexToBytes, bytesToHex, augesatToAuge, deriveShortAddress, deriveAddress, isValidAugeAddress } from './utils.js';
+import { esc, auge, fmtNum, fmtTime, shortHash, copy, hexToBytes, bytesToHex, augesatToAuge, deriveShortAddress, deriveAddress, deriveEmbeddedAddress, embeddedPublicKeyHex, isValidAugeAddress } from './utils.js';
 import { generateMnemonic, validateMnemonic } from './bip39.js';
 import { derivePublicKeyHex } from './crypto.js';
 import * as api from './api.js';
@@ -124,6 +124,11 @@ async function router() {
   try {
     switch (route) {
       case '/marketplace': await renderMarketplace(); break;
+      case '/validator': await renderValidator(); break;
+      case '/validator/plans': await renderValidatorPlans(); break;
+      case '/validator/license': await renderValidatorLicense(); break;
+      case '/validator/dashboard': await renderValidatorDashboard(); break;
+      case '/billing': await renderBilling(); break;
       case '/augeid': await renderAugeId(); break;
       case '/my-wallets': await renderMyWallets(); break;
       case '/profile': await renderProfile(); break;
@@ -383,17 +388,22 @@ async function finishRegistration() {
 async function renderAddressSetup() {
   ui.renderHeader({ user: state.user, hasWallet: hasWallet() });
   const pub = state.user?.public_key_hex;
-  const short = pub ? deriveShortAddress(pub) : '';
+  const short = pub ? deriveEmbeddedAddress(pub) : '';
   root.innerHTML = `<main class="container page"><div class="card confirm-card">
-    <div class="page-head center"><h1>Seu endereço de recebimento</h1><p class="muted">Este endereço recebe AUGE (moeda) e permite comprar AUGEID.</p></div>
+    <div class="page-head center"><h1>Seu endereço de recebimento</h1><p class="muted">Este endereço recebe AUGE (moeda) e AUGEID.</p></div>
     ${short ? `<div class="receive-address mono">${esc(short)}</div><div class="qr-wrap"><canvas data-qr-address="${esc(short)}"></canvas></div><div class="actions" style="justify-content:center"><button class="btn" data-copy-addr>Copiar endereço</button></div>` : '<p class="muted">Endereço não disponível.</p>'}
-    <p class="muted small center">Para transacionar com número de conta AUGEID diretamente ou receber AUGEID, basta compartilhar o endereço AUGEID.</p>
+    <div data-activate-status class="muted small center" style="margin-top:12px"></div>
+    <p class="muted small center">Abrimos uma conta AUGEID para você. Assim que for confirmada, este endereço já recebe AUGE e AUGEID.</p>
     <div class="actions" style="justify-content:center;margin-top:16px"><button class="btn btn-primary" data-finish>Concluir</button></div>
   </div></main>`;
   const c = root.querySelector('[data-qr-address]');
   if (c && short) qrToCanvas(qrMatrix(short), c, 4, 2);
   root.querySelector('[data-copy-addr]')?.addEventListener('click', async () => { await copy(short); ui.toast('Endereço copiado.', 'success'); });
   root.querySelector('[data-finish]').addEventListener('click', async () => { location.hash = '#/'; await refreshSession(); });
+  if (pub && short) {
+    const status = root.querySelector('[data-activate-status]');
+    if (status) status.textContent = 'Endereço pronto. Um AUGEID Reserved será ativado somente quando você receber AUGE.';
+  }
 }
 
 async function doLogin(email, password) {
@@ -674,17 +684,20 @@ function drawQr(host) {
 
 function walletAddress(wallet) {
   const account = wallet?.account;
+  if (account?.address) return account.address;
   if (account?.account_key_ed_hex) return deriveAddress(account.account_key_ed_hex);
-  return account?.address || account?.account_address || `auge1${String(wallet?.account_number || '').padStart(34, '0')}`;
+  return account?.account_address || '';
 }
 
-/** Short (Base58Check) payment address derived from the account's Ed25519 key. */function walletShortAddress(wallet) {
+/** Base58 payment address derived from the account's Ed25519 key. */
+function walletShortAddress(wallet) {
   const account = wallet?.account;
+  if (account?.address) return account.address;
   if (account?.account_key_ed_hex) return deriveShortAddress(account.account_key_ed_hex);
   return '';
 }
 
-/** Truncated canonical address: `auge1...abcd`. */
+/** Truncated address: `3Fb2...HzpM`. */
 function shortAddr(address) {
   const a = String(address || '');
   return a.length > 12 ? `${a.slice(0, 5)}...${a.slice(-4)}` : a;
@@ -700,7 +713,7 @@ async function renderAugeId() {
         <form data-augeid-transfer>
           <label class="field"><span class="field-label">De qual conta enviar</span>
             <select name="account" required>${owned.map((w) => `<option value="${w.account_number}">AUGEID #${fmtNum(w.account_number)}${w.account?.name ? ` — ${esc(w.account.name)}` : ''}</option>`).join('')}</select></label>
-          <label class="field"><span class="field-label">Endereço de destino</span><input name="destination" placeholder="Chave pública (64 hex), nome ou endereço auge1…" required></label>
+          <label class="field"><span class="field-label">Endereço de destino</span><input name="destination" placeholder="Chave pública (64 hex), nome ou endereço Base58" required></label>
           <label class="field"><span class="field-label">Senha</span><input name="password" type="password" placeholder="Sua senha para assinar" required></label>
           <div data-send-status></div>
           <button class="btn btn-primary" type="submit" data-send-btn>Enviar</button>
@@ -764,10 +777,14 @@ async function resolveDestinationKey(destination) {
   const d = String(destination || '').trim();
   if (!d) return null;
   if (/^[0-9a-f]{64}$/i.test(d)) return d.toLowerCase();
-  if (d.startsWith('auge1')) {
-    if (!isValidAugeAddress(d)) return null;
-    try { return (await rpc.getAccount({ address: d }))?.account_key_ed_hex || null; } catch { return null; }
-  }
+  const embedded = embeddedPublicKeyHex(d);
+  if (embedded) return embedded;
+  // Canonical Base58 address — the node resolves it by scanning accounts.
+  // Falls back to name resolution below.
+  try {
+    const acc = await rpc.getAccount({ address: d });
+    if (acc && acc.account_key_ed_hex) return acc.account_key_ed_hex;
+  } catch { /* not a resolvable address — try name */ }
   return (await rpc.resolveName(d))?.account_key_ed_hex || null;
 }
 
@@ -945,8 +962,21 @@ function renderRecentTransactions(host, items) {
 // ── Marketplace ────────────────────────────────────────────────────────
 
 async function renderMarketplace() {
-  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Marketplace</h1><p class="muted">AUGEIDs disponíveis para compra.</p></div><div id="mp-body">${ui.skeleton()}</div></main>`;
+  root.innerHTML = `<main class="container page">
+    <div class="page-head"><h1>Marketplace</h1><p class="muted">AUGEIDs disponíveis para compra.</p></div>
+    <div class="toolbar">
+      <input id="mp-search" placeholder="Buscar por nome ou número">
+      <select id="mp-sort">
+        <option value="number">Número do AUGEID</option>
+        <option value="price-asc">Menor preço</option>
+        <option value="price-desc">Maior preço</option>
+        <option value="recent">Mais recente</option>
+      </select>
+    </div>
+    <div id="mp-body">${ui.skeleton()}</div></main>`;
   const host = root.querySelector('#mp-body');
+  const searchEl = root.querySelector('#mp-search');
+  const sortEl = root.querySelector('#mp-sort');
   try {
     const res = await rpc.listAccountsForSale();
     const items = await Promise.all(res.entries.map(async (e) => {
@@ -955,27 +985,48 @@ async function renderMarketplace() {
       return { ...e, name: info?.name ?? null, account_to_pay: info?.account_to_pay ?? 0, sellerName: seller };
     }));
 
-    if (items.length === 0) { host.innerHTML = ui.emptyState('Nenhum AUGEID à venda.'); return; }
+    const render = () => {
+      const term = (searchEl.value || '').trim().toLowerCase();
+      let list = items.filter((i) => {
+        if (!term) return true;
+        const num = String(i.account_number);
+        const name = (i.name || '').toLowerCase();
+        return num.includes(term) || name.includes(term);
+      });
+      const sort = sortEl.value;
+      list = [...list].sort((a, b) => {
+        if (sort === 'price-asc') return a.price - b.price;
+        if (sort === 'price-desc') return b.price - a.price;
+        if (sort === 'recent') return b.listed_at_block - a.listed_at_block;
+        return a.account_number - b.account_number;
+      });
 
-    host.innerHTML = `<div class="grid-2">${items.map((it) => `
-      <div class="card">
-        <div class="card-head-row">
-          <span class="account-card-number">AUGEID #${fmtNum(it.account_number)}</span>
-          ${ui.badge('warning', 'ForSale')}
-        </div>
-        <div class="marketplace-card-name">${esc(it.name || 'Sem nome')}</div>
-        <dl class="marketplace-card-fields">
-          <div><dt>Preço</dt><dd class="price">${auge(it.price)} AUGE</dd></div>
-          <div><dt>Vendedor</dt><dd>${esc(it.sellerName)}</dd></div>
-        </dl>
-        <button class="btn btn-primary" data-buy="${it.account_number}">Comprar</button>
-      </div>`).join('')}</div>`;
+      if (list.length === 0) { host.innerHTML = ui.emptyState('Nenhum AUGEID à venda.'); return; }
 
-    host.querySelectorAll('[data-buy]').forEach((btn) => btn.addEventListener('click', async () => {
-      const num = Number(btn.getAttribute('data-buy'));
-      const item = items.find((i) => i.account_number === num);
-      await buyFlow(item);
-    }));
+      host.innerHTML = `<div class="grid-2">${list.map((it) => `
+        <div class="card">
+          <div class="card-head-row">
+            <span class="account-card-number">AUGEID #${fmtNum(it.account_number)}</span>
+            ${ui.badge('warning', 'ForSale')}
+          </div>
+          <div class="marketplace-card-name">${esc(it.name || 'Sem nome')}</div>
+          <dl class="marketplace-card-fields">
+            <div><dt>Preço</dt><dd class="price">${auge(it.price)} AUGE</dd></div>
+            <div><dt>Vendedor</dt><dd>${esc(it.sellerName)}</dd></div>
+          </dl>
+          <button class="btn btn-primary" data-buy="${it.account_number}">Comprar</button>
+        </div>`).join('')}</div>`;
+
+      host.querySelectorAll('[data-buy]').forEach((btn) => btn.addEventListener('click', async () => {
+        const num = Number(btn.getAttribute('data-buy'));
+        const item = items.find((i) => i.account_number === num);
+        await buyFlow(item);
+      }));
+    };
+
+    searchEl.addEventListener('input', render);
+    sortEl.addEventListener('change', render);
+    render();
   } catch (err) {
     host.innerHTML = ui.errorState(err.message);
   }
@@ -1018,6 +1069,442 @@ async function buyFlow(item) {
     } catch (err) { ui.toast(err.message, 'error'); }
   });
   document.querySelector('.modal [data-cancel]').addEventListener('click', close);
+}
+
+// ── Validador ──────────────────────────────────────────────────────────
+
+function fmtAuge(s) {
+  if (s === undefined || s === null) return '0 AUGE';
+  try {
+    const raw = auge(s);
+    const [int, frac] = raw.split('.');
+    const trimmed = (frac || '').replace(/0+$/, '');
+    return trimmed ? `${int}.${trimmed} AUGE` : `${int} AUGE`;
+  } catch {
+    return '0 AUGE';
+  }
+}
+
+function fmtUptime(s) {
+  const n = Number(s || 0);
+  if (!n) return '—';
+  const d = Math.floor(n / 86400);
+  const h = Math.floor((n % 86400) / 3600);
+  return `${d}d ${h}h`;
+}
+
+const PLAN_LABELS = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
+const METHOD_LABELS = { pix: 'PIX', usdt: 'USDT', auge: 'AUGE' };
+const PLAN_BENEFITS = {
+  monthly: ['Validação de blocos', 'Ganhos em AUGE e AUGEIDs', 'Suporte por e-mail'],
+  semiannual: ['Tudo do plano mensal', '2 meses grátis', 'Prioridade no suporte'],
+  annual: ['Tudo do plano semestral', '4 meses grátis', 'Suporte prioritário 24/7'],
+};
+
+/** Instruções de pagamento conforme o método escolhido no pedido. */
+function paymentInstruction(order, payment) {
+  const p = payment || {};
+  if (order.method === 'pix') {
+    if (!p.pix_key) return '<p class="muted">A chave PIX será informada em breve.</p>';
+    return `<div class="kv"><span class="kv-label">Chave PIX</span><span class="kv-value mono">${esc(p.pix_key)} ${ui.copyButton(p.pix_key)}</span></div>`;
+  }
+  if (order.method === 'usdt') {
+    if (!p.usdt_address) return '<p class="muted">O endereço USDT será informado em breve.</p>';
+    return `
+      <div class="kv"><span class="kv-label">Rede</span><span class="kv-value">${esc(p.usdt_network || '—')}</span></div>
+      <div class="kv"><span class="kv-label">Endereço</span><span class="kv-value mono">${esc(p.usdt_address)} ${ui.copyButton(p.usdt_address)}</span></div>`;
+  }
+  if (order.method === 'auge') {
+    if (!p.auge_address) return '<p class="muted">O endereço AUGE será informado em breve.</p>';
+    return `
+      <div class="kv"><span class="kv-label">Rede</span><span class="kv-value">${esc(p.auge_network || '—')}</span></div>
+      <div class="kv"><span class="kv-label">Endereço</span><span class="kv-value mono">${esc(p.auge_address)} ${ui.copyButton(p.auge_address)}</span></div>`;
+  }
+  return '';
+}
+
+function licenseStatusBadge(s) {
+  switch (s) {
+    case 'active': return ui.badge('success', 'Ativa');
+    case 'expired': return ui.badge('warning', 'Expirada');
+    case 'suspended': return ui.badge('admin', 'Suspensa');
+    default: return ui.badge('muted', s || 'Desconhecida');
+  }
+}
+
+function orderStatusBadge(o) {
+  switch (o.status) {
+    case 'pending': return ui.badge('warning', 'Aguardando pagamento');
+    case 'paid': return ui.badge('success', 'Pago');
+    case 'issued': return ui.badge('info', 'Emitida');
+    default: return ui.badge('muted', o.status || 'Desconhecido');
+  }
+}
+
+function validatorStatusBadge(v) {
+  if (v.status === 'pending') return ui.badge('muted', 'Pendente');
+  if (v.status === 'suspended') return ui.badge('admin', 'Suspenso');
+  if (v.status === 'revoked') return ui.badge('muted', 'Revogado');
+  return v.online ? ui.badge('success', 'Online') : ui.badge('warning', 'Offline');
+}
+
+async function renderValidator() {
+  root.innerHTML = `
+    <main class="container page">
+      <div class="page-head"><h1>Seja um Validador</h1><p class="muted">Execute um nó, produza blocos e receba recompensas em AUGE e AUGEIDs.</p></div>
+
+      <div class="card">
+        <div class="section-head"><h2>Como funciona</h2></div>
+        <ol class="how-it-works">
+          <li>Escolha um plano e compre uma licença.</li>
+          <li>Baixe e instale o software Validador (Windows ou Linux).</li>
+          <li>Ative com sua licença — o software gera a chave Ed25519 localmente.</li>
+          <li>O servidor valida a licença e registra a chave pública.</li>
+          <li>A blockchain autoriza o validador e ele começa a produzir blocos.</li>
+          <li>Acompanhe os ganhos em tempo real.</li>
+        </ol>
+      </div>
+
+      <section class="grid-stats">
+        ${ui.statCard('Recompensa por bloco', '7.25 AUGE', 'coins')}
+        ${ui.statCard('AUGEIDs por bloco', '3', 'hex')}
+        ${ui.statCard('Tempo online', '24/7', 'clock')}
+      </section>
+
+      <div class="card">
+        <div class="section-head"><h2>Requisitos</h2></div>
+        <ul class="requirements">
+          <li>Sistema Windows ou Linux (64-bit).</li>
+          <li>Conexão estável com a internet.</li>
+          <li>Mínimo 4 GB de RAM e 20 GB de disco.</li>
+          <li>A chave privada fica sempre na sua máquina — nunca sai dela.</li>
+        </ul>
+      </div>
+
+      <div class="actions" style="margin-top:20px">
+        <a class="btn btn-primary" href="#/validator/plans">Quero ser Validador</a>
+      </div>
+    </main>`;
+}
+
+async function renderValidatorPlans() {
+  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Planos</h1><p class="muted">Escolha o plano de validação e comece a produzir blocos.</p></div><div id="vp-body">${ui.skeleton()}</div></main>`;
+  const host = root.querySelector('#vp-body');
+
+  let plans = [];
+  try {
+    const res = await api.listPlans();
+    plans = res.plans || [];
+  } catch (err) {
+    host.innerHTML = ui.errorState(err.message);
+    return;
+  }
+
+  let selectedPlan = null;
+  let method = 'pix';
+  let creating = false;
+
+  const render = (order = null, payment = null) => {
+    if (order) {
+      host.innerHTML = `
+        <div class="page-head"><h2>Pedido de licença</h2><p class="muted">Aguardando confirmação do pagamento.</p></div>
+        <div class="card">
+          <div class="section-head"><h2>Resumo</h2></div>
+          <div class="kv"><span class="kv-label">Plano</span><span class="kv-value">${esc(PLAN_LABELS[order.plan] || order.plan)} — US$${esc(order.amount_usd)}</span></div>
+          <div class="kv"><span class="kv-label">Método</span><span class="kv-value">${esc(METHOD_LABELS[order.method] || order.method)}</span></div>
+          <div class="kv"><span class="kv-label">Referência</span><span class="kv-value mono">${esc(order.id)}</span></div>
+          <div class="kv"><span class="kv-label">Status</span><span class="kv-value">${ui.badge('warning', 'Aguardando pagamento')}</span></div>
+        </div>
+        <div class="card">
+          <div class="section-head"><h2>Como pagar (${esc(METHOD_LABELS[order.method] || order.method)})</h2></div>
+          ${paymentInstruction(order, payment)}
+          <p class="muted" style="margin-top:8px">Use a referência <strong class="mono">${esc(order.id)}</strong> ao pagar. Assim que o pagamento for confirmado, emita sua licença na página <a href="#/validator/license">Minha Licença</a>.</p>
+        </div>
+        <div class="actions" style="margin-top:16px">
+          <a class="btn btn-primary" href="#/validator/license">Ver minha licença</a>
+          <button class="btn" data-new-order>Novo pedido</button>
+        </div>`;
+      ui.bindCopyButtons(host);
+      host.querySelector('[data-new-order]').addEventListener('click', () => { selectedPlan = null; render(); });
+      return;
+    }
+
+    const plansHtml = plans.map((p) => `
+      <div class="card plan-card">
+        <h3 class="plan-name">${esc(p.label)}</h3>
+        <div class="plan-price">US$${esc(p.usd)}<span class="plan-period">/plano</span></div>
+        ${p.discount ? ui.badge('accent', p.discount) : ''}
+        <ul class="plan-benefits">${(PLAN_BENEFITS[p.id] || []).map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
+        <button class="btn btn-primary btn-block" data-plan="${esc(p.id)}">Comprar</button>
+      </div>`).join('');
+
+    host.innerHTML = `
+      <div class="grid-3">${plansHtml}</div>
+      ${selectedPlan ? `
+        <div class="card" style="margin-top:16px">
+          <div class="section-head"><h2>Método de pagamento — ${esc(selectedPlan.label)}</h2></div>
+          <div class="method-options">
+            ${['pix', 'usdt', 'auge'].map((m) => `<label class="method-option"><input type="radio" name="method" value="${m}" ${method === m ? 'checked' : ''}> <span>${esc(METHOD_LABELS[m])}</span></label>`).join('')}
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" data-continue ${creating ? 'disabled' : ''}>${creating ? 'Criando pedido…' : 'Continuar'}</button>
+            <button class="btn btn-ghost" data-cancel-plan>Cancelar</button>
+          </div>
+        </div>` : ''}`;
+
+    host.querySelectorAll('[data-plan]').forEach((b) => b.addEventListener('click', () => {
+      selectedPlan = plans.find((p) => p.id === b.getAttribute('data-plan')) || null;
+      render();
+    }));
+
+    host.querySelectorAll('input[name="method"]').forEach((r) => r.addEventListener('change', () => { method = r.value; }));
+
+    host.querySelector('[data-cancel-plan]')?.addEventListener('click', () => { selectedPlan = null; render(); });
+
+    host.querySelector('[data-continue]')?.addEventListener('click', async () => {
+      if (!selectedPlan) return;
+      creating = true; render();
+      try {
+        const [orderRes, payRes] = await Promise.all([
+          api.createOrder({ plan: selectedPlan.id, method }),
+          api.getPaymentInfo().catch(() => null),
+        ]);
+        render(orderRes.order, payRes ? payRes.payment : null);
+      } catch (err) {
+        ui.toast(err.message, 'error');
+        creating = false; render();
+      }
+    });
+  };
+
+  render();
+}
+
+async function renderValidatorLicense() {
+  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Minha Licença</h1><p class="muted">Sua licença de validação e o download do software.</p></div><div id="vl-body">${ui.skeleton()}</div></main>`;
+  const host = root.querySelector('#vl-body');
+
+  let orders = [], licenses = [], downloads = {};
+  try {
+    const [o, ov, d] = await Promise.all([api.listOrders(), api.getOverview(), api.getDownloads()]);
+    orders = o; licenses = ov.licenses || []; downloads = d.downloads || {};
+  } catch (err) {
+    host.innerHTML = ui.errorState(err.message);
+    return;
+  }
+
+  const dl = (platform, label) => {
+    const d = downloads[platform];
+    if (d && d.artifact_url) return `<a class="btn" href="${esc(d.artifact_url)}" target="_blank" rel="noreferrer">${label} · v${esc(d.version)}</a>`;
+    return `<button class="btn" disabled title="Release ainda não publicado">${label}</button>`;
+  };
+
+  const renderLicenses = () => licenses.length === 0
+    ? '<div class="card"><p class="muted">Você ainda não possui uma licença. <a href="#/validator/plans">Comprar plano</a></p></div>'
+    : `<div class="grid-2">${licenses.map((l) => `
+        <div class="card">
+          <div class="kv"><span class="kv-label">Plano</span><span class="kv-value">${esc(PLAN_LABELS[l.plan] || l.plan)}</span></div>
+          <div class="kv"><span class="kv-label">Status</span><span class="kv-value">${licenseStatusBadge(l.status)}</span></div>
+          <div class="kv"><span class="kv-label">AUGEID</span><span class="kv-value mono">${l.augeid ? `#${fmtNum(l.augeid)}` : '—'}</span></div>
+          <div class="kv"><span class="kv-label">Expira em</span><span class="kv-value">${esc((l.expires_at || '').slice(0, 10))}</span></div>
+        </div>`).join('')}</div>`;
+
+  const activeWithAugeid = licenses.find((l) => l.status === 'active' && l.augeid);
+
+  const renderOrders = () => orders.length === 0
+    ? '<div class="card"><p class="muted">Nenhum pedido ainda.</p></div>'
+    : `<div class="grid-2">${orders.map((o) => `
+        <div class="card">
+          <div class="kv"><span class="kv-label">Plano</span><span class="kv-value">${esc(PLAN_LABELS[o.plan] || o.plan)} — US$${esc(o.amount_usd)}</span></div>
+          <div class="kv"><span class="kv-label">Status</span><span class="kv-value">${orderStatusBadge(o)}</span></div>
+          <div class="kv"><span class="kv-label">Referência</span><span class="kv-value mono">${esc((o.id || '').slice(0, 13))}…</span></div>
+          ${o.status === 'paid' ? `<div class="actions" style="margin-top:8px"><button class="btn btn-primary" data-emit="${esc(o.id)}">Emitir licença</button></div>` : ''}
+        </div>`).join('')}</div>`;
+
+  const activationBlock = activeWithAugeid ? `
+    <div class="card" style="border-color:var(--color-success);margin-bottom:16px">
+      <div class="section-head"><h2>Ativação do software</h2></div>
+      <p class="muted small">Baixe o software abaixo e informe <strong>apenas o seu AUGEID</strong> para ativar o validador na sua máquina.</p>
+      <div class="receive-address mono" style="margin-top:10px">AUGEID #${fmtNum(activeWithAugeid.augeid)}</div>
+      <div class="actions" style="margin-top:10px">${ui.copyButton(activeWithAugeid.augeid)}</div>
+    </div>` : '';
+
+  host.innerHTML = `
+    ${activationBlock}
+    <div class="section">
+      <div class="section-head"><h2>Licenças</h2></div>
+      <div id="licenses-box">${renderLicenses()}</div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Download do software</h2></div>
+      <div class="actions">${dl('windows', 'Windows (MSI)')}${dl('linux', 'Linux (DEB/AppImage)')}</div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Pedidos</h2></div>
+      <div id="orders-box">${renderOrders()}</div>
+    </div>`;
+
+  ui.bindCopyButtons(host);
+
+  host.querySelectorAll('[data-emit]').forEach((btn) => btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-emit');
+    btn.disabled = true; btn.textContent = 'Emitindo…';
+    try {
+      const res = await api.issueLicense(id);
+      if (res && res.license_id) {
+        orders = await api.listOrders();
+        const ov = await api.getOverview();
+        licenses = ov.licenses || [];
+        host.querySelector('#orders-box').innerHTML = renderOrders();
+        host.querySelector('#licenses-box').innerHTML = renderLicenses();
+        ui.toast('Licença emitida! Ative com seu AUGEID.', 'success');
+      }
+    } catch (err) {
+      ui.toast(err.message, 'error');
+    }
+  }));
+}
+
+function validatorCard(d) {
+  const v = d.validator || {};
+  const r = d.rewards || {};
+  const buckets = [['Hora', r.hour], ['Dia', r.day], ['Semana', r.week], ['Mês', r.month], ['Ano', r.year]];
+  const total = r.total || {};
+  const bars = buckets.map(([label, b]) => ({ label, n: b ? Number(b.auge || 0) : 0 }));
+  const max = Math.max(1, ...bars.map((x) => x.n));
+  const barsHtml = bars.map((x) => `
+    <div class="mini-bar" title="${esc(x.label)}: ${fmtAuge(String(x.n))}">
+      <div class="mini-bar-fill" style="height:${(x.n / max) * 100}%"></div>
+      <span class="mini-bar-label">${esc(x.label)}</span>
+    </div>`).join('');
+
+  return `
+    <div class="card">
+      <div class="kv"><span class="kv-label">Validador</span><span class="kv-value">${esc(v.augeid || '—')} <span class="mono">${esc((v.public_key || '').slice(0, 10))}…</span></span></div>
+      <div class="kv"><span class="kv-label">Status</span><span class="kv-value">${validatorStatusBadge(v)}</span></div>
+      <div class="kv"><span class="kv-label">Uptime</span><span class="kv-value">${fmtUptime(v.uptime)}</span></div>
+      <div class="kv"><span class="kv-label">Blocos produzidos</span><span class="kv-value">${fmtNum(v.leadership)}</span></div>
+      <div class="section-head" style="margin-top:12px"><h2>AUGE por período</h2></div>
+      <div class="mini-bars">${barsHtml}</div>
+      <div class="kv"><span class="kv-label">AUGE total</span><span class="kv-value">${fmtAuge(total.auge)}</span></div>
+      <div class="kv"><span class="kv-label">AUGEIDs total</span><span class="kv-value">${fmtNum(total.augeids)}</span></div>
+    </div>`;
+}
+
+async function renderValidatorDashboard() {
+  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Painel do Validador</h1><p class="muted">Status e ganhos em tempo real.</p></div><div id="vd-body">${ui.skeleton()}</div></main>`;
+  const host = root.querySelector('#vd-body');
+
+  try {
+    const ov = await api.getOverview();
+    const validators = ov.validators || [];
+    if (validators.length === 0) {
+      host.innerHTML = `<div class="card"><p class="muted">Nenhum validador ativado ainda. Baixe o software e ative sua licença. <a href="#/validator/license">Ver licença</a></p></div>`;
+      return;
+    }
+    host.innerHTML = `<div class="grid-2">${validators.map(validatorCard).join('')}</div>`;
+  } catch (err) {
+    host.innerHTML = ui.errorState(err.message);
+  }
+}
+
+// ── Assinaturas (Faturas & Licenças / serviços recorrentes) ───────────
+
+const PLAN_DAYS = { monthly: 30, semiannual: 180, annual: 365 };
+
+function daysRemainingLabel(days) {
+  if (days === null || days === undefined) return '—';
+  if (days <= 0) return 'Expirado';
+  if (days === 1) return 'Vence hoje';
+  return `${days} dia${days > 1 ? 's' : ''} restante${days > 1 ? 's' : ''}`;
+}
+
+function expiryProgress(l) {
+  const total = PLAN_DAYS[l.plan] || 30;
+  const remaining = l.days_remaining;
+  if (remaining === null || remaining === undefined || remaining <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((remaining / total) * 100)));
+}
+
+function subscriptionCard(l) {
+  const active = l.status === 'active';
+  const pct = expiryProgress(l);
+  const fillColor = l.expiring_soon ? 'var(--color-warning)' : l.status === 'expired' ? 'var(--color-error)' : 'var(--color-success)';
+  return `
+    <div class="card">
+      <div class="card-head-row">
+        <span class="account-card-number">${esc(PLAN_LABELS[l.plan] || l.plan)}</span>
+        ${licenseStatusBadge(l.status)}
+      </div>
+      <div class="kv"><span class="kv-label">Expira em</span><span class="kv-value">${esc((l.expires_at || '').slice(0, 10))}</span></div>
+      <div class="kv"><span class="kv-label">Tempo restante</span><span class="kv-value">${esc(daysRemainingLabel(l.days_remaining))}</span></div>
+      <div class="expiry-track" title="${active ? `${pct}% do período restante` : ''}">
+        <div class="expiry-fill" style="width:${pct}%;background:${fillColor}"></div>
+      </div>
+    </div>`;
+}
+
+function invoiceStatusBadge(i) {
+  switch (i.status) {
+    case 'pending': return ui.badge('warning', 'Aguardando pagamento');
+    case 'paid': return ui.badge('success', 'Paga');
+    case 'issued': return ui.badge('info', 'Emitida');
+    case 'cancelled': return ui.badge('muted', 'Cancelada');
+    default: return ui.badge('muted', i.status || 'Desconhecida');
+  }
+}
+
+async function renderBilling() {
+  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Assinaturas</h1><p class="muted">Faturas, licenças ativas e serviços recorrentes.</p></div><div id="billing-body">${ui.skeleton()}</div></main>`;
+  const host = root.querySelector('#billing-body');
+
+  let data;
+  try {
+    data = await api.getBilling();
+  } catch (err) {
+    host.innerHTML = ui.errorState(err.message);
+    return;
+  }
+
+  const { subscriptions = [], invoices = [], summary = {} } = data;
+  const s = summary || {};
+
+  const subscriptionsHtml = subscriptions.length === 0
+    ? `<div class="card"><p class="muted">Nenhum serviço recorrente ativo. <a href="#/validator/plans">Ver planos</a></p></div>`
+    : `<div class="grid-2">${subscriptions.map(subscriptionCard).join('')}</div>`;
+
+  const invoicesHtml = invoices.length === 0
+    ? `<div class="card"><p class="muted">Nenhuma fatura ainda.</p></div>`
+    : `<div class="table-wrap"><table class="table">
+        <thead><tr><th>Referência</th><th>Plano</th><th>Valor</th><th>Método</th><th>Data</th><th>Status</th></tr></thead>
+        <tbody>${invoices.map((i) => `
+          <tr>
+            <td class="mono">${esc((i.id || '').slice(0, 13))}…</td>
+            <td>${esc(PLAN_LABELS[i.plan] || i.plan)}</td>
+            <td class="price">US$${esc(i.amount_usd ?? '—')}</td>
+            <td>${esc(METHOD_LABELS[i.method] || i.method)}</td>
+            <td class="muted small">${esc((i.created_at || '').slice(0, 10))}</td>
+            <td>${invoiceStatusBadge(i)}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>`;
+
+  host.innerHTML = `
+    <section class="grid-stats">
+      ${ui.statCard('Serviços ativos', fmtNum(s.active ?? 0), 'server')}
+      ${ui.statCard('A vencer em breve', fmtNum(s.expiring_soon ?? 0), 'clock')}
+      ${ui.statCard('Faturas pagas', `${fmtNum(s.paid_invoices ?? 0)}`, 'check', s.total_paid_usd ? `US$${fmtNum(s.total_paid_usd)} pagos` : '')}
+      ${ui.statCard('Faturas pendentes', fmtNum(s.pending_invoices ?? 0), 'alert')}
+    </section>
+
+    <div class="section">
+      <div class="section-head"><h2>Serviços recorrentes</h2><span class="muted small">licenças ativas e vencimento</span></div>
+      ${subscriptionsHtml}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Faturas</h2><a class="link small" href="#/validator/plans">novo plano</a></div>
+      ${invoicesHtml}
+    </div>`;
 }
 
 // ── My Wallets ─────────────────────────────────────────────────────────
@@ -1168,7 +1655,7 @@ async function renderSend() {
   const owned = ownedWallets();
   root.innerHTML = `
     <main class="container page">
-      <div class="page-head"><h1>Enviar AUGE</h1><p class="muted">Destinatário por número de AUGEID ou nome.</p></div>
+      <div class="page-head"><h1>Enviar AUGE</h1><p class="muted">Informe um endereço ou AUGEID. A carteira detecta automaticamente.</p></div>
       <div class="card login-card">
         ${owned.length === 0 ? '<p class="muted">Nenhum AUGEID com saldo vinculado.</p>' : `
         <form data-send>
@@ -1176,7 +1663,7 @@ async function renderSend() {
             <select name="from" required><option value="">Selecione…</option>
               ${owned.map((w) => `<option value="${w.account_number}">AUGEID #${fmtNum(w.account_number)} — ${auge(w.account.balance)} AUGE</option>`).join('')}
             </select></label>
-          <label class="field"><span class="field-label">Destinatário (AUGEID ou nome)</span><input name="to" placeholder="154650 ou CarlosPay" required></label>
+          <label class="field"><span class="field-label">Destino</span><input name="to" placeholder="AUGE-845621 ou JBa4YQ5Q8YwXFNxFnCxLhsMREv5TYhPC9vsAA2" required></label>
           <div data-resolved class="muted small"></div>
           <button class="btn" type="button" data-resolve>Resolver destino</button>
           <label class="field"><span class="field-label">Quantidade (AUGE)</span><input name="amount" type="number" step="any" min="0" required></label>
@@ -1194,8 +1681,8 @@ async function renderSend() {
   root.querySelector('[data-resolve]').addEventListener('click', async () => {
     const to = form.to.value.trim();
     if (!to) { resolvedEl.textContent = 'Informe um AUGEID ou nome.'; return; }
-    resolved = await rpc.resolveName(to);
-    resolvedEl.textContent = resolved ? `Destino: AUGEID #${fmtNum(resolved.account_number)}${resolved.name ? ` (${esc(resolved.name)})` : ''}` : 'AUGEID ou nome não encontrado.';
+    try { resolved = await rpc.resolveDestination(to); } catch { resolved = null; }
+    resolvedEl.textContent = resolved?.account_number ? `Destino: AUGEID #${fmtNum(resolved.account_number)}` : (resolved?.exists ? 'Endereço resolvido.' : 'Destino não encontrado.');
   });
 
   form.addEventListener('submit', async (e) => {
@@ -1260,7 +1747,7 @@ async function renderReceive() {
 async function renderReceiveFirstAugeid() {
   const pub = state.user?.public_key_hex || '';
   const hasKey = /^[0-9a-f]{64}$/i.test(pub);
-  const short = hasKey ? deriveShortAddress(pub) : '';
+   const short = hasKey ? deriveEmbeddedAddress(pub) : '';
 
   root.innerHTML = `
     <main class="container page">
@@ -1268,15 +1755,16 @@ async function renderReceiveFirstAugeid() {
       <div class="card login-card">
         <div class="empty-wallet-card" style="border-left:none;padding:0">
           <span class="layer-chip layer-wallet">Você ainda não possui um AUGEID</span>
-          <p class="muted center">AUGE (a moeda) vive dentro de uma conta AUGEID. Para movimentar AUGE, você primeiro precisa receber ou comprar o seu AUGEID.</p>
+          <p class="muted center">Seu primeiro recebimento ativará automaticamente um AUGEID Reserved já emitido pela rede.</p>
           ${hasKey ? `
             <div style="width:100%;text-align:left">
-              <div class="field"><span class="field-label">Endereço curto</span><div class="receive-address mono">${esc(short)} ${ui.copyButton(short)}</div></div>
+              <div class="field"><span class="field-label">Endereço</span><div class="receive-address mono">${esc(short)} ${ui.copyButton(short)}</div></div>
+              <div class="qr-wrap"><canvas data-qr-address="${esc(short)}"></canvas></div>
             </div>
-            <p class="muted small center">Compartilhe seu endereço curto para que outro membro transfira um AUGEID para você.</p>
+            <p class="muted small center">Compartilhe este endereço para receber AUGE. A ativação ocorre no mesmo bloco do primeiro recebimento.</p>
           ` : '<p class="muted">Sua conta ainda não possui chave pública. Abra o Perfil e recupere a chave.</p>'}
           <div class="actions" style="justify-content:center">
-            <a class="btn btn-primary" href="#/marketplace">Comprar AUGEID</a>
+            <button class="btn" type="button" disabled>Um AUGEID Reserved será ativado no primeiro recebimento</button>
           </div>
         </div>
       </div>
@@ -1287,6 +1775,8 @@ async function renderReceiveFirstAugeid() {
     </main>`;
 
   ui.bindCopyButtons(root);
+  const qr = root.querySelector('[data-qr-address]');
+  if (qr && short) qrToCanvas(qrMatrix(short), qr, 4, 2);
   await renderPendingGifts(root.querySelector('#gift-body'), pub);
 }
 

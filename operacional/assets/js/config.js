@@ -19,6 +19,10 @@ export const CONFIG = Object.freeze({
   BLOCK_TIME_SECONDS: 15,
   POLL_INTERVAL_MS: 15000,
   HEARTBEAT_WINDOW_SECS: 120,
+
+  // Backend financeiro (faturas + configuração de pagamento), servido pelo
+  // wallet-web (8787) e exposto pelo nginx como /wallet-api/api.
+  WALLET_API_URL: '/wallet-api/api',
 });
 
 const KEY = 'auge_admin_key';
@@ -33,4 +37,18 @@ export function setApiKey(key) {
 
 export function clearApiKey() {
   try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
+}
+
+const CONFIRM_KEY = 'auge_finance_key';
+
+export function getConfirmKey() {
+  try { return sessionStorage.getItem(CONFIRM_KEY) || ''; } catch { return ''; }
+}
+
+export function setConfirmKey(key) {
+  try { sessionStorage.setItem(CONFIRM_KEY, key); } catch { /* ignore */ }
+}
+
+export function clearConfirmKey() {
+  try { sessionStorage.removeItem(CONFIRM_KEY); } catch { /* ignore */ }
 }

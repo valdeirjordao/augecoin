@@ -4,8 +4,8 @@
 // administrativas exigem `x-api-key`; o backend é a única via de autorização,
 // monitoramento, licenciamento e auditoria (o consenso segue on-chain).
 
-import { CONFIG, getApiKey, setApiKey, clearApiKey } from './config.js';
-import { opsApi, ApiError } from './api.js';
+import { CONFIG, getApiKey, setApiKey, clearApiKey, getConfirmKey, setConfirmKey, clearConfirmKey } from './config.js';
+import { opsApi, financeApi, ApiError } from './api.js';
 import { initTheme } from './theme.js';
 import { badge, toast, statusDot, copyButton, bindCopyButtons, skeleton, openModal, emptyState } from './components.js';
 import { esc, shortHash, fmtNum, timeAgo, fmtDuration, auge } from './utils.js';
@@ -41,6 +41,7 @@ const NAV = [
   { href: '#/licenses', key: 'licenses', label: 'Licenças', icon: 'key' },
   { href: '#/ganhos', key: 'ganhos', label: 'Ganhos', icon: 'coins' },
   { href: '#/monitoramento', key: 'monitoramento', label: 'Monitoramento', icon: 'activity' },
+  { href: '#/financeiro', key: 'financeiro', label: 'Financeiro', icon: 'coins' },
   { href: '#/auditoria', key: 'auditoria', label: 'Auditoria', icon: 'list' },
   { href: '#/configuracoes', key: 'configuracoes', label: 'Configurações', icon: 'gear' },
 ];
@@ -251,6 +252,7 @@ function route() {
     licenses: renderLicenses,
     ganhos: renderGanhos,
     monitoramento: renderMonitoramento,
+    financeiro: renderFinanceiro,
     auditoria: renderAuditoria,
     configuracoes: renderConfiguracoes,
   };
@@ -602,10 +604,27 @@ async function licenseAction(action, id, main) {
   }
 }
 
-function issueLicenseModal(main) {
+async function issueLicenseModal(main) {
+  let members = [];
+  try {
+    const res = await financeApi.get('/admin/members');
+    members = res.members || [];
+  } catch { /* members list optional; fall back to manual UUID */ }
+
+  const memberOptions = members.length
+    ? members.map((m) => `<option value="${esc(m.id)}">${esc(m.display_name || m.email)} — ${esc(m.email)}</option>`).join('')
+    : '';
+
   const modal = openModal('Emitir licença', `
     <form data-issue-form>
-      <label class="field"><span class="field-label">User ID (UUID)</span><input name="user_id" placeholder="00000000-0000-0000-0000-000000000000" required></label>
+      <label class="field">
+        <span class="field-label">Membro</span>
+        <select name="user_id" class="field" ${members.length ? 'required' : ''}>
+          <option value="">Selecione…</option>
+          ${memberOptions}
+        </select>
+      </label>
+      ${members.length === 0 ? `<label class="field"><span class="field-label">User ID (UUID)</span><input name="user_id_manual" placeholder="00000000-0000-0000-0000-000000000000"></label>` : ''}
       <label class="field">
         <span class="field-label">Plano</span>
         <select name="plan" class="field">
@@ -621,13 +640,18 @@ function issueLicenseModal(main) {
   modal.el = document.body.lastElementChild;
   modal.el.querySelector('[data-issue-form]').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const user_id = modal.el.querySelector('input[name="user_id"]').value.trim();
+    const sel = modal.el.querySelector('select[name="user_id"]');
+    const user_id = (sel && sel.value) || (modal.el.querySelector('input[name="user_id_manual"]')?.value || '').trim();
+    if (!user_id) {
+      modal.el.querySelector('#issue-result').innerHTML = `<p class="login-error">Selecione um membro.</p>`;
+      return;
+    }
     const plan = modal.el.querySelector('select[name="plan"]').value;
     try {
-      const res = await opsApi.post('/v1/licenses', { user_id, plan });
+      const res = await financeApi.post('/admin/licenses', { user_id, plan });
       modal.el.querySelector('#issue-result').innerHTML = `
         <div class="card" style="margin-top:16px;border-color:var(--color-success)">
-          <h3 class="card-title">Chave gerada (mostrada uma única vez)</h3>
+          <h3 class="card-title">Chave gerada</h3>
           <div class="mono" style="font-size:1.1rem;letter-spacing:1px">${esc(res.license_key)}</div>
           <div style="margin-top:8px">${copyButton(res.license_key)}</div>
         </div>`;
@@ -833,6 +857,163 @@ async function refreshAuditoria(main) {
 }
 
 // ── Configurações ──────────────────────────────────────────────────────
+
+async function renderFinanceiro(main) {
+  if (!getConfirmKey()) {
+    main.innerHTML = `
+      <div class="page-head"><h1>Financeiro</h1><p class="muted">Faturas e configuração de pagamento.</p></div>
+      <div class="card login-card">
+        <h3 class="card-title">Chave financeira</h3>
+        <p class="muted small">Informe a chave financeira para aprovar pagamentos. Fica apenas nesta aba.</p>
+        <form data-fin-key>
+          <label class="field"><span class="field-label">Chave</span><input type="password" name="key" autocomplete="off" required></label>
+          <button class="btn btn-primary" type="submit">Desbloquear</button>
+        </form>
+      </div>`;
+    const form = main.querySelector('[data-fin-key]');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const key = form.querySelector('input[name="key"]').value.trim();
+      if (!key) return;
+      setConfirmKey(key);
+      try {
+        await financeApi.get('/admin/orders');
+        renderFinanceiro(main);
+      } catch {
+        clearConfirmKey();
+        toast('Chave financeira inválida.', 'error');
+        form.querySelector('input[name="key"]').value = '';
+      }
+    });
+    return;
+  }
+
+  main.innerHTML = `
+    <div class="page-head"><h1>Financeiro</h1><p class="muted">Configuração de pagamento e aprovação manual de faturas.</p></div>
+    <section class="grid-2">
+      <div class="card">
+        <h3 class="card-title">Configuração de pagamento</h3>
+        <form data-payment-config>
+          <label class="field"><span class="field-label">Chave PIX</span><input name="pix_key" placeholder="e-mail, CPF/CNPJ, telefone ou chave aleatória"></label>
+          <label class="field"><span class="field-label">Endereço USDT</span><input name="usdt_address" placeholder="0x… ou T…"></label>
+          <label class="field"><span class="field-label">Rede USDT</span><input name="usdt_network" placeholder="TRC20 / ERC20 / BEP20"></label>
+          <label class="field"><span class="field-label">Endereço AUGE</span><input name="auge_address" placeholder="Endereço Base58"></label>
+          <label class="field"><span class="field-label">Rede AUGE</span><input name="auge_network" placeholder="AUGECOIN"></label>
+          <button class="btn btn-primary" type="submit">Salvar</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Como funciona</h3>
+        <p class="muted small">Ao comprar, o membro vê o dado do método escolhido (PIX / USDT / AUGE) com a rede, quando preenchida.</p>
+        <p class="muted small">Ao aprovar o pagamento, a licença é emitida automaticamente e aparece na aba Licenças; o membro recebe a chave de ativação na carteira.</p>
+      </div>
+    </section>
+    <div class="section">
+      <div class="section-head"><h2>Faturas / pedidos</h2></div>
+      <div class="card table-card" id="orders-table">${skeleton(5, 6)}</div>
+    </div>`;
+
+  main.querySelector('[data-payment-config]').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await financeApi.put('/admin/payment-config', {
+        pix_key: f.pix_key.value,
+        usdt_address: f.usdt_address.value,
+        usdt_network: f.usdt_network.value,
+        auge_address: f.auge_address.value,
+        auge_network: f.auge_network.value,
+      });
+      toast('Configuração salva.', 'success');
+    } catch (err) {
+      toast('Falha: ' + err.message, 'error');
+    }
+  });
+
+  await loadFinance(main);
+}
+
+async function loadFinance(main) {
+  const table = main.querySelector('#orders-table');
+  const PLAN_L = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
+  const METHOD_L = { pix: 'PIX', usdt: 'USDT', auge: 'AUGE' };
+  const orderBadge = (s) => {
+    switch (s) {
+      case 'pending': return badge('warning', 'Aguardando');
+      case 'paid': return badge('success', 'Pago');
+      case 'issued': return badge('info', 'Emitida');
+      case 'cancelled': return badge('muted', 'Cancelado');
+      default: return badge('muted', s || '—');
+    }
+  };
+
+  try {
+    const [cfgRes, ordersRes] = await Promise.all([
+      financeApi.get('/admin/payment-config'),
+      financeApi.get('/admin/orders'),
+    ]);
+    const cfg = cfgRes.payment || {};
+    const form = main.querySelector('[data-payment-config]');
+    if (form) {
+      form.pix_key.value = cfg.pix_key || '';
+      form.usdt_address.value = cfg.usdt_address || '';
+      form.usdt_network.value = cfg.usdt_network || '';
+      form.auge_address.value = cfg.auge_address || '';
+      form.auge_network.value = cfg.auge_network || '';
+    }
+    const orders = ordersRes.orders || [];
+    if (!orders.length) { table.innerHTML = emptyState('Nenhum pedido'); return; }
+    table.innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Membro</th><th>Plano</th><th>Método</th><th>Valor</th><th>Status</th><th>Criado</th><th>Ações</th></tr></thead>
+          <tbody>
+            ${orders.map((o) => `
+              <tr>
+                <td><div>${esc(o.display_name || '—')}</div><div class="mono small muted">${esc(o.email)}</div></td>
+                <td>${esc(PLAN_L[o.plan] || o.plan)}</td>
+                <td>${esc(METHOD_L[o.method] || o.method)}</td>
+                <td>US$ ${fmtNum(o.amount_usd)}</td>
+                <td>${orderBadge(o.status)}</td>
+                <td class="muted small">${fmtDate(o.created_at)}</td>
+                <td>
+                  ${o.status === 'pending' ? `
+                    <div class="actions">
+                      <button class="btn" data-approve="${esc(o.id)}">Aprovar</button>
+                      <button class="btn btn-danger" data-cancel="${esc(o.id)}">Cancelar</button>
+                    </div>` : '<span class="muted small">—</span>'}
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    table.querySelectorAll('[data-approve]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const res = await financeApi.post(`/validator/orders/${b.getAttribute('data-approve')}/confirm`, {});
+        if (res && res.license_issue_error) {
+          toast('Pagamento confirmado, mas a emissão da licença falhou: ' + res.license_issue_error, 'warning');
+        } else {
+          toast('Pagamento confirmado e licença emitida.', 'success');
+        }
+        await loadFinance(main);
+      } catch (err) {
+        toast('Falha: ' + err.message, 'error');
+      }
+    }));
+    table.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        await financeApi.post(`/validator/orders/${b.getAttribute('data-cancel')}/cancel`, {});
+        toast('Pedido cancelado.', 'success');
+        await loadFinance(main);
+      } catch (err) {
+        toast('Falha: ' + err.message, 'error');
+      }
+    }));
+  } catch (err) {
+    table.innerHTML = `<div class="empty-state error"><h3>API indisponível</h3><p>${esc(err.message)}</p></div>`;
+  }
+}
 
 async function renderConfiguracoes(main) {
   main.innerHTML = `

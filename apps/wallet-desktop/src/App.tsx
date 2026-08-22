@@ -179,7 +179,7 @@ function HomeScreen({ accounts }: { accounts: Array<{ num: number; balance: stri
       )}
       {tab === 'receive' && (
         <div className="tab-content">
-          <p>Endereço: <code>auge1...</code></p>
+          <p>Endereço: <code>3Fb2QT3ngwCVZPSK9KEKVo241d7oJMxw91HzpMo</code></p>
         </div>
       )}
     </div>

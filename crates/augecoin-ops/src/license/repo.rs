@@ -19,6 +19,7 @@ pub struct NewLicense {
     pub license_key_prefix: String,
     pub user_id: Uuid,
     pub plan: Plan,
+    pub augeid: Option<String>,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -76,8 +77,8 @@ impl LicenseRepo {
         let row: LicenseRow = sqlx::query_as(
             r#"
             INSERT INTO licenses
-                (id, license_key_hash, license_key_prefix, user_id, plan, expires_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (id, license_key_hash, license_key_prefix, user_id, plan, augeid, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             "#,
         )
@@ -86,6 +87,7 @@ impl LicenseRepo {
         .bind(&new.license_key_prefix)
         .bind(new.user_id)
         .bind(new.plan.as_str())
+        .bind(&new.augeid)
         .bind(new.expires_at)
         .fetch_one(&mut *tx)
         .await?;
@@ -117,6 +119,15 @@ impl LicenseRepo {
         let row: Option<LicenseRow> =
             sqlx::query_as("SELECT * FROM licenses WHERE license_key_hash = $1")
                 .bind(hash_hex)
+                .fetch_optional(&self.pool)
+                .await?;
+        row.map(LicenseRow::into_license).transpose()
+    }
+
+    pub async fn find_by_augeid(&self, augeid: &str) -> Result<Option<License>> {
+        let row: Option<LicenseRow> =
+            sqlx::query_as("SELECT * FROM licenses WHERE augeid = $1 ORDER BY created_at DESC LIMIT 1")
+                .bind(augeid)
                 .fetch_optional(&self.pool)
                 .await?;
         row.map(LicenseRow::into_license).transpose()

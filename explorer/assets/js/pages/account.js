@@ -5,7 +5,7 @@ import {
 } from '../api/client.js';
 import { CONFIG } from '../config.js';
 import { skeleton, badge, copyButton, bindCopyButtons, opBadge, emptyState } from '../components.js';
-import { esc, auge, fmtNum, fmtTime, timeAgo, qs, deriveAddress, deriveShortAddress, accountStateInfo, accountTypeLabel, shortHash } from '../utils.js';
+import { esc, auge, fmtNum, fmtTime, timeAgo, qs, deriveAddress, accountStateInfo, accountTypeLabel, shortHash } from '../utils.js';
 
 export async function render() {
   const root = document.getElementById('page-root');
@@ -31,11 +31,8 @@ export async function render() {
 
     document.title = `${acc.name || 'AUGEID ' + acc.account_number} | AUGECOIN Explorer`;
 
-    const [validators, bech32] = await Promise.all([
-      getValidators(),
-      deriveAddress(acc.account_key_ed_hex),
-    ]);
-    const shortAddress = deriveShortAddress(acc.account_key_ed_hex);
+    const validators = await getValidators();
+    const address = deriveAddress(acc.account_key_ed_hex);
 
     const state = accountStateInfo(acc.state);
     const isValidator = (validators.active || []).some((v) => v.id === acc.account_number);
@@ -65,8 +62,7 @@ export async function render() {
 
        <div class="account-actions">
          <button class="btn" data-copy="${esc(acc.account_number)}">Copy AUGEID</button>
-         <button class="btn" data-copy="${esc(shortAddress)}">Copy external address</button>
-         <button class="btn" data-copy="${esc(bech32)}">Copy canonical address</button>
+         <button class="btn" data-copy="${esc(address)}">Copy address</button>
         <button class="btn" id="qr-btn">QR code</button>
         <button class="btn" id="share-btn">Share</button>
         <button class="btn" id="csv-btn">Export CSV</button>
@@ -77,9 +73,8 @@ export async function render() {
           <h3 class="card-title">Information</h3>
           ${kv('AUGEID', fmtNum(acc.account_number), true)}
           ${kv('Name', acc.name ? esc(acc.name) : '—')}
-           ${kv('External address', `<span class="hash">${esc(shortAddress)}</span> ${copyButton(shortAddress)}`, true)}
-           ${kv('Canonical address', `<span class="hash">${shortHash(bech32, 14)}</span> ${copyButton(bech32)}`, true)}
-          ${kv('Public key', `<span class="hash">${shortHash(acc.account_key_ed_hex, 12)}</span> ${copyButton(acc.account_key_ed_hex)}`, true)}
+           ${kv('Address', `<span class="hash">${esc(address)}</span> ${copyButton(address)}`, true)}
+           ${kv('Public key', `<span class="hash">${shortHash(acc.account_key_ed_hex, 12)}</span> ${copyButton(acc.account_key_ed_hex)}`, true)}
           ${kv('Type', accountTypeLabel(acc.account_type))}
           ${kv('State', badge(state.kind, state.label))}
           ${kv('Nonce (n_operation)', fmtNum(acc.n_operation))}
@@ -102,7 +97,7 @@ export async function render() {
       </div>`;
 
     bindCopyButtons();
-     bindAccountActions(shortAddress, bech32, acc);
+     bindAccountActions(address, acc);
 
     await loadHistory(acc.account_number);
   } catch (err) {
@@ -127,14 +122,14 @@ function identicon(num) {
   </svg>`;
 }
 
-function bindAccountActions(shortAddress, bech32, acc) {
+function bindAccountActions(address, acc) {
   document.getElementById('qr-btn').addEventListener('click', () => {
     import('../components.js').then(({ openModal }) => {
-      openModal('QR Code — ' + (acc.name || 'AUGEID ' + acc.account_number), qrCodeSVG(shortAddress));
+      openModal('QR Code — ' + (acc.name || 'AUGEID ' + acc.account_number), qrCodeSVG(address));
     });
   });
   document.getElementById('share-btn').addEventListener('click', () => {
-     import('../utils.js').then(({ share }) => share(`${acc.name || 'AUGEID ' + acc.account_number} · ${shortAddress}`));
+     import('../utils.js').then(({ share }) => share(`${acc.name || 'AUGEID ' + acc.account_number} · ${address}`));
   });
   document.getElementById('csv-btn').addEventListener('click', () => {
     import('../utils.js').then(({ downloadCSV }) => {
@@ -142,8 +137,7 @@ function bindAccountActions(shortAddress, bech32, acc) {
         ['field', 'value'],
         ['augeid', acc.account_number],
          ['name', acc.name || ''],
-         ['external_address', shortAddress],
-         ['canonical_address', bech32],
+         ['address', address],
         ['balance_augesat', acc.balance],
         ['account_type', acc.account_type],
         ['state', acc.state],

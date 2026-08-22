@@ -11,7 +11,7 @@ pub const CT_CHAIN_ID_MAINNET: u64 = 1;
 pub const CT_CHAIN_ID_TESTNET: u64 = 2;
 pub const CT_CHAIN_ID_DEVNET: u64 = 3;
 
-pub const CT_ACCOUNTS_PER_BLOCK: u64 = 10;
+pub const CT_ACCOUNTS_PER_BLOCK: u64 = 3;
 pub const CT_AUGEIDS_PER_BLOCK: u64 = CT_ACCOUNTS_PER_BLOCK;
 pub const CT_MAX_ACCOUNT_DATA: usize = 32;
 

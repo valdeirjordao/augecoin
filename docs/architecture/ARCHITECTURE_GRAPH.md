@@ -65,8 +65,8 @@ crypto ← core ← {storage, consensus}
 - O hash é **consenso** (gravado em `initial_safe_box_hash` no header do bloco).
 - A serialização é **cache**: `SafeboxCache` em `augecoin-storage` mantém o SafeBox
   residente em memória; persiste snapshot só a cada N blocos (ver SAFEBOX_FLOW.md).
-- **Emissão de AUGEIDs (consenso):** exatamente 10 por bloco, todos `Reserved`
-  e do líder. Numeração `bloco × 10 + offset`. `CreateAccount` não cria números —
+- **Emissão de AUGEIDs (consenso):** exatamente 3 por bloco, todos `Reserved`
+  e do líder. Numeração `bloco × 3 + offset`. `CreateAccount` não cria números —
   apenas ativa um `Reserved` → `Owned` (assinado pelo admin/líder).
 - Estados: `Reserved → Owned → Normal`; `ForSale` (marketplace); `GiftPending` (doação).
 

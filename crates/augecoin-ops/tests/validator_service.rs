@@ -107,15 +107,14 @@ async fn setup(node: Option<NodeClient>) -> Option<TestCtx> {
 }
 
 fn activate_input(
-    license_key: &str,
+    augeid: &str,
     machine: u8,
     pubkey: u8,
 ) -> augecoin_ops::validator::ActivateInput {
     augecoin_ops::validator::ActivateInput {
-        license_key: license_key.to_string(),
+        augeid: augeid.to_string(),
         machine_id: hex64(machine),
         public_key: hex64(pubkey),
-        augeid: Some("AUGE123".to_string()),
         os: Some("linux".to_string()),
         cpu: Some(32),
         ram: Some(48),
@@ -127,12 +126,12 @@ fn activate_input(
 #[tokio::test]
 async fn activate_registers_pending_validator_and_binds_license() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
-    let input = activate_input(&issued.license_key, 0x11, 0x22);
+    let input = activate_input("AUGE123", 0x11, 0x22);
 
     let resp = ctx.svc.activate(input).await.unwrap();
     assert_eq!(resp.validator.status, ValidatorStatus::Pending);
@@ -141,7 +140,7 @@ async fn activate_registers_pending_validator_and_binds_license() {
     assert_eq!(resp.config.heartbeat_interval_seconds, 30);
 
     // The license is now bound to the machine and public key.
-    let license = ctx.licenses.resolve(&issued.license_key).await.unwrap();
+    let license = ctx.licenses.resolve_by_augeid("AUGE123").await.unwrap();
     assert_eq!(license.machine_hash.as_deref(), Some(hex64(0x11).as_str()));
     assert_eq!(license.public_key.as_deref(), Some(hex64(0x22).as_str()));
 }
@@ -149,20 +148,20 @@ async fn activate_registers_pending_validator_and_binds_license() {
 #[tokio::test]
 async fn reactivation_on_same_machine_is_idempotent() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
 
     let first = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
     let second = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
 
@@ -174,19 +173,19 @@ async fn reactivation_on_same_machine_is_idempotent() {
 #[tokio::test]
 async fn reactivation_on_another_machine_is_rejected() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
 
     ctx.svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
     let err = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x99, 0x22))
+        .activate(activate_input("AUGE123", 0x99, 0x22))
         .await
         .unwrap_err();
     assert!(matches!(err, augecoin_ops::AppError::MachineMismatch));
@@ -195,19 +194,19 @@ async fn reactivation_on_another_machine_is_rejected() {
 #[tokio::test]
 async fn activation_with_different_pubkey_is_rejected() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
 
     ctx.svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
     let err = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0xAA))
+        .activate(activate_input("AUGE123", 0x11, 0xAA))
         .await
         .unwrap_err();
     assert!(matches!(err, augecoin_ops::AppError::PublicKeyMismatch));
@@ -218,7 +217,7 @@ async fn activation_with_suspended_license_is_forbidden() {
     let Some(ctx) = setup(None).await else { return };
     let issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
     ctx.licenses
@@ -228,7 +227,7 @@ async fn activation_with_suspended_license_is_forbidden() {
 
     let err = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap_err();
     assert!(matches!(err, augecoin_ops::AppError::LicenseNotActive));
@@ -237,20 +236,20 @@ async fn activation_with_suspended_license_is_forbidden() {
 #[tokio::test]
 async fn heartbeat_updates_metrics_and_marks_online() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
     ctx.svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
 
     let hb = ctx
         .svc
         .heartbeat(augecoin_ops::validator::HeartbeatInput {
-            license_key: issued.license_key.clone(),
+            augeid: "AUGE123".to_string(),
             uptime: 86400,
             cpu: Some(32),
             ram: Some(48),
@@ -264,7 +263,7 @@ async fn heartbeat_updates_metrics_and_marks_online() {
     assert_eq!(hb.uptime, 86400);
     assert_eq!(hb.block, 325000);
 
-    let stats = ctx.svc.stats_by_license(&issued.license_key).await.unwrap();
+    let stats = ctx.svc.stats_by_augeid("AUGE123").await.unwrap();
     assert_eq!(stats.validator.uptime, 86400);
     assert_eq!(stats.validator.blocks, 325000);
     assert!(stats.validator.online);
@@ -277,7 +276,7 @@ async fn heartbeat_with_unknown_license_is_rejected() {
     let err = ctx
         .svc
         .heartbeat(augecoin_ops::validator::HeartbeatInput {
-            license_key: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX".to_string(),
+            augeid: "UNKNOWN".to_string(),
             uptime: 10,
             cpu: None,
             ram: None,
@@ -291,14 +290,14 @@ async fn heartbeat_with_unknown_license_is_rejected() {
 #[tokio::test]
 async fn approve_without_node_is_unavailable() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
     let resp = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
 
@@ -318,14 +317,14 @@ async fn approve_suspend_revoke_full_lifecycle_with_mock_node() {
         return;
     };
 
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
     let resp = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
     let id = resp.validator.id;
@@ -348,14 +347,14 @@ async fn approve_suspend_revoke_full_lifecycle_with_mock_node() {
 #[tokio::test]
 async fn pending_can_be_revoked_locally_and_is_terminal() {
     let Some(ctx) = setup(None).await else { return };
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, None)
         .await
         .unwrap();
     let resp = ctx
         .svc
-        .activate(activate_input(&issued.license_key, 0x11, 0x22))
+        .activate(activate_input("AUGE123", 0x11, 0x22))
         .await
         .unwrap();
 

@@ -82,7 +82,8 @@ only derived public keys. Configure the faucet signer separately with
 `AUGECOIN_FAUCET_KEY_HEX` and `AUGECOIN_FAUCET_ACCOUNT`.
 
 The RPC exposes `POST /createaccount` with `{ "public_key_hex": "..." }` and
-`POST /faucet` with `{ "address": "auge1..." }`. Faucet claims are persisted
+`POST /faucet` with `{ "address": "3Fb2QT3ngwCVZPSK9KEKVo241d7oJMxw91HzpMo" }`.
+Faucet claims are persisted
 in RocksDB and limited to one claim per address per 24 hours.
 
 ## Networking hardening

@@ -1,65 +1,117 @@
 use crate::hash::blake3_512;
-use bech32::{Bech32m, Hrp};
 use ed25519_dalek::VerifyingKey;
+use std::hash::{Hash, Hasher};
 
-const ADDRESS_PREFIX: &str = "auge";
-const SHORT_ADDRESS_PAYLOAD_LEN: usize = 24;
-const SHORT_ADDRESS_CHECKSUM_LEN: usize = 4;
-const SHORT_ADDRESS_DOMAIN: &[u8] = b"AUGECOIN-SHORT-ADDRESS-V1";
+const ADDRESS_PAYLOAD_LEN: usize = 24;
+pub const ADDRESS_HASH_LEN: usize = ADDRESS_PAYLOAD_LEN;
+
+/// Canonical binary destination carried by address-based transactions.
+/// The public key is included in a first-receive transaction because a hash
+/// is intentionally one-way; nodes verify that it derives the advertised hash.
+#[derive(Debug, Clone, Copy)]
+pub struct AddressHash {
+    pub hash: [u8; ADDRESS_HASH_LEN],
+    /// Present only for new self-describing addresses. Legacy addresses are
+    /// hash-only and remain resolvable for accounts already indexed on-chain.
+    pub public_key: Option<[u8; 32]>,
+}
+
+impl PartialEq for AddressHash {
+    fn eq(&self, other: &Self) -> bool { self.hash == other.hash }
+}
+impl Eq for AddressHash {}
+impl Hash for AddressHash {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.hash.hash(state); }
+}
+
+const ADDRESS_CHECKSUM_LEN: usize = 4;
+const ADDRESS_DOMAIN: &[u8] = b"AUGECOIN-SHORT-ADDRESS-V1";
 const BASE58: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
+/// Canonical AUGECOIN address: Base58 of the first 24 bytes of
+/// BLAKE3-512(public key) plus a 4-byte domain-separated checksum.
+///
+/// Each member has exactly one address, derived from their Ed25519 public key;
+/// the same address receives both AUGE (coin) and AUGEID (identity).
 pub fn derive_address(verifying_key: &VerifyingKey) -> String {
     let hash = blake3_512(&verifying_key.to_bytes());
-    let hrp = Hrp::parse(ADDRESS_PREFIX).expect("auge is a valid HRP");
-    bech32::encode::<Bech32m>(hrp, &hash).expect("bech32m encoding should succeed")
-}
+    let mut payload = [0u8; ADDRESS_PAYLOAD_LEN];
+    payload.copy_from_slice(&hash[..ADDRESS_PAYLOAD_LEN]);
+    let checksum = address_checksum(&payload);
 
-pub fn validate_address(address: &str) -> bool {
-    let (hrp, data) = match bech32::decode(address) {
-        Ok(result) => result,
-        Err(_) => return false,
-    };
-
-    if hrp.as_str() != ADDRESS_PREFIX {
-        return false;
-    }
-
-    data.len() == 64
-}
-
-/// Returns the compact external-payment representation of an address key.
-/// The canonical `auge1...` address remains the protocol identity.
-pub fn derive_short_address(verifying_key: &VerifyingKey) -> String {
-    let hash = blake3_512(&verifying_key.to_bytes());
-    let mut payload = [0u8; SHORT_ADDRESS_PAYLOAD_LEN];
-    payload.copy_from_slice(&hash[..SHORT_ADDRESS_PAYLOAD_LEN]);
-    let checksum = short_address_checksum(&payload);
-
-    let mut bytes = [0u8; SHORT_ADDRESS_PAYLOAD_LEN + SHORT_ADDRESS_CHECKSUM_LEN];
-    bytes[..SHORT_ADDRESS_PAYLOAD_LEN].copy_from_slice(&payload);
-    bytes[SHORT_ADDRESS_PAYLOAD_LEN..].copy_from_slice(&checksum);
+    let mut bytes = [0u8; ADDRESS_PAYLOAD_LEN + ADDRESS_CHECKSUM_LEN];
+    bytes[..ADDRESS_PAYLOAD_LEN].copy_from_slice(&payload);
+    bytes[ADDRESS_PAYLOAD_LEN..].copy_from_slice(&checksum);
     base58_encode(&bytes)
 }
 
-pub fn validate_short_address(address: &str) -> bool {
-    let bytes = match base58_decode(address) {
-        Some(bytes) if bytes.len() == SHORT_ADDRESS_PAYLOAD_LEN + SHORT_ADDRESS_CHECKSUM_LEN => {
-            bytes
-        }
-        _ => return false,
-    };
+impl AddressHash {
+    pub fn from_public_key(public_key: [u8; 32]) -> Self {
+        let hash = blake3_512(&public_key);
+        let mut address_hash = [0u8; ADDRESS_HASH_LEN];
+        address_hash.copy_from_slice(&hash[..ADDRESS_HASH_LEN]);
+        Self { hash: address_hash, public_key: Some(public_key) }
+    }
 
-    let payload = &bytes[..SHORT_ADDRESS_PAYLOAD_LEN];
-    bytes[SHORT_ADDRESS_PAYLOAD_LEN..] == short_address_checksum(payload)
+    pub fn from_address(address: &str, public_key: [u8; 32]) -> Option<Self> {
+        let expected = Self::parse(address)?;
+        (expected == Self::from_public_key(public_key)).then_some(expected)
+    }
+
+    pub fn parse(address: &str) -> Option<Self> {
+        let bytes = base58_decode(address)?;
+        if bytes.len() == 32 + ADDRESS_CHECKSUM_LEN {
+            let public_key: [u8; 32] = bytes[..32].try_into().ok()?;
+            VerifyingKey::from_bytes(&public_key).ok()?;
+            let checksum = address_checksum_v2(&bytes[..32]);
+            if bytes[32..] != checksum { return None; }
+            return Some(Self::from_public_key(public_key));
+        }
+        if bytes.len() != ADDRESS_HASH_LEN + ADDRESS_CHECKSUM_LEN
+            || bytes[ADDRESS_HASH_LEN..] != address_checksum(&bytes[..ADDRESS_HASH_LEN]) { return None; }
+        let mut hash = [0u8; ADDRESS_HASH_LEN];
+        hash.copy_from_slice(&bytes[..ADDRESS_HASH_LEN]);
+        Some(Self { hash, public_key: None })
+    }
+
+    pub fn to_address(&self) -> String {
+        let (payload, checksum) = match self.public_key {
+            Some(public_key) => (public_key.to_vec(), address_checksum_v2(&public_key)),
+            None => (self.hash.to_vec(), address_checksum(&self.hash)),
+        };
+        let mut bytes = Vec::with_capacity(payload.len() + ADDRESS_CHECKSUM_LEN);
+        bytes.extend_from_slice(&payload);
+        bytes.extend_from_slice(&checksum);
+        base58_encode(&bytes)
+    }
 }
 
-fn short_address_checksum(payload: &[u8]) -> [u8; SHORT_ADDRESS_CHECKSUM_LEN] {
-    let mut input = Vec::with_capacity(SHORT_ADDRESS_DOMAIN.len() + payload.len());
-    input.extend_from_slice(SHORT_ADDRESS_DOMAIN);
+fn address_checksum_v2(public_key: &[u8]) -> [u8; ADDRESS_CHECKSUM_LEN] {
+    let mut input = Vec::with_capacity(ADDRESS_DOMAIN.len() + 2 + public_key.len());
+    input.extend_from_slice(ADDRESS_DOMAIN);
+    input.extend_from_slice(b"-PUBKEY");
+    input.extend_from_slice(public_key);
+    let hash = blake3_512(&input);
+    let mut checksum = [0u8; ADDRESS_CHECKSUM_LEN];
+    checksum.copy_from_slice(&hash[..ADDRESS_CHECKSUM_LEN]);
+    checksum
+}
+
+pub fn derive_embedded_address(verifying_key: &VerifyingKey) -> String {
+    AddressHash::from_public_key(verifying_key.to_bytes()).to_address()
+}
+
+pub fn validate_address(address: &str) -> bool {
+    AddressHash::parse(address).is_some()
+}
+
+fn address_checksum(payload: &[u8]) -> [u8; ADDRESS_CHECKSUM_LEN] {
+    let mut input = Vec::with_capacity(ADDRESS_DOMAIN.len() + payload.len());
+    input.extend_from_slice(ADDRESS_DOMAIN);
     input.extend_from_slice(payload);
     let hash = blake3_512(&input);
-    let mut checksum = [0u8; SHORT_ADDRESS_CHECKSUM_LEN];
-    checksum.copy_from_slice(&hash[..SHORT_ADDRESS_CHECKSUM_LEN]);
+    let mut checksum = [0u8; ADDRESS_CHECKSUM_LEN];
+    checksum.copy_from_slice(&hash[..ADDRESS_CHECKSUM_LEN]);
     checksum
 }
 
@@ -138,6 +190,16 @@ mod tests {
     }
 
     #[test]
+    fn embedded_address_recovers_public_key() {
+        let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
+        let key = wallet.derive_keypair(0).verifying_key();
+        let address = derive_embedded_address(&key);
+        let parsed = AddressHash::parse(&address).unwrap();
+        assert_eq!(parsed.public_key, Some(key.to_bytes()));
+        assert!(validate_address(&address));
+    }
+
+    #[test]
     fn corrupted_address_rejected() {
         let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
         let pk = wallet.derive_keypair(0).verifying_key();
@@ -147,26 +209,16 @@ mod tests {
     }
 
     #[test]
-    fn wrong_prefix_rejected() {
-        let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
-        let pk = wallet.derive_keypair(0).verifying_key();
-        let address = derive_address(&pk);
-        let wrong = address.replace("auge1", "bc1p");
-        assert!(!validate_address(&wrong));
-    }
-
-    #[test]
-    fn short_address_round_trip() {
+    fn address_round_trip() {
         let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
         let key = wallet.derive_keypair(0).verifying_key();
-        let address = derive_short_address(&key);
+        let address = derive_address(&key);
         assert!(address.len() >= 32 && address.len() <= 42);
-        assert!(!address.starts_with("auge1"));
-        assert!(validate_short_address(&address));
+        assert!(validate_address(&address));
     }
 
     #[test]
-    fn short_address_cross_language_vector() {
+    fn address_cross_language_vector() {
         let public_key = [
             0x65, 0x89, 0xbf, 0xd8, 0xbb, 0xf0, 0xe3, 0x49, 0x91, 0xb0, 0xcf, 0x5c, 0xf3, 0x46,
             0x7a, 0x27, 0x55, 0xdd, 0xf4, 0xa7, 0x44, 0x80, 0x9c, 0xb7, 0x18, 0xb8, 0xf0, 0x40,
@@ -174,27 +226,35 @@ mod tests {
         ];
         let key = VerifyingKey::from_bytes(&public_key).unwrap();
         assert_eq!(
-            derive_short_address(&key),
+            derive_address(&key),
             "274rGuUx9XozCeJ2LBXggKLp5dd31fugXWKNinW"
         );
     }
 
     #[test]
-    fn short_address_corruption_is_rejected() {
+    fn address_corruption_is_rejected() {
         let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
         let key = wallet.derive_keypair(0).verifying_key();
-        let mut address = derive_short_address(&key).into_bytes();
+        let mut address = derive_address(&key).into_bytes();
         address[0] = if address[0] == b'1' { b'2' } else { b'1' };
-        assert!(!validate_short_address(
-            std::str::from_utf8(&address).unwrap()
-        ));
+        assert!(!validate_address(std::str::from_utf8(&address).unwrap()));
     }
 
     #[test]
-    fn short_addresses_differ_for_different_keys() {
+    fn addresses_differ_for_different_keys() {
         let wallet = HdWallet::from_mnemonic(TEST_MNEMONIC).unwrap();
         let key0 = wallet.derive_keypair(0).verifying_key();
         let key1 = wallet.derive_keypair(1).verifying_key();
-        assert_ne!(derive_short_address(&key0), derive_short_address(&key1));
+        assert_ne!(derive_address(&key0), derive_address(&key1));
+    }
+
+    #[test]
+    fn invalid_base58_character_rejected() {
+        // '0', 'O', 'I' and 'l' are not part of the Base58 alphabet.
+        assert!(!validate_address("0"));
+        assert!(!validate_address("O"));
+        assert!(!validate_address("I"));
+        assert!(!validate_address("l"));
+        assert!(!validate_address(""));
     }
 }

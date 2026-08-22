@@ -54,18 +54,17 @@ async fn setup() -> Option<TestCtx> {
 
 /// Issue a license and activate it, returning the validator id.
 async fn activate_validator(ctx: &TestCtx, machine: u8, pubkey: u8) -> Uuid {
-    let issued = ctx
+    let _issued = ctx
         .licenses
-        .issue(Uuid::new_v4(), Plan::Annual)
+        .issue(Uuid::new_v4(), Plan::Annual, Some("AUGE1".into()))
         .await
         .unwrap();
     let resp = ctx
         .svc
         .activate(ActivateInput {
-            license_key: issued.license_key,
+            augeid: "AUGE1".into(),
             machine_id: hex64(machine),
             public_key: hex64(pubkey),
-            augeid: Some("AUGE1".into()),
             os: Some("linux".into()),
             cpu: Some(32),
             ram: Some(48),
@@ -82,7 +81,7 @@ async fn reward_ledger_aggregates_into_period_buckets() {
     let Some(ctx) = setup().await else { return };
     let vid = activate_validator(&ctx, 0x11, 0x22).await;
 
-    // Attribute 2 blocks: 7.25 AUGE + fees each, 10 AUGEIDs each.
+    // Attribute 2 blocks: 7.25 AUGE + fees each, 3 AUGEIDs each.
     let now = Utc::now();
     for (block, fee) in [(1i64, 1_000_000i64), (2i64, 2_000_000i64)] {
         ctx.rewards

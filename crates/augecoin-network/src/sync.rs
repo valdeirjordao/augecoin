@@ -256,6 +256,7 @@ impl SyncManager {
     fn operation_fee(op: &Operation) -> u64 {
         match &op.payload {
             OperationPayload::Transaction { fee, .. } => *fee,
+            OperationPayload::AddressTransaction { fee, .. } => *fee,
             OperationPayload::ChangeKey { fee, .. } => *fee,
             OperationPayload::RecoverFounds { .. } => 0,
             OperationPayload::ListAccountForSale { fee, .. } => *fee,

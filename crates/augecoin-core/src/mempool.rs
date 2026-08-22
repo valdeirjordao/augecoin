@@ -434,6 +434,7 @@ impl Mempool {
         let mut pairs = Vec::new();
         match &op.payload {
             OperationPayload::Transaction { senders, .. }
+            | OperationPayload::AddressTransaction { senders, .. }
             | OperationPayload::MultiOperation { senders, .. } => {
                 for s in senders {
                     pairs.push((s.account, s.n_operation));
@@ -465,6 +466,7 @@ impl Mempool {
     fn payload_fee(&self, payload: &OperationPayload) -> u64 {
         match payload {
             OperationPayload::Transaction { fee, .. } => *fee,
+            OperationPayload::AddressTransaction { fee, .. } => *fee,
             OperationPayload::MultiOperation { fee, .. } => *fee,
             OperationPayload::ChangeKey { fee, .. } => *fee,
             OperationPayload::ChangeKeySigned { fee, .. } => *fee,
@@ -494,6 +496,7 @@ impl Mempool {
 
         match &op.payload {
             OperationPayload::Transaction { senders, .. }
+            | OperationPayload::AddressTransaction { senders, .. }
             | OperationPayload::MultiOperation { senders, .. } => {
                 for (i, sender) in senders.iter().enumerate() {
                     let account = lookup
@@ -584,6 +587,7 @@ impl Mempool {
     ) -> Result<(), MempoolError> {
         match &op.payload {
             OperationPayload::Transaction { senders, .. }
+            | OperationPayload::AddressTransaction { senders, .. }
             | OperationPayload::MultiOperation { senders, .. } => {
                 for sender in senders {
                     self.check_single_n_operation(sender.account, sender.n_operation, lookup)?;
@@ -669,6 +673,22 @@ impl Mempool {
             }
         }
 
+        // A GiftPending AUGEID also has no balance (it was emitted Reserved), so
+        // the recipient cannot pay the minimum fee to accept it. Zero-fee accept
+        // is valid only for that state, mirroring the gift special case above.
+        if let OperationPayload::AcceptGift { account, fee, .. } = &op.payload {
+            if *fee == 0
+                && lookup
+                    .get_account(*account)
+                    .map_err(MempoolError::Storage)?
+                    .is_some_and(|a| {
+                        a.account_info.state == crate::account::AccountState::GiftPending
+                    })
+            {
+                return Ok(());
+            }
+        }
+
         let fee = self.payload_fee(&op.payload);
 
         if fee < self.config.min_fee {
@@ -736,6 +756,7 @@ fn payload_senders(payload: &OperationPayload) -> Vec<&SenderInfo> {
     let mut senders = Vec::new();
     match payload {
         OperationPayload::Transaction { senders: s, .. } => senders.extend(s.iter()),
+        OperationPayload::AddressTransaction { senders: s, .. } => senders.extend(s.iter()),
         OperationPayload::MultiOperation { senders: s, .. } => senders.extend(s.iter()),
         OperationPayload::Data { senders: s, .. } => senders.extend(s.iter()),
         _ => {}

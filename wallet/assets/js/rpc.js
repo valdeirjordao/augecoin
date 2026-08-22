@@ -20,6 +20,8 @@ export async function rpc(method, params = {}) {
 
 export const getAccount = (params) => rpc('getaccount', params);
 export const getAccountByNumber = (n) => rpc('getaccount', { account_number: Number(n) });
+export const resolveAddress = (address) => rpc('resolve_address', { address });
+export const createAccount = (p) => rpc('createaccount', p);
 export const getBlockCount = () => rpc('getblockcount');
 export const getNodeStatus = () => rpc('nodestatus');
 export const getBlock = (blockNumber) => rpc('getblock', { block_number: Number(blockNumber) });
@@ -53,6 +55,14 @@ export async function resolveName(input) {
   const res = await findAccounts({ name: trimmed, max: 20 });
   const exact = res.accounts.find((a) => (a.name || '').toLowerCase() === trimmed.toLowerCase());
   return exact || res.accounts[0] || null;
+}
+
+export async function resolveDestination(input) {
+  const trimmed = String(input || '').trim();
+  if (/^AUGE-?\d+$/i.test(trimmed) || /^\d+$/.test(trimmed)) {
+    return getAccountByNumber(trimmed.replace(/^AUGE-/i, ''));
+  }
+  return resolveAddress(trimmed);
 }
 
 /** True when no on-chain account currently holds `name` (case-insensitive). */

@@ -367,11 +367,11 @@ function HomeScreen({ accounts }: { accounts: Array<{ num: number; balance: stri
           <Text style={styles.h3}>Receber AUGE</Text>
           <Text style={styles.bodyText}>
             Seu endereco:{' '}
-            <Text style={styles.codeText} testID="receive-address">auge1...</Text>
+            <Text style={styles.codeText} testID="receive-address">3Fb2QT3ngwCVZPSK9KEKVo241d7oJMxw91HzpMo</Text>
           </Text>
           <View style={styles.qrContainer} testID="qr-code-container">
             <QRCode
-              value="auge1placeholder000000000000000000000000"
+              value="3Fb2QT3ngwCVZPSK9KEKVo241d7oJMxw91HzpMo"
               size={200}
             />
           </View>

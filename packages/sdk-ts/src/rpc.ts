@@ -18,6 +18,7 @@ export interface AccountInfo {
   name: string | null;
   account_type: number;
   account_key_ed_hex: string;
+  address: string;
 }
 
 export interface SendOperationResult {

@@ -1,7 +1,7 @@
 // AUGECOIN Explorer — intelligent search.
 //
 // Detects the query type automatically (block height, hash, AUGEID, account
-// name or bech32 address) and routes to the correct page without asking the
+// name or Base58 address) and routes to the correct page without asking the
 // user to choose.
 
 import {
@@ -34,8 +34,8 @@ export async function routeQuery(raw) {
   const augeid = q.match(AUGEID);
   if (augeid) return go('account.html', { id: augeid[1] });
 
-  // Bech32 address
-  if (/^auge1[02-9ac-hj-np-z]+$/i.test(q)) return go('account.html', { address: q });
+  // Base58 address
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,42}$/.test(q)) return go('account.html', { address: q });
 
   // 128-char hex → block hash (blake3-512) or operation hash
   if (HEX128.test(q)) {

@@ -319,10 +319,20 @@ function orderView(row) {
     amount_usd: row.amount_usd,
     status: row.status,
     license_id: row.license_id,
+    license_key: row.license_key,
     created_at: row.created_at,
     paid_at: row.paid_at,
     issued_at: row.issued_at,
   };
+}
+
+/** First linked AUGEID (account_number) of a member, or null. The license is
+ *  bound to this number so the member activates with the AUGEID only. */
+function augeidFor(userId) {
+  const row = getDb()
+    .prepare('SELECT account_number FROM linked_wallets WHERE user_id = ? ORDER BY linked_at LIMIT 1')
+    .get(userId);
+  return row ? String(row.account_number) : null;
 }
 
 const CONFIRM_KEY = process.env.AUGECOIN_VALIDATOR_CONFIRM_KEY || '';
@@ -364,8 +374,11 @@ app.post('/api/validator/orders', requireAuth, requireCsrf, (req, res) => {
   res.status(201).json({ order: orderView(row) });
 });
 
-// Operator-only: mark an order as paid (manual payment review).
-app.post('/api/validator/orders/:id/confirm', requireConfirmKey, (req, res) => {
+// Operator-only: mark an order as paid (manual payment review). Once payment is
+// confirmed the license is issued automatically (server-side admin key), so the
+// member gets it immediately without a second manual step. If issuing fails the
+// order stays `paid` and the member can still emit it from the wallet.
+app.post('/api/validator/orders/:id/confirm', requireConfirmKey, async (req, res) => {
   const row = getDb().prepare('SELECT * FROM validator_orders WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'pedido não encontrado' });
   if (row.status !== 'pending') return res.status(409).json({ error: 'pedido não está pendente' });
@@ -373,8 +386,20 @@ app.post('/api/validator/orders/:id/confirm', requireConfirmKey, (req, res) => {
   getDb()
     .prepare('UPDATE validator_orders SET status = ?, paid_at = ? WHERE id = ?')
     .run('paid', new Date().toISOString(), row.id);
+
+  let issueError = null;
+  try {
+    const issued = await ops.post('/v1/licenses', { user_id: row.user_id, plan: row.plan, augeid: augeidFor(row.user_id) });
+    getDb()
+      .prepare('UPDATE validator_orders SET status = ?, license_id = ?, license_key = ?, issued_at = ? WHERE id = ?')
+      .run('issued', issued.license.id, issued.license_key, new Date().toISOString(), row.id);
+  } catch (e) {
+    console.error(e);
+    issueError = e;
+  }
+
   const fresh = getDb().prepare('SELECT * FROM validator_orders WHERE id = ?').get(row.id);
-  res.json({ order: orderView(fresh) });
+  res.json({ order: orderView(fresh), license_issue_error: issueError ? String(issueError.message || issueError) : null });
 });
 
 // Owner issues the license once payment is confirmed. The plaintext key is
@@ -390,10 +415,10 @@ app.post('/api/validator/orders/:id/issue', requireAuth, requireCsrf, async (req
   if (row.status !== 'paid') return res.status(409).json({ error: 'pagamento ainda não confirmado' });
 
   try {
-    const issued = await ops.post('/v1/licenses', { user_id: req.user.id, plan: row.plan });
+    const issued = await ops.post('/v1/licenses', { user_id: req.user.id, plan: row.plan, augeid: augeidFor(req.user.id) });
     getDb()
-      .prepare('UPDATE validator_orders SET status = ?, license_id = ?, issued_at = ? WHERE id = ?')
-      .run('issued', issued.license.id, new Date().toISOString(), row.id);
+      .prepare('UPDATE validator_orders SET status = ?, license_id = ?, license_key = ?, issued_at = ? WHERE id = ?')
+      .run('issued', issued.license.id, issued.license_key, new Date().toISOString(), row.id);
     res.status(201).json({ license: issued.license, license_key: issued.license_key });
   } catch (e) {
     console.error(e);
@@ -420,6 +445,69 @@ app.get('/api/validator/overview', requireAuth, async (req, res) => {
   }
 });
 
+// ── Faturas & Assinaturas (serviços recorrentes) ──────────────────────
+//
+// Unified billing view for the member: recurring services (licenses) with
+// their expiry, plus the invoices (orders) with paid/pending status. Derived
+// from the existing validator SaaS data — no separate schema.
+
+const BILLING_EXPIRY_SOON_DAYS = 7;
+
+function subscriptionView(license, now) {
+  const expiresAt = license.expires_at ? new Date(license.expires_at) : null;
+  const daysRemaining = expiresAt ? Math.ceil((expiresAt - now) / 86_400_000) : null;
+  let status = license.status || 'unknown';
+  if (status === 'active' && daysRemaining !== null && daysRemaining <= 0) status = 'expired';
+  return {
+    id: license.id,
+    plan: license.plan,
+    status,
+    expires_at: license.expires_at || null,
+    created_at: license.created_at || null,
+    days_remaining: daysRemaining,
+    expiring_soon:
+      status === 'active' &&
+      daysRemaining !== null &&
+      daysRemaining > 0 &&
+      daysRemaining <= BILLING_EXPIRY_SOON_DAYS,
+  };
+}
+
+app.get('/api/billing', requireAuth, async (req, res) => {
+  const now = new Date();
+
+  const invoices = getDb()
+    .prepare('SELECT * FROM validator_orders WHERE user_id = ? ORDER BY created_at DESC')
+    .all(req.user.id)
+    .map(orderView);
+
+  let subscriptions = [];
+  try {
+    const { licenses } = await ops.get(`/v1/licenses?user_id=${encodeURIComponent(req.user.id)}`);
+    subscriptions = (licenses || []).map((l) => subscriptionView(l, now));
+  } catch (e) {
+    console.error(e);
+    return res.status(502).json({ error: 'falha ao consultar o backend operacional' });
+  }
+
+  const paidStatuses = new Set(['paid', 'issued']);
+  const paidInvoices = invoices.filter((i) => paidStatuses.has(i.status));
+  const pendingInvoices = invoices.filter((i) => i.status === 'pending');
+
+  res.json({
+    subscriptions,
+    invoices,
+    summary: {
+      active: subscriptions.filter((s) => s.status === 'active').length,
+      expiring_soon: subscriptions.filter((s) => s.expiring_soon).length,
+      expired: subscriptions.filter((s) => s.status === 'expired').length,
+      paid_invoices: paidInvoices.length,
+      pending_invoices: pendingInvoices.length,
+      total_paid_usd: paidInvoices.reduce((s, i) => s + (Number(i.amount_usd) || 0), 0),
+    },
+  });
+});
+
 // Desktop installer download links (latest release per platform).
 app.get('/api/validator/downloads', requireAuth, async (_req, res) => {
   try {
@@ -432,6 +520,133 @@ app.get('/api/validator/downloads', requireAuth, async (_req, res) => {
   } catch (e) {
     console.error(e);
     res.json({ downloads: {} });
+  }
+});
+
+// ── Financial configuration + admin order management ──────────────────
+//
+// The operator configures the payment instructions (PIX / USDT / AUGE) once;
+// the member sees them during purchase. Orders (invoices) are listed and
+// manually approved/cancelled here. All admin routes use the confirm key.
+
+function paymentConfigView(row) {
+  return {
+    pix_key: row.pix_key,
+    usdt_address: row.usdt_address,
+    usdt_network: row.usdt_network,
+    auge_address: row.auge_address,
+    auge_network: row.auge_network,
+  };
+}
+
+function getPaymentConfigRow() {
+  let row = getDb().prepare('SELECT * FROM payment_config WHERE id = 1').get();
+  if (!row) {
+    getDb().prepare('INSERT INTO payment_config (id) VALUES (1)').run();
+    row = getDb().prepare('SELECT * FROM payment_config WHERE id = 1').get();
+  }
+  return row;
+}
+
+// Public: payment instructions shown to the member during purchase.
+app.get('/api/payment-info', (_req, res) => {
+  res.json({ payment: paymentConfigView(getPaymentConfigRow()) });
+});
+
+// Admin: read the financial configuration.
+app.get('/api/admin/payment-config', requireConfirmKey, (_req, res) => {
+  res.json({ payment: paymentConfigView(getPaymentConfigRow()) });
+});
+
+// Admin: upsert the financial configuration.
+app.put('/api/admin/payment-config', requireConfirmKey, (req, res) => {
+  const b = req.body || {};
+  const row = getPaymentConfigRow();
+  const pick = (v) => (typeof v === 'string' ? v.trim() : '');
+  getDb()
+    .prepare(
+      `UPDATE payment_config SET pix_key = ?, usdt_address = ?, usdt_network = ?, auge_address = ?, auge_network = ? WHERE id = 1`,
+    )
+    .run(
+      pick(b.pix_key ?? row.pix_key),
+      pick(b.usdt_address ?? row.usdt_address),
+      pick(b.usdt_network ?? row.usdt_network),
+      pick(b.auge_address ?? row.auge_address),
+      pick(b.auge_network ?? row.auge_network),
+    );
+  res.json({ payment: paymentConfigView(getPaymentConfigRow()) });
+});
+
+// Admin: list every purchase order with the member identity.
+app.get('/api/admin/orders', requireConfirmKey, (_req, res) => {
+  const rows = getDb()
+    .prepare(
+      `SELECT o.*, u.email, u.display_name
+         FROM validator_orders o
+         JOIN platform_users u ON u.id = o.user_id
+        ORDER BY o.created_at DESC`,
+    )
+    .all();
+  res.json({
+    orders: rows.map((r) => ({
+      ...orderView(r),
+      email: r.email,
+      display_name: r.display_name,
+    })),
+  });
+});
+
+// Admin: cancel a pending order.
+app.post('/api/validator/orders/:id/cancel', requireConfirmKey, (req, res) => {
+  const row = getDb().prepare('SELECT * FROM validator_orders WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'pedido não encontrado' });
+  if (row.status !== 'pending') return res.status(409).json({ error: 'pedido não está pendente' });
+  getDb().prepare('UPDATE validator_orders SET status = ? WHERE id = ?').run('cancelled', row.id);
+  res.json({ order: orderView({ ...row, status: 'cancelled' }) });
+});
+
+// Admin: list platform members (id + email + display name) for the manual
+// license-issue picker — the admin selects a member by name instead of typing
+// a raw UUID.
+app.get('/api/admin/members', requireConfirmKey, (_req, res) => {
+  const rows = getDb()
+    .prepare('SELECT id, email, display_name, public_key_hex FROM platform_users ORDER BY display_name')
+    .all();
+  res.json({
+    members: rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      display_name: r.display_name,
+      public_key_hex: r.public_key_hex,
+    })),
+  });
+});
+
+// Admin: issue a license directly for a member (manual sale / off-platform
+// payment). Issues on the ops backend and records a `validator_orders` row so
+// the member sees the license and its activation key in the wallet.
+app.post('/api/admin/licenses', requireConfirmKey, async (req, res) => {
+  const { user_id: userId, plan } = req.body || {};
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ error: 'user_id inválido' });
+  if (!PLANS[plan]) return res.status(400).json({ error: 'plano inválido' });
+
+  const member = getDb().prepare('SELECT id FROM platform_users WHERE id = ?').get(userId);
+  if (!member) return res.status(404).json({ error: 'membro não encontrado' });
+
+  try {
+    const issued = await ops.post('/v1/licenses', { user_id: userId, plan, augeid: augeidFor(userId) });
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    getDb()
+      .prepare(
+        `INSERT INTO validator_orders (id, user_id, plan, method, amount_usd, status, license_id, license_key, created_at, paid_at, issued_at)
+         VALUES (?, ?, ?, 'auge', ?, 'issued', ?, ?, ?, ?, ?)`,
+      )
+      .run(id, userId, plan, PLANS[plan].usd, issued.license.id, issued.license_key, now, now, now);
+    res.status(201).json({ license: issued.license, license_key: issued.license_key });
+  } catch (e) {
+    console.error(e);
+    res.status(502).json({ error: 'falha ao emitir licença' });
   }
 });
 

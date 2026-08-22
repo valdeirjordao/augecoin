@@ -28,9 +28,6 @@ export {
   getAddress,
   validateAddress,
   addressFromPublicKeyHex,
-  getShortAddress,
-  validateShortAddress,
-  shortAddressFromPublicKeyHex,
 } from './address';
 
 export {

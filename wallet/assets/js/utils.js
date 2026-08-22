@@ -84,25 +84,34 @@ export function bytesToHex(bytes) {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Derive the AUGECOIN address (bech32m "auge1…") from an Ed25519 pubkey hex. */
-export function deriveAddress(pubkeyHex) {
-  const pk = hexToBytes(pubkeyHex);
-  const hash = blake3_512(pk);
-  return bech32mEncode('auge', hash);
-}
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const ADDRESS_DOMAIN = 'AUGECOIN-SHORT-ADDRESS-V1';
 
-/** Compact Base58Check address for external payment displays. */
-export function deriveShortAddress(pubkeyHex) {
+/** Derive the canonical AUGECOIN address (Base58) from an Ed25519 pubkey hex.
+ *  A single address per member — it receives both AUGE (coin) and AUGEID. */
+export function deriveAddress(pubkeyHex) {
   const hash = blake3_512(hexToBytes(pubkeyHex));
   const payload = hash.slice(0, 24);
   const checksum = blake3_512(new Uint8Array([
-    ...new TextEncoder().encode('AUGECOIN-SHORT-ADDRESS-V1'), ...payload,
+    ...new TextEncoder().encode(ADDRESS_DOMAIN), ...payload,
   ])).slice(0, 4);
   return base58Encode(new Uint8Array([...payload, ...checksum]));
 }
 
+/** Alias kept for compatibility — the address is a single Base58 address. */
+export const deriveShortAddress = deriveAddress;
+
+/** New self-describing address. It embeds the Ed25519 public key so a first
+ * receive can activate a Reserved AUGEID without a separate key field. */
+export function deriveEmbeddedAddress(pubkeyHex) {
+  const publicKey = hexToBytes(pubkeyHex);
+  const checksum = blake3_512(new Uint8Array([
+    ...new TextEncoder().encode(`${ADDRESS_DOMAIN}-PUBKEY`), ...publicKey,
+  ])).slice(0, 4);
+  return base58Encode(new Uint8Array([...publicKey, ...checksum]));
+}
+
 function base58Encode(bytes) {
-  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   const digits = [0];
   for (const byte of bytes) {
     let carry = byte;
@@ -118,102 +127,52 @@ function base58Encode(bytes) {
   }
   const firstNonZero = bytes.findIndex((byte) => byte !== 0);
   const zeroCount = firstNonZero === -1 ? bytes.length : firstNonZero;
-  return '1'.repeat(zeroCount) + digits.reverse().map((digit) => alphabet[digit]).join('');
+  return '1'.repeat(zeroCount) + digits.reverse().map((digit) => BASE58_ALPHABET[digit]).join('');
 }
 
-// bech32m encoder (BIP-350) — self-contained.
-const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-function bech32mEncode(hrp, data) {
-  const words = bech32ToWords(data);
-  const checksum = bech32CreateChecksum(hrp, words, 0x2bc830a3);
-  const combined = words.concat(checksum);
-  let out = hrp + '1';
-  for (const w of combined) out += BECH32_CHARSET[w];
-  return out;
-}
-function bech32HrpExpand(hrp) {
-  const out = [];
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) >> 5);
-  out.push(0);
-  for (let i = 0; i < hrp.length; i++) out.push(hrp.charCodeAt(i) & 31);
-  return out;
-}
-function bech32ToWords(data) {
-  const out = [];
-  let bits = 0, value = 0;
-  for (const byte of data) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      out.push((value >> (bits - 5)) & 31);
-      bits -= 5;
+function base58Decode(value) {
+  const s = String(value || '');
+  if (!s) return null;
+  const bytes = [0];
+  for (const ch of s) {
+    const digit = BASE58_ALPHABET.indexOf(ch);
+    if (digit < 0) return null;
+    let carry = digit;
+    for (let i = 0; i < bytes.length; i++) {
+      const current = bytes[i] * 58 + carry;
+      bytes[i] = current % 256;
+      carry = Math.floor(current / 256);
+    }
+    while (carry > 0) {
+      bytes.push(carry % 256);
+      carry = Math.floor(carry / 256);
     }
   }
-  if (bits > 0) out.push((value << (5 - bits)) & 31);
-  return out;
-}
-const BECH32_GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-function bech32Polymod(values) {
-  let chk = 1;
-  for (const v of values) {
-    const b = chk >>> 25;
-    chk = ((chk & 0x1ffffff) << 5) ^ v;
-    for (let i = 0; i < 5; i++) if ((b >>> i) & 1) chk ^= BECH32_GEN[i];
-  }
-  return chk;
-}
-function bech32CreateChecksum(hrp, data, constant) {
-  const values = bech32HrpExpand(hrp).concat(data, [0, 0, 0, 0, 0, 0]);
-  const polymod = bech32Polymod(values) ^ constant;
-  const out = [];
-  for (let i = 0; i < 6; i++) out.push((polymod >>> (5 * (5 - i))) & 31);
-  return out;
+  const firstNonOne = [...s].findIndex((ch) => ch !== '1');
+  const oneCount = firstNonOne === -1 ? s.length : firstNonOne;
+  for (let i = 0; i < oneCount; i++) bytes.push(0);
+  bytes.reverse();
+  return new Uint8Array(bytes);
 }
 
-const BECH32M_CONSTANT = 0x2bc830a3;
-const BECH32_CONSTANT = 1;
-
-function bech32mDecode(addr) {
-  const s = String(addr || '').trim().toLowerCase();
-  const hasLower = s !== s.toUpperCase();
-  const hasUpper = s !== s.toLowerCase();
-  if (hasLower && hasUpper) throw new Error('mixed case');
-  if (s.length < 8 || s.length > 90) throw new Error('invalid length');
-  let pos = s.lastIndexOf('1');
-  if (pos < 1 || pos + 7 > s.length) throw new Error('invalid separator');
-  const hrp = s.slice(0, pos);
-  const dataPart = s.slice(pos + 1);
-  const data = [];
-  for (const ch of dataPart) {
-    const idx = BECH32_CHARSET.indexOf(ch);
-    if (idx === -1) throw new Error('invalid character');
-    data.push(idx);
-  }
-  const poly = bech32Polymod(bech32HrpExpand(hrp).concat(data));
-  if (poly !== BECH32M_CONSTANT && poly !== BECH32_CONSTANT) throw new Error('checksum mismatch');
-  // drop checksum
-  const words = data.slice(0, -6);
-  // 5-bit → 8-bit
-  const bytes = [];
-  let bits = 0, value = 0;
-  for (const w of words) {
-    value = (value << 5) | w;
-    bits += 5;
-    if (bits >= 8) {
-      bytes.push((value >> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
-  }
-  if (bits >= 5 || ((value << (8 - bits)) & 0xff) !== 0) throw new Error('invalid padding');
-  return { hrp, data: bytes };
+export function embeddedPublicKeyHex(address) {
+  const bytes = base58Decode(address);
+  if (!bytes || bytes.length !== 36) return null;
+  const payload = bytes.slice(0, 32);
+  const expected = blake3_512(new Uint8Array([
+    ...new TextEncoder().encode(`${ADDRESS_DOMAIN}-PUBKEY`), ...payload,
+  ])).slice(0, 4);
+  if (bytes.slice(32).some((v, i) => v !== expected[i])) return null;
+  return bytesToHex(payload);
 }
 
-/** True when `addr` is a canonical AUGECOIN address (bech32m `auge1…`, 64-byte BLAKE3-512 payload). */
+/** True when `addr` is a valid AUGECOIN Base58 address. */
 export function isValidAugeAddress(addr) {
-  try {
-    const { hrp, data } = bech32mDecode(addr);
-    return hrp === 'auge' && data.length === 64;
-  } catch {
-    return false;
-  }
+  const bytes = base58Decode(addr);
+  if (!bytes || bytes.length !== 28) return false;
+  const payload = bytes.slice(0, 24);
+  const expected = blake3_512(new Uint8Array([
+    ...new TextEncoder().encode(ADDRESS_DOMAIN), ...payload,
+  ])).slice(0, 4);
+  return bytes.slice(24).every((b, i) => b === expected[i]);
 }

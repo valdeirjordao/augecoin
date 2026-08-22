@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AUGECOIN — Você é o presente</title>
+  <meta name="description" content="AUGECOIN — a rede descentralizada onde cada nó importa.">
+  <meta name="robots" content="index, follow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16 2 28 9 28 23 16 30 4 23 4 9' fill='%23FACC15'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23111827'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --yellow: #FACC15;
+      --yellow-soft: rgba(250, 204, 21, 0.7);
+      --gray-900: #0b0f1a;
+      --gray-800: #111827;
+      --gray-700: #1f2937;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Inter', 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 800px at 50% -10%, var(--gray-700) 0%, var(--gray-900) 55%);
+      color: var(--text);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #net {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+    }
+
+    .veil {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(900px 500px at 50% 50%, transparent 0%, rgba(11, 15, 26, 0.55) 100%);
+    }
+
+    .stage {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid rgba(250, 204, 21, 0.35);
+      border-radius: 999px;
+      color: var(--yellow);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      background: rgba(250, 204, 21, 0.06);
+    }
+
+    .brand {
+      font-size: clamp(2.6rem, 8vw, 5.5rem);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--yellow);
+      text-shadow: 0 0 40px rgba(250, 204, 21, 0.35);
+      animation: glow 4s ease-in-out infinite;
+    }
+
+    .tagline {
+      margin-top: 20px;
+      font-size: clamp(1rem, 2.6vw, 1.4rem);
+      font-weight: 600;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .tagline .dot {
+      color: var(--yellow);
+    }
+
+    .sub {
+      margin-top: 18px;
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    .cta {
+      margin-top: 40px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 30px;
+      background: var(--yellow);
+      color: #111827;
+      font-weight: 700;
+      border-radius: 999px;
+      text-decoration: none;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      box-shadow: 0 10px 30px rgba(250, 204, 21, 0.25);
+    }
+
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px rgba(250, 204, 21, 0.4);
+    }
+
+    .foot {
+      position: fixed;
+      bottom: 22px;
+      left: 0;
+      right: 0;
+      z-index: 2;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+    }
+
+    @keyframes glow {
+      0%, 100% { text-shadow: 0 0 30px rgba(250, 204, 21, 0.3); }
+      50% { text-shadow: 0 0 60px rgba(250, 204, 21, 0.6); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="net" aria-hidden="true"></canvas>
+  <div class="veil" aria-hidden="true"></div>
+
+  <main class="stage">
+    <span class="badge">Rede descentralizada · PoA</span>
+    <h1 class="brand">AUGECOIN</h1>
+    <p class="tagline">Você é o presente<span class="dot">.</span></p>
+    <p class="sub">Cada nó conecta, cada bloco valida, cada pessoa sustenta a rede. O valor nasce da conexão — e a conexão é você.</p>
+    <a class="cta" href="https://wallet.augeco.in">Acessar a Wallet &nbsp;→</a>
+  </main>
+
+  <div class="foot">AUGECOIN · Proof-of-Authority · Você é o presente</div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('net');
+      const ctx = canvas.getContext('2d');
+      const YELLOW = [250, 204, 21];
+
+      let nodes = [];
+      let w = 0, h = 0, dpr = 1;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = window.innerWidth;
+        h = window.innerHeight;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        seed();
+      }
+
+      function seed() {
+        const count = Math.max(40, Math.min(110, Math.floor((w * h) / 16000)));
+        nodes = [];
+        for (let i = 0; i < count; i++) {
+          nodes.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: (Math.random() - 0.5) * 0.28,
+            vy: (Math.random() - 0.5) * 0.28,
+            r: 1.4 + Math.random() * 1.8,
+            pulse: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+
+      function step() {
+        ctx.clearRect(0, 0, w, h);
+        const maxDist = Math.min(w, h) * 0.16;
+
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          a.x += a.vx;
+          a.y += a.vy;
+          if (a.x < -10) a.x = w + 10; else if (a.x > w + 10) a.x = -10;
+          if (a.y < -10) a.y = h + 10; else if (a.y > h + 10) a.y = -10;
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < maxDist * maxDist) {
+              const d = Math.sqrt(d2);
+              const alpha = (1 - d / maxDist) * 0.35;
+              ctx.strokeStyle = 'rgba(' + YELLOW.join(',') + ',' + alpha.toFixed(3) + ')';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          n.pulse += 0.02;
+          const glow = 0.6 + Math.sin(n.pulse) * 0.4;
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(' + YELLOW.join(',') + ',' + glow.toFixed(3) + ')';
+          ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        requestAnimationFrame(step);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      step();
+    })();
+  </script>
+</body>
+</html>

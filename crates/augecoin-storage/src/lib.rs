@@ -4,6 +4,7 @@ pub mod state_root;
 use augecoin_core::account::Account;
 use augecoin_core::block::OperationBlock;
 use augecoin_core::safe_box::SafeBox;
+use augecoin_crypto::address::AddressHash;
 use rocksdb::{ColumnFamilyDescriptor, DBCompressionType, Options, WriteBatch, DB};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -14,6 +15,7 @@ pub(crate) const CF_ACCOUNTS: &str = "accounts";
 const CF_BLOCKS: &str = "blocks";
 const CF_SAFEBOX: &str = "safebox";
 const CF_OP_INDEX: &str = "op_index";
+const CF_ADDRESS_INDEX: &str = "address_index";
 const CF_VALIDATOR_SET: &str = "validator_set";
 const CF_EQUIVOCATION_PROOFS: &str = "equivocation_proofs";
 const CF_FAUCET_CLAIMS: &str = "faucet_claims";
@@ -23,6 +25,7 @@ const ALL_COLUMN_FAMILIES: &[&str] = &[
     CF_BLOCKS,
     CF_SAFEBOX,
     CF_OP_INDEX,
+    CF_ADDRESS_INDEX,
     CF_VALIDATOR_SET,
     CF_EQUIVOCATION_PROOFS,
     CF_FAUCET_CLAIMS,
@@ -65,6 +68,8 @@ struct SafeboxCache {
     /// Ref-counted because multiple accounts can share a key (auto-created
     /// accounts) and `ChangeKey` moves a key between accounts.
     pubkey_index: HashMap<[u8; 32], u64>,
+    /// Resident O(1) address hash -> AUGEID index.
+    pub address_index: HashMap<AddressHash, u64>,
     /// AUGEID → sale listing, for accounts currently in `ForSale` state.
     sale_index: HashMap<u64, SaleListing>,
     /// AUGEID → pending gift, for accounts currently in `GiftPending` state.
@@ -104,6 +109,7 @@ impl SafeboxCache {
         SafeboxCache {
             safebox: None,
             pubkey_index: HashMap::new(),
+            address_index: HashMap::new(),
             sale_index: HashMap::new(),
             gift_index: HashMap::new(),
             dirty: std::collections::HashSet::new(),
@@ -222,6 +228,14 @@ impl Storage {
             let (_key, value) = item.map_err(|e| StorageError::Database(e.to_string()))?;
             if let Ok(account) = Account::from_bytes(&value) {
                 cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
+                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                    &account.account_info.account_key.ed25519_public_key,
+                ) {
+                    cache.address_index.insert(
+                        AddressHash::from_public_key(key.to_bytes()),
+                        account.account_number,
+                    );
+                }
                 cache.sync_derived_indices(&account, 0);
                 safebox.add_account(account);
             }
@@ -280,6 +294,15 @@ impl Storage {
             .map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
         Self::ensure_safebox_loaded(&mut cache, &self.db)?;
         Ok(cache.pubkey_index.contains_key(pubkey))
+    }
+
+    pub fn resolve_address(&self, address: &AddressHash) -> Result<Option<u64>, StorageError> {
+        let mut cache = self
+            .safebox_cache
+            .lock()
+            .map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
+        Self::ensure_safebox_loaded(&mut cache, &self.db)?;
+        Ok(cache.address_index.get(address).copied())
     }
 
     /// Highest committed account number, from the resident SafeBox (O(1)).
@@ -370,6 +393,21 @@ impl Storage {
                     cache.bump_pubkey(pk, -1);
                 }
                 cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
+                if let Some(old) = old_pk {
+                    if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(old) {
+                        cache
+                            .address_index
+                            .remove(&AddressHash::from_public_key(key.to_bytes()));
+                    }
+                }
+                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                    &account.account_info.account_key.ed25519_public_key,
+                ) {
+                    cache.address_index.insert(
+                        AddressHash::from_public_key(key.to_bytes()),
+                        account.account_number,
+                    );
+                }
                 cache.sync_derived_indices(account, 0);
                 dirty_nums.push(account.account_number);
             }
@@ -451,6 +489,16 @@ impl Storage {
                 account.account_number.to_be_bytes(),
                 account.to_bytes(),
             );
+            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                &account.account_info.account_key.ed25519_public_key,
+            ) {
+                let hash = AddressHash::from_public_key(key.to_bytes());
+                batch.put_cf(
+                    &self.cf(CF_ADDRESS_INDEX),
+                    hash.hash,
+                    account.account_number.to_be_bytes(),
+                );
+            }
             dirty_nums.push(account.account_number);
         }
         batch.put_cf(
@@ -485,6 +533,21 @@ impl Storage {
                     cache.bump_pubkey(pk, -1);
                 }
                 cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
+                if let Some(old) = old_pk {
+                    if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(old) {
+                        cache
+                            .address_index
+                            .remove(&AddressHash::from_public_key(key.to_bytes()));
+                    }
+                }
+                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                    &account.account_info.account_key.ed25519_public_key,
+                ) {
+                    cache.address_index.insert(
+                        AddressHash::from_public_key(key.to_bytes()),
+                        account.account_number,
+                    );
+                }
                 cache.sync_derived_indices(account, block.header.block_number);
             }
             let safebox = cache.safebox.as_mut().expect("safebox loaded");
@@ -581,9 +644,39 @@ impl Storage {
         let cf = self.cf(CF_ACCOUNTS);
         let key = account.account_number.to_be_bytes();
         let value = account.to_bytes();
-        self.db
-            .put_cf(&cf, key, value)
-            .map_err(|e| StorageError::Database(e.to_string()))
+        let mut batch = WriteBatch::default();
+        batch.put_cf(&cf, key, value);
+        if let Ok(public_key) = ed25519_dalek::VerifyingKey::from_bytes(
+            &account.account_info.account_key.ed25519_public_key,
+        ) {
+            let address = AddressHash::from_public_key(public_key.to_bytes());
+            batch.put_cf(
+                &self.cf(CF_ADDRESS_INDEX),
+                address.hash,
+                account.account_number.to_be_bytes(),
+            );
+        }
+        self.db.write(batch).map_err(|e| StorageError::Database(e.to_string()))?;
+
+        // Keep the resident cache coherent for administrative/test writes that
+        // do not go through commit_block_atomic.
+        let mut cache = self.safebox_cache.lock().map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
+        if cache.safebox.is_some() {
+            let old = cache.safebox.as_ref().and_then(|sb| sb.get_account(account.account_number).cloned());
+            if let Some(old) = old {
+                cache.bump_pubkey(&old.account_info.account_key.ed25519_public_key, -1);
+                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&old.account_info.account_key.ed25519_public_key) {
+                    cache.address_index.remove(&AddressHash::from_public_key(key.to_bytes()));
+                }
+            }
+            cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
+            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&account.account_info.account_key.ed25519_public_key) {
+                cache.address_index.insert(AddressHash::from_public_key(key.to_bytes()), account.account_number);
+            }
+            cache.safebox.as_mut().unwrap().add_account(account.clone());
+            cache.safebox.as_mut().unwrap().update_hash();
+        }
+        Ok(())
     }
 
     pub fn get_account(&self, account_number: u64) -> Result<Option<Account>, StorageError> {
@@ -1364,6 +1457,25 @@ mod tests {
 
         assert_eq!(storage.resolve_name("CarlosPay").unwrap(), Some(42));
         assert_eq!(storage.resolve_name("Nobody").unwrap(), None);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn resolve_address_uses_resident_index() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        let wallet = augecoin_crypto::hdkeys::HdWallet::from_mnemonic(
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        ).unwrap();
+        let mut account = test_account(42, 100);
+        account.account_info.account_key.ed25519_public_key =
+            wallet.derive_keypair(0).verifying_key().to_bytes();
+        storage.put_account(&account).unwrap();
+        storage.flush_safebox_snapshot().unwrap();
+        let address =
+            augecoin_crypto::address::derive_address(&wallet.derive_keypair(0).verifying_key());
+        let hash = augecoin_crypto::address::AddressHash::parse(&address).unwrap();
+        assert_eq!(storage.resolve_address(&hash).unwrap(), Some(42));
         cleanup(&path);
     }
 

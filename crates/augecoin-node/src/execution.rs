@@ -252,11 +252,11 @@ pub fn execute_block(
     modified.insert(leader_id, leader_account);
 
     // ---- Phase 4: Emit exactly CT_AUGEIDS_PER_BLOCK new AUGEIDs ----
-    // Consensus rule: every block emits exactly 10 AUGEIDs, all owned by the
-    // block leader, in state `Reserved`. The numbering is deterministic:
-    // AUGEID = block_number * 10 + offset (offset 0..9). CreateAccount must
-    // never consume these slots; existing accounts are never overwritten
-    // (defensive guard only — normal chains have no collision here).
+    // Consensus rule: every block emits exactly CT_ACCOUNTS_PER_BLOCK AUGEIDs,
+    // all owned by the block leader, in state `Reserved`. The numbering is
+    // deterministic: AUGEID = block_number * CT_ACCOUNTS_PER_BLOCK + offset.
+    // CreateAccount must never consume these slots; existing accounts are never
+    // overwritten (defensive guard only — normal chains have no collision here).
     let start_block_for_accounts = block_number.saturating_mul(CT_ACCOUNTS_PER_BLOCK);
     for i in 0..CT_ACCOUNTS_PER_BLOCK {
         let new_num = start_block_for_accounts.saturating_add(i);
@@ -307,6 +307,7 @@ fn verify_operation_signatures(
 
     match &op.payload {
         OperationPayload::Transaction { senders, .. }
+        | OperationPayload::AddressTransaction { senders, .. }
         | OperationPayload::MultiOperation { senders, .. } => {
             if senders.len() > op.signatures.len() {
                 return Err("not enough signatures for senders".into());
@@ -621,6 +622,117 @@ fn execute_operation(
                 modified.insert(changer.account, acc);
             }
 
+            Ok(*fee)
+        }
+
+        OperationPayload::AddressTransaction {
+            senders,
+            receivers,
+            fee,
+        } => {
+            for sender in senders {
+                let mut acc = load_account(sender.account, modified, original, storage)?;
+                if acc.account_info.state == AccountState::Reserved
+                    || acc.account_info.state == AccountState::GiftPending
+                {
+                    return Err(ExecutionError::OperationFailed {
+                        sender: sender.account,
+                        reason: "sender is not active".into(),
+                    });
+                }
+                if sender.n_operation != acc.n_operation {
+                    return Err(ExecutionError::OperationFailed {
+                        sender: sender.account,
+                        reason: "invalid n_operation".into(),
+                    });
+                }
+                acc.subtract_balance(sender.amount.saturating_add(*fee))
+                    .map_err(|e| ExecutionError::OperationFailed {
+                        sender: sender.account,
+                        reason: e.to_string(),
+                    })?;
+                acc.increment_n_operation();
+                modified.insert(sender.account, acc);
+            }
+
+            for receiver in receivers {
+                if let Some(public_key) = receiver.address.public_key {
+                    let derived =
+                        augecoin_crypto::address::AddressHash::from_public_key(public_key);
+                    if derived != receiver.address {
+                        return Err(ExecutionError::OperationFailed {
+                            sender: 0,
+                            reason: "address does not match public key".into(),
+                        });
+                    }
+                }
+                let number = storage
+                    .resolve_address(&receiver.address)
+                    .map_err(|e| ExecutionError::Storage(e.to_string()))?
+                    .or_else(|| {
+                        modified
+                            .values()
+                            .find(|a| {
+                                ed25519_dalek::VerifyingKey::from_bytes(
+                                    &a.account_info.account_key.ed25519_public_key,
+                                )
+                                .ok()
+                                .is_some_and(|k| {
+                                    augecoin_crypto::address::AddressHash::from_public_key(
+                                        k.to_bytes(),
+                                    ) == receiver.address
+                                })
+                            })
+                            .map(|a| a.account_number)
+                    });
+                let number = match number {
+                    Some(number) => number,
+                    None => {
+                        let public_key = receiver.address.public_key.ok_or_else(|| {
+                            ExecutionError::OperationFailed {
+                                sender: 0,
+                                reason: "legacy hash-only address cannot activate a new account; use a self-describing address".into(),
+                            }
+                        })?;
+                        // Reserved inventory is resident in the SafeBox; no account scan through storage.
+                        let sb = storage
+                            .safebox()
+                            .map_err(|e| ExecutionError::Storage(e.to_string()))?;
+                        let reserved = sb
+                            .accounts
+                            .values()
+                            .find(|a| a.account_info.state == AccountState::Reserved)
+                            .map(|a| a.account_number)
+                            .ok_or_else(|| ExecutionError::OperationFailed {
+                                sender: 0,
+                                reason: "no Reserved AUGEID available".into(),
+                            })?;
+                        let mut account = load_account(reserved, modified, original, storage)?;
+                        account.account_info.state = AccountState::Owned;
+                        account.account_info.account_key = AccountKey {
+                            ed25519_public_key: public_key,
+                        };
+                        account.updated_on_block_active_mode = block_number;
+                        account.n_operation = 0;
+                        modified.insert(reserved, account);
+                        reserved
+                    }
+                };
+                let mut account = load_account(number, modified, original, storage)?;
+                if account.account_info.state == AccountState::Reserved {
+                    return Err(ExecutionError::OperationFailed {
+                        sender: number,
+                        reason: "address target is reserved".into(),
+                    });
+                }
+                account.add_balance(receiver.amount).map_err(|e| {
+                    ExecutionError::OperationFailed {
+                        sender: number,
+                        reason: e.to_string(),
+                    }
+                })?;
+                modified.insert(number, account);
+            }
             Ok(*fee)
         }
 
@@ -1530,7 +1642,7 @@ mod execution_tests {
 
         // No dev account rewards in linear emission model.
 
-        // CT_AUGEIDS_PER_BLOCK new AUGEIDs created (10 per block), all in
+        // CT_AUGEIDS_PER_BLOCK new AUGEIDs created per block, all in
         // `Reserved` state and owned by the leader.
         let start = 5 * CT_ACCOUNTS_PER_BLOCK;
         for i in 0..CT_ACCOUNTS_PER_BLOCK {

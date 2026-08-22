@@ -10,7 +10,7 @@ Served at `https://explorer.augeco.in` and consuming the JSON-RPC API at
 ## Features
 
 - Dashboard with realtime height, TPS, supply and latest blocks/operations.
-- Intelligent search (block height, AUGEID, account name, bech32 address, hash).
+- Intelligent search (block height, AUGEID, account name, Base58 address, hash).
 - Block, operation, account (AUGEID), validators, supply and rich-list pages.
 - Dark/light theme, responsive (desktop/tablet/mobile).
 - Dependency-free canvas charts (line, bar, donut) — no Chart.js.
@@ -25,7 +25,7 @@ explorer/
 ├── blocks.html          block list
 ├── block.html           single block (?block=N)
 ├── transaction.html     single operation (?block=N&op=I)
-├── account.html         account (?id=N | ?address=auge1… | ?name=…)
+├── account.html         account (?id=N | ?address=Base58 | ?name=…)
 ├── validators.html      validator set + production chart
 ├── supply.html          emission schedule + charts
 ├── richlist.html        top accounts by balance
@@ -36,7 +36,7 @@ explorer/
 │   ├── js/
 │   │   ├── config.js     RPC URL + chain constants
 │   │   ├── api/client.js JSON-RPC client (single source of truth)
-│   │   ├── utils.js      formatting, escaping, bech32m + blake3
+│   │   ├── utils.js      formatting, escaping, Base58 + blake3
 │   │   ├── blake3.js     self-contained blake3-512 (address derivation)
 │   │   ├── theme.js      dark/light
 │   │   ├── components.js header/footer/cards/badges/toast/modal/pagination
@@ -124,6 +124,6 @@ index. The explorer therefore:
 - resolves block "hash" via the on-chain `operations_hash` (merkle root);
 - performs bounded reverse scans for hash lookups (see `findBlockByHash`).
 
-The bech32 address (`auge1…`) is derived client-side from the account's Ed25519
-public key using a self-contained blake3-512 + bech32m implementation, verified
+The Base58 address is derived client-side from the account's Ed25519
+public key using a self-contained blake3-512 + Base58 implementation, verified
 byte-for-byte against the Rust core cross-language vectors.

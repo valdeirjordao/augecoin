@@ -29,6 +29,8 @@ pub struct IssueRequest {
     /// Plan as a string so an unknown value maps to a clean `400` (not a serde
     /// 422 with a non-standard body).
     pub plan: String,
+    /// Optional on-chain AUGEID number the license is bound to for activation.
+    pub augeid: Option<String>,
 }
 
 pub async fn issue_license(
@@ -36,7 +38,7 @@ pub async fn issue_license(
     Json(body): Json<IssueRequest>,
 ) -> Result<(StatusCode, Json<Value>)> {
     let plan: Plan = body.plan.parse()?;
-    let issued = state.licenses.issue(body.user_id, plan).await?;
+    let issued = state.licenses.issue(body.user_id, plan, body.augeid).await?;
     Ok((StatusCode::CREATED, Json(serde_json::to_value(issued)?)))
 }
 
@@ -98,18 +100,18 @@ pub async fn validate_license(
 
 #[derive(Debug, Deserialize)]
 pub struct ActivateRequest {
-    pub license_key: String,
+    pub augeid: String,
     pub machine_id: String,
     pub public_key: String,
-    pub augeid: Option<String>,
     pub os: Option<String>,
     pub cpu: Option<i32>,
     pub ram: Option<i32>,
     pub version: Option<String>,
 }
 
-/// Activate a license on a machine. The client IP is taken from the TCP
-/// connection, never from the request body, so a client cannot spoof it.
+/// Activate a license on a machine by its bound AUGEID number. The client IP is
+/// taken from the TCP connection, never from the request body, so a client
+/// cannot spoof it.
 pub async fn activate(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -118,10 +120,9 @@ pub async fn activate(
     let response = state
         .validators
         .activate(ActivateInput {
-            license_key: body.license_key,
+            augeid: body.augeid,
             machine_id: body.machine_id,
             public_key: body.public_key,
-            augeid: body.augeid,
             os: body.os,
             cpu: body.cpu,
             ram: body.ram,
@@ -134,7 +135,7 @@ pub async fn activate(
 
 #[derive(Debug, Deserialize)]
 pub struct HeartbeatRequest {
-    pub license: String,
+    pub augeid: String,
     pub uptime: i64,
     pub cpu: Option<i32>,
     pub ram: Option<i32>,
@@ -148,7 +149,7 @@ pub async fn heartbeat(
     let response = state
         .validators
         .heartbeat(HeartbeatInput {
-            license_key: body.license,
+            augeid: body.augeid,
             uptime: body.uptime,
             cpu: body.cpu,
             ram: body.ram,
@@ -160,14 +161,14 @@ pub async fn heartbeat(
 
 #[derive(Debug, Deserialize)]
 pub struct StatsQuery {
-    pub license: String,
+    pub augeid: String,
 }
 
 pub async fn validator_stats(
     State(state): State<AppState>,
     Query(query): Query<StatsQuery>,
 ) -> Result<Json<Value>> {
-    let stats = state.validators.stats_by_license(&query.license).await?;
+    let stats = state.validators.stats_by_augeid(&query.augeid).await?;
     Ok(Json(serde_json::to_value(stats)?))
 }
 

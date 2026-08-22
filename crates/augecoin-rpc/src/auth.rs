@@ -122,6 +122,7 @@ pub fn check_auth(api_key: Option<&str>, store: &ApiKeyStore) -> AuthLevel {
 }
 
 pub const ADMIN_METHODS: &[&str] = &[
+    "createaccount",
     "validatoradd",
     "validatorremove",
     "validatoractivate",
