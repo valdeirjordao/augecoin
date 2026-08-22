@@ -80,7 +80,11 @@ async fn validate_unknown_and_malformed_keys_are_invalid() {
 #[tokio::test]
 async fn suspend_blocks_validation() {
     let Some(ctx) = setup().await else { return };
-    let issued = ctx.svc.issue(Uuid::new_v4(), Plan::Monthly, None).await.unwrap();
+    let issued = ctx
+        .svc
+        .issue(Uuid::new_v4(), Plan::Monthly, None)
+        .await
+        .unwrap();
 
     ctx.svc.suspend(issued.license.id, "test").await.unwrap();
 
@@ -92,7 +96,11 @@ async fn suspend_blocks_validation() {
 #[tokio::test]
 async fn revoke_is_terminal() {
     let Some(ctx) = setup().await else { return };
-    let issued = ctx.svc.issue(Uuid::new_v4(), Plan::Monthly, None).await.unwrap();
+    let issued = ctx
+        .svc
+        .issue(Uuid::new_v4(), Plan::Monthly, None)
+        .await
+        .unwrap();
     let id = issued.license.id;
 
     ctx.svc.revoke(id, "test").await.unwrap();
@@ -106,7 +114,11 @@ async fn revoke_is_terminal() {
 #[tokio::test]
 async fn get_never_returns_plaintext_key() {
     let Some(ctx) = setup().await else { return };
-    let issued = ctx.svc.issue(Uuid::new_v4(), Plan::Monthly, None).await.unwrap();
+    let issued = ctx
+        .svc
+        .issue(Uuid::new_v4(), Plan::Monthly, None)
+        .await
+        .unwrap();
 
     let l = ctx.svc.get(issued.license.id).await.unwrap();
     // The hash is a 64-char hex digest, not the 32-char key.
@@ -121,8 +133,14 @@ async fn get_never_returns_plaintext_key() {
 #[tokio::test]
 async fn list_returns_issued_licenses() {
     let Some(ctx) = setup().await else { return };
-    ctx.svc.issue(Uuid::new_v4(), Plan::Monthly, None).await.unwrap();
-    ctx.svc.issue(Uuid::new_v4(), Plan::Annual, None).await.unwrap();
+    ctx.svc
+        .issue(Uuid::new_v4(), Plan::Monthly, None)
+        .await
+        .unwrap();
+    ctx.svc
+        .issue(Uuid::new_v4(), Plan::Annual, None)
+        .await
+        .unwrap();
 
     let all = ctx.svc.list().await.unwrap();
     assert_eq!(all.len(), 2);

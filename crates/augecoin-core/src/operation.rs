@@ -568,7 +568,10 @@ impl OperationPayload {
                 for receiver in receivers {
                     write_fixed(&mut buf, &receiver.address.hash);
                     match receiver.address.public_key {
-                        Some(public_key) => { write_u8(&mut buf, 1); write_fixed(&mut buf, &public_key); }
+                        Some(public_key) => {
+                            write_u8(&mut buf, 1);
+                            write_fixed(&mut buf, &public_key);
+                        }
                         None => write_u8(&mut buf, 0),
                     }
                     write_u64(&mut buf, receiver.amount);
@@ -782,7 +785,11 @@ impl OperationPayload {
                 let mut receivers = Vec::with_capacity(receiver_count);
                 for _ in 0..receiver_count {
                     let hash = read_fixed(data, pos)?;
-                    let public_key = if read_u8(data, pos)? == 1 { Some(read_fixed(data, pos)?) } else { None };
+                    let public_key = if read_u8(data, pos)? == 1 {
+                        Some(read_fixed(data, pos)?)
+                    } else {
+                        None
+                    };
                     let amount = read_u64(data, pos)?;
                     let payload = read_bytes_with_len(data, pos)?;
                     receivers.push(AddressReceiverInfo {

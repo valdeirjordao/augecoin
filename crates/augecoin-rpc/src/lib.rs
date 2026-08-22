@@ -186,8 +186,10 @@ fn dispatch_method(
             serde_json::to_value(result).map_err(|e| e.to_string())
         }
         "resolve_address" | "resolveaddress" => {
-            let p: endpoints::ResolveAddressParams = serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
-            serde_json::to_value(endpoints::handle_resolve_address(p, state)?).map_err(|e| e.to_string())
+            let p: endpoints::ResolveAddressParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            serde_json::to_value(endpoints::handle_resolve_address(p, state)?)
+                .map_err(|e| e.to_string())
         }
         "createaccount" => {
             let p: endpoints::CreateAccountParams =
@@ -232,7 +234,8 @@ fn dispatch_method(
             serde_json::to_value(result).map_err(|e| e.to_string())
         }
         "send" => {
-            let p: endpoints::SendParams = serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let p: endpoints::SendParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
             serde_json::to_value(endpoints::handle_send(p, state)?).map_err(|e| e.to_string())
         }
         "sendoperations" => {

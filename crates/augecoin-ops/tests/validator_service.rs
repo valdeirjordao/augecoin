@@ -106,11 +106,7 @@ async fn setup(node: Option<NodeClient>) -> Option<TestCtx> {
     })
 }
 
-fn activate_input(
-    augeid: &str,
-    machine: u8,
-    pubkey: u8,
-) -> augecoin_ops::validator::ActivateInput {
+fn activate_input(augeid: &str, machine: u8, pubkey: u8) -> augecoin_ops::validator::ActivateInput {
     augecoin_ops::validator::ActivateInput {
         augeid: augeid.to_string(),
         machine_id: hex64(machine),

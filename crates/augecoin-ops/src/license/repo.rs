@@ -125,11 +125,12 @@ impl LicenseRepo {
     }
 
     pub async fn find_by_augeid(&self, augeid: &str) -> Result<Option<License>> {
-        let row: Option<LicenseRow> =
-            sqlx::query_as("SELECT * FROM licenses WHERE augeid = $1 ORDER BY created_at DESC LIMIT 1")
-                .bind(augeid)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<LicenseRow> = sqlx::query_as(
+            "SELECT * FROM licenses WHERE augeid = $1 ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(augeid)
+        .fetch_optional(&self.pool)
+        .await?;
         row.map(LicenseRow::into_license).transpose()
     }
 

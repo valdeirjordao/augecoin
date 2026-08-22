@@ -656,22 +656,39 @@ impl Storage {
                 account.account_number.to_be_bytes(),
             );
         }
-        self.db.write(batch).map_err(|e| StorageError::Database(e.to_string()))?;
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::Database(e.to_string()))?;
 
         // Keep the resident cache coherent for administrative/test writes that
         // do not go through commit_block_atomic.
-        let mut cache = self.safebox_cache.lock().map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
+        let mut cache = self
+            .safebox_cache
+            .lock()
+            .map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
         if cache.safebox.is_some() {
-            let old = cache.safebox.as_ref().and_then(|sb| sb.get_account(account.account_number).cloned());
+            let old = cache
+                .safebox
+                .as_ref()
+                .and_then(|sb| sb.get_account(account.account_number).cloned());
             if let Some(old) = old {
                 cache.bump_pubkey(&old.account_info.account_key.ed25519_public_key, -1);
-                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&old.account_info.account_key.ed25519_public_key) {
-                    cache.address_index.remove(&AddressHash::from_public_key(key.to_bytes()));
+                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                    &old.account_info.account_key.ed25519_public_key,
+                ) {
+                    cache
+                        .address_index
+                        .remove(&AddressHash::from_public_key(key.to_bytes()));
                 }
             }
             cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
-            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&account.account_info.account_key.ed25519_public_key) {
-                cache.address_index.insert(AddressHash::from_public_key(key.to_bytes()), account.account_number);
+            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                &account.account_info.account_key.ed25519_public_key,
+            ) {
+                cache.address_index.insert(
+                    AddressHash::from_public_key(key.to_bytes()),
+                    account.account_number,
+                );
             }
             cache.safebox.as_mut().unwrap().add_account(account.clone());
             cache.safebox.as_mut().unwrap().update_hash();

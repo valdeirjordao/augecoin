@@ -83,7 +83,9 @@ fn write_u64(buf: &mut Vec<u8>, value: u64) {
 
 fn read_u64(data: &[u8], pos: &mut usize) -> Result<u64, TransactionError> {
     if *pos + 8 > data.len() {
-        return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+        return Err(TransactionError::InvalidSerialization(
+            "unexpected EOF".into(),
+        ));
     }
     let bytes: [u8; 8] = data[*pos..*pos + 8].try_into().unwrap();
     *pos += 8;
@@ -96,7 +98,9 @@ fn write_u8(buf: &mut Vec<u8>, value: u8) {
 
 fn read_u8(data: &[u8], pos: &mut usize) -> Result<u8, TransactionError> {
     if *pos >= data.len() {
-        return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+        return Err(TransactionError::InvalidSerialization(
+            "unexpected EOF".into(),
+        ));
     }
     let value = data[*pos];
     *pos += 1;
@@ -110,12 +114,17 @@ fn write_bytes(buf: &mut Vec<u8>, bytes: &[u8]) {
 
 fn read_bytes(data: &[u8], pos: &mut usize) -> Result<Vec<u8>, TransactionError> {
     if *pos + 4 > data.len() {
-        return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+        return Err(TransactionError::InvalidSerialization(
+            "unexpected EOF".into(),
+        ));
     }
-    let len = u32::from_be_bytes([data[*pos], data[*pos + 1], data[*pos + 2], data[*pos + 3]]) as usize;
+    let len =
+        u32::from_be_bytes([data[*pos], data[*pos + 1], data[*pos + 2], data[*pos + 3]]) as usize;
     *pos += 4;
     if *pos + len > data.len() {
-        return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+        return Err(TransactionError::InvalidSerialization(
+            "unexpected EOF".into(),
+        ));
     }
     let bytes = data[*pos..*pos + len].to_vec();
     *pos += len;
@@ -131,7 +140,9 @@ fn read_fixed_bytes<const N: usize>(
     pos: &mut usize,
 ) -> Result<[u8; N], TransactionError> {
     if *pos + N > data.len() {
-        return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+        return Err(TransactionError::InvalidSerialization(
+            "unexpected EOF".into(),
+        ));
     }
     let mut arr = [0u8; N];
     arr.copy_from_slice(&data[*pos..*pos + N]);
@@ -202,12 +213,16 @@ impl Operation {
             }
             OP_TAG_SET_ACCOUNT_NAME => {
                 if *pos + 2 > data.len() {
-                    return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+                    return Err(TransactionError::InvalidSerialization(
+                        "unexpected EOF".into(),
+                    ));
                 }
                 let name_len = u16::from_be_bytes([data[*pos], data[*pos + 1]]) as usize;
                 *pos += 2;
                 if *pos + name_len > data.len() {
-                    return Err(TransactionError::InvalidSerialization("unexpected EOF".into()));
+                    return Err(TransactionError::InvalidSerialization(
+                        "unexpected EOF".into(),
+                    ));
                 }
                 let name =
                     String::from_utf8(data[*pos..*pos + name_len].to_vec()).map_err(|_| {
@@ -270,10 +285,7 @@ impl ValidatorAdminOp {
         }
     }
 
-    fn deserialize(
-        data: &[u8],
-        pos: &mut usize,
-    ) -> Result<Operation, TransactionError> {
+    fn deserialize(data: &[u8], pos: &mut usize) -> Result<Operation, TransactionError> {
         let va_tag = read_u8(data, pos)?;
         match va_tag {
             VA_TAG_ADD => {

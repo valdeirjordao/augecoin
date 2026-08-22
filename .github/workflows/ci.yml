@@ -59,7 +59,7 @@ jobs:
   typescript:
     name: TypeScript SDK
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -69,10 +69,28 @@ jobs:
           cache: npm
           cache-dependency-path: packages/sdk-ts/package-lock.json
 
-      - name: WASM build + smoke test
+      - name: Install Rust toolchain
         run: |
-          cargo install wasm-bindgen-cli --version 0.2.127
-          ./scripts/build-wasm.sh
+          rustup toolchain install stable --profile minimal
+          rustup target add wasm32-unknown-unknown
+
+      - name: Cache wasm-bindgen-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-bindgen*
+          key: wasm-bindgen-cli-0.2.127
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          if ! wasm-bindgen --version 2>/dev/null | grep -q "0.2.127"; then
+            cargo install wasm-bindgen-cli --version 0.2.127
+          fi
+
+      - name: WASM build
+        run: ./scripts/build-wasm.sh
+
+      - name: SDK smoke test
+        run: |
           cd packages/sdk-ts
           npm ci
           npm test

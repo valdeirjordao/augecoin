@@ -17,11 +17,15 @@ pub struct AddressHash {
 }
 
 impl PartialEq for AddressHash {
-    fn eq(&self, other: &Self) -> bool { self.hash == other.hash }
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
 }
 impl Eq for AddressHash {}
 impl Hash for AddressHash {
-    fn hash<H: Hasher>(&self, state: &mut H) { self.hash.hash(state); }
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
 }
 
 const ADDRESS_CHECKSUM_LEN: usize = 4;
@@ -50,7 +54,10 @@ impl AddressHash {
         let hash = blake3_512(&public_key);
         let mut address_hash = [0u8; ADDRESS_HASH_LEN];
         address_hash.copy_from_slice(&hash[..ADDRESS_HASH_LEN]);
-        Self { hash: address_hash, public_key: Some(public_key) }
+        Self {
+            hash: address_hash,
+            public_key: Some(public_key),
+        }
     }
 
     pub fn from_address(address: &str, public_key: [u8; 32]) -> Option<Self> {
@@ -64,14 +71,22 @@ impl AddressHash {
             let public_key: [u8; 32] = bytes[..32].try_into().ok()?;
             VerifyingKey::from_bytes(&public_key).ok()?;
             let checksum = address_checksum_v2(&bytes[..32]);
-            if bytes[32..] != checksum { return None; }
+            if bytes[32..] != checksum {
+                return None;
+            }
             return Some(Self::from_public_key(public_key));
         }
         if bytes.len() != ADDRESS_HASH_LEN + ADDRESS_CHECKSUM_LEN
-            || bytes[ADDRESS_HASH_LEN..] != address_checksum(&bytes[..ADDRESS_HASH_LEN]) { return None; }
+            || bytes[ADDRESS_HASH_LEN..] != address_checksum(&bytes[..ADDRESS_HASH_LEN])
+        {
+            return None;
+        }
         let mut hash = [0u8; ADDRESS_HASH_LEN];
         hash.copy_from_slice(&bytes[..ADDRESS_HASH_LEN]);
-        Some(Self { hash, public_key: None })
+        Some(Self {
+            hash,
+            public_key: None,
+        })
     }
 
     pub fn to_address(&self) -> String {

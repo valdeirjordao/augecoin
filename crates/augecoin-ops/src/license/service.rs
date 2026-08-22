@@ -39,7 +39,12 @@ impl LicenseService {
 
     /// Issue a license for `user_id` under `plan`, optionally bound to an AUGEID
     /// number (the on-chain account used to activate). Returns the full key once.
-    pub async fn issue(&self, user_id: Uuid, plan: Plan, augeid: Option<String>) -> Result<IssuedLicense> {
+    pub async fn issue(
+        &self,
+        user_id: Uuid,
+        plan: Plan,
+        augeid: Option<String>,
+    ) -> Result<IssuedLicense> {
         let key = LicenseKey::generate();
         let expires_at = Utc::now() + Duration::days(plan.duration_days());
         let license = self

@@ -97,9 +97,7 @@ pub fn clear_state() -> Result<(), String> {
 // ── Activation ─────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn activate(
-    augeid: String,
-) -> Result<ActivationSummary, String> {
+pub async fn activate(augeid: String) -> Result<ActivationSummary, String> {
     let aug = augeid.trim().to_string();
     if aug.is_empty() {
         return Err("AUGEID é obrigatório".into());
@@ -273,7 +271,13 @@ fn start_heartbeat() {
                 None
             };
             let _ = ops()
-                .heartbeat(state.augeid.as_deref().unwrap_or(""), uptime, None, None, block)
+                .heartbeat(
+                    state.augeid.as_deref().unwrap_or(""),
+                    uptime,
+                    None,
+                    None,
+                    block,
+                )
                 .await;
         }
     });

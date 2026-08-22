@@ -38,7 +38,10 @@ pub async fn issue_license(
     Json(body): Json<IssueRequest>,
 ) -> Result<(StatusCode, Json<Value>)> {
     let plan: Plan = body.plan.parse()?;
-    let issued = state.licenses.issue(body.user_id, plan, body.augeid).await?;
+    let issued = state
+        .licenses
+        .issue(body.user_id, plan, body.augeid)
+        .await?;
     Ok((StatusCode::CREATED, Json(serde_json::to_value(issued)?)))
 }
 
