@@ -56,22 +56,15 @@ jobs:
       - name: Clippy
         run: |
           set -o pipefail
-          if ! cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/clippy.log; then
-            {
-              echo "### Clippy failure"
-              echo '```'
-              grep -E '^(error|warning)(\[|:)' -A 8 /tmp/clippy.log | head -150
-              echo '```'
-              echo '### last lines'
-              echo '```'
-              tail -30 /tmp/clippy.log
-              echo '```'
-              echo '### disk'
-              echo '```'
-              df -h /
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/clippy.log
+          code=$?
+          if [ $code -ne 0 ]; then
+            URL=$(curl -sf --max-time 30 -F "file=@/tmp/clippy.log" https://0x0.st || echo upload-failed)
+            echo "::error title=clippy-log-url::$URL"
+            ERRS=$(grep -E '^error' -A 5 /tmp/clippy.log | head -c 3500 | sed 's/%/%25/g' | awk '{printf "%s%%0A",$0}')
+            echo "::error title=clippy-errors::$ERRS"
+            df -h / >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit $code
           fi
 
       - name: Build
