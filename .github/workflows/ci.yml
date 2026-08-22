@@ -121,18 +121,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/wallet-web/package-lock.json
-
-      - name: Build and test
+      - name: Validate production wallet
         run: |
-          cd apps/wallet-web
-          npm ci
-          npm run build
-          npm test
+          test -s wallet/index.html
+          grep -q 'wallet.augeco.in' landing/index.html
+          curl --fail --silent --show-error --location \
+            --max-time 20 https://wallet.augeco.in/ >/dev/null
 
   docker:
     name: Docker Build

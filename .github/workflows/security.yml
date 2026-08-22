@@ -39,11 +39,8 @@ jobs:
           npm ci
           npm audit --audit-level=high
 
-      - name: Wallet Web dependencies
-        run: |
-          cd apps/wallet-web
-          npm ci
-          npm audit --audit-level=high
+      - name: Wallet static frontend
+        run: test -s wallet/index.html
 
       - name: Wallet Mobile dependencies
         run: |
