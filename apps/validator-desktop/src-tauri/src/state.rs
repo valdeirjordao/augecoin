@@ -55,18 +55,28 @@ pub fn save_state(state: &SavedState) -> Result<(), String> {
     std::fs::write(state_path(), json).map_err(|e| e.to_string())
 }
 
-/// Persist the Ed25519 seed (hex) with owner-only permissions.
+/// Persist the Ed25519 seed (hex) with owner-only permissions where the OS supports it.
 pub fn save_private_key(seed_hex: &str) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
     let dir = data_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = key_path();
     std::fs::write(&path, seed_hex).map_err(|e| e.to_string())?;
-    let mut perms = std::fs::metadata(&path)
-        .map_err(|e| e.to_string())?
-        .permissions();
-    perms.set_mode(0o600);
-    std::fs::set_permissions(&path, perms).map_err(|e| e.to_string())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&path)
+            .map_err(|e| e.to_string())?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&path, perms).map_err(|e| e.to_string())?;
+    }
+
+    // No Windows não há bits de permissão estilo chmod; o diretório de dados do
+    // usuário (%LOCALAPPDATA%/%APPDATA%) já é privado por usuário por padrão no NTFS.
+    // TODO: se for necessário um controle equivalente a 0600 no Windows, avaliar o
+    // crate `windows-acl` para restringir a ACL do arquivo explicitamente ao dono.
+
     Ok(())
 }
 
