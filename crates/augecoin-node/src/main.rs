@@ -15,7 +15,7 @@ use augecoin_node::consensus::{reconstruct_from_proposal, ConsensusEngine, Conse
 use augecoin_node::metrics::{MetricsServer, NodeMetrics};
 use augecoin_storage::Storage;
 use std::collections::{HashMap, HashSet};
-use std::io::{Read, Write};
+use std::io::{IsTerminal, Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -548,7 +548,7 @@ fn main() {
                 std::process::exit(1);
             })
         } else {
-            let is_terminal = unsafe { libc::isatty(libc::STDIN_FILENO) != 0 };
+            let is_terminal = std::io::stdin().is_terminal();
             if !is_terminal {
                 eprintln!(
                     "FATAL: No validator key configured. Set AUGECOIN_VALIDATOR_KEY_HEX, \
