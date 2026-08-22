@@ -54,7 +54,25 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: |
+          set -o pipefail
+          if ! cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/clippy.log; then
+            {
+              echo "### Clippy failure"
+              echo '```'
+              grep -E '^(error|warning)(\[|:)' -A 8 /tmp/clippy.log | head -150
+              echo '```'
+              echo '### last lines'
+              echo '```'
+              tail -30 /tmp/clippy.log
+              echo '```'
+              echo '### disk'
+              echo '```'
+              df -h /
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Build
         run: cargo build --workspace --release
