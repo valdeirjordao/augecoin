@@ -169,7 +169,7 @@ jobs:
       - name: Consensus integration
         run: |
           cargo test -p augecoin-consensus --test four_node_liveness --release -- --nocapture
-          cargo test -p augecoin-consensus --test equivocation_detection --release -- --nocapture
+          cargo test -p augecoin-consensus --test adversarial_tests --release -- --nocapture
 
       - name: Node integration
         run: |

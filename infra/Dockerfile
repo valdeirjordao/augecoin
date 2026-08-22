@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ crates/
+COPY apps/ apps/
 
 RUN cargo build --release -p augecoin-node \
     && strip target/release/augecoin-node
