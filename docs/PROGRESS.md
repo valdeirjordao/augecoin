@@ -61,8 +61,9 @@ em 2026-08-23 (410 testes, clippy/fmt limpos, fuzz limpo pós-fix OOM,
 cargo audit sem vulnerabilidades, TLS real Let's Encrypt nos validadores
 chain1). CI verde no remote confirmado em 2026-08-23 (run 32669200348,
 sha 3bdcad9; Security Audit também verde após migração wallet-mobile para
-Expo SDK 57). Pendências de lançamento: monitoring apontado aos nós finais,
-auditoria externa + pentest. Ver `docs/MAINNET_READINESS.md`.
+Expo SDK 57). Monitoring Prometheus+Grafana em produção no chain1 confirmado
+em 2026-08-24 (9/9 alvos UP; ver `infra/observability.yml`). Pendência de
+lançamento: auditoria externa + pentest. Ver `docs/MAINNET_READINESS.md`.
 
 ## Validator Ecosystem (pós-mainnet)
 

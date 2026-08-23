@@ -276,10 +276,30 @@ curl http://localhost:9100/metrics
 Pre-configured in `infra/observability/grafana/dashboards/augecoin-node.json`.
 The dashboard is automatically provisioned when using `testnet-4node.yml`.
 
-Access Grafana at `http://localhost:3000` (default credentials: admin/augecoin).
+**Produção (chain1):** a stack sobe com `infra/observability.yml` e coleta os
+9 nós do host — 4 validadores gênesis (rede Docker `genesis1`,
+172.31.100.11-14:9110) e 5 nós systemd (`validator-0` bootnode + `validator-1..4`,
+métricas em 9100/9110/9120/9130/9140 via `host.docker.internal`).
 
-Datasource auto-configured in `infra/observability/grafana/datasources/prometheus.yml`
-(all nodes scraped every 15 seconds).
+```bash
+cd infra && docker compose -f observability.yml up -d   # Prometheus + Grafana
+```
+
+Ambos ficam **restritos a localhost** (Prometheus `127.0.0.1:9091` — a porta
+9090 da host já está ocupada; Grafana `127.0.0.1:3000`). Acesso remoto via SSH
+tunnel ou proxy nginx com auth:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 -L 9091:127.0.0.1:9091 <user>@chain1
+```
+
+Credenciais: `admin` / `$AUGECOIN_GRAFANA_ADMIN_PASSWORD` (default `augecoin`
+— trocar antes de expor publicamente). Datasource auto-provisionado aponta para
+`http://prometheus:9090`; todos os alvos são raspados a cada 15s. Verificar
+saúde dos alvos:
+```bash
+curl -s http://127.0.0.1:9091/api/v1/targets | jq '.data.activeTargets[] | {instance:.labels.instance, health}'
+```
 
 ### Alerting
 

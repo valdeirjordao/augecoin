@@ -3,31 +3,75 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "augecoin-validator"
+  # Validadores gênesis chain_id=1 — containers Docker na rede genesis1
+  # (infra/genesis1-compose.yml, métricas em AUGECOIN_METRICS_PORT=9110)
+  - job_name: "augecoin-genesis-validator"
     static_configs:
-      - targets:
-          - "validator-1:9100"
-          - "validator-2:9100"
-          - "validator-3:9100"
-          - "validator-4:9100"
+      - targets: ["172.31.100.11:9110"]
         labels:
-          network: "augecoin-testnet"
+          instance: "genesis-validator-1"
+          network: "augecoin-chain1"
           role: "validator"
+          deployment: "docker"
+      - targets: ["172.31.100.12:9110"]
+        labels:
+          instance: "genesis-validator-2"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "docker"
+      - targets: ["172.31.100.13:9110"]
+        labels:
+          instance: "genesis-validator-3"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "docker"
+      - targets: ["172.31.100.14:9110"]
+        labels:
+          instance: "genesis-validator-4"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "docker"
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: "augecoin_.*"
         action: keep
 
-  - job_name: "augecoin-observer"
+  # Nós systemd na própria host (validator-0 = bootnode/admin bridge;
+  # validator-4 = "barao"). Portas AUGECOIN_METRICS_PORT de
+  # /etc/augecoin-validator-{0..4}.env.
+  - job_name: "augecoin-host-node"
     static_configs:
-      - targets:
-          - "observer:9100"
+      - targets: ["host.docker.internal:9100"]
         labels:
-          network: "augecoin-testnet"
-          role: "observer"
+          instance: "validator-0-bootnode"
+          network: "augecoin-chain1"
+          role: "bootnode"
+          deployment: "systemd"
+      - targets: ["host.docker.internal:9110"]
+        labels:
+          instance: "validator-1"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "systemd"
+      - targets: ["host.docker.internal:9120"]
+        labels:
+          instance: "validator-2"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "systemd"
+      - targets: ["host.docker.internal:9130"]
+        labels:
+          instance: "validator-3"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "systemd"
+      - targets: ["host.docker.internal:9140"]
+        labels:
+          instance: "validator-4-barao"
+          network: "augecoin-chain1"
+          role: "validator"
+          deployment: "systemd"
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: "augecoin_.*"
         action: keep
-    profiles:
-      - observer

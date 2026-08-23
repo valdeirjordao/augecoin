@@ -43,7 +43,7 @@
 - [x] Genesis block reproducible (TOML determinístico; sha256 registrado no lançamento)
 - [x] Docker build reproducible (multi-stage, rust:1.83-slim)
 - [x] Backup/restore documented (docs/OPERATIONS.md)
-- [ ] Monitoring configured (Prometheus + Grafana) apontado para os nós chain1 (dashboards versionados existem em infra/observability*)
+- [x] Monitoring configured (Prometheus + Grafana) apontado para os nós chain1 — 9/9 alvos UP (4 validadores gênesis Docker + 5 nós systemd), Prometheus 127.0.0.1:9091, Grafana 127.0.0.1:3000 com dashboard "AUGECOIN Node" provisionado (2026-08-24)
 - [x] Incident response plan documented (docs/INCIDENT_RESPONSE.md)
 - [x] Key generation tool available (scripts/genesis/generate.sh)
 
@@ -67,6 +67,6 @@
 - [ ] Network security audit independente (libp2p, Noise, TLS)
 - [ ] Penetration test (RPC, P2P)
 
-> **Pendências para o lançamento:** CI verde no remote, monitoramento apontado
-> para os nós finais e auditoria externa/pentest. Nada bloqueante técnico no
-> código; os itens externos são decisão de governança/orçamento.
+> **Pendências para o lançamento:** auditoria externa/pentest. Nada bloqueante
+> técnico no código nem na operação; os itens externos são decisão de
+> governança/orçamento.
