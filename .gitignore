@@ -37,6 +37,7 @@ __pycache__/
 # Env
 .env
 infra/genesis1/*.env
+infra/genesis1/tls/
 
 # Banco de dados runtime
 *.sqlite

@@ -1,0 +1,14 @@
+# cargo-audit: excecoes documentadas (risco aceito, com revisao programada).
+# Justificativas completas em docs/SECURITY.md, secao "Dependency risk register".
+[advisories]
+ignore = [
+    # hickory-proto NSEC3 unbounded loop — sem fix upstream; exposicao limitada
+    # a resolucao /dns* de multiaddrs (bootnodes usam /ip4). Revisar 2026-Q4.
+    "RUSTSEC-2026-0118",
+    # hickory-proto compressao O(n^2) — fix requer >=0.26.1 (bump major);
+    # aguardando ecossistema libp2p. Revisar 2026-Q4.
+    "RUSTSEC-2026-0119",
+    # rsa Marvin Attack — RSA nao e usado em nenhum caminho do protocolo
+    # (Ed25519 + ML-DSA/BLAKE3); dependencia transita apenas. Revisar 2026-Q4.
+    "RUSTSEC-2023-0071",
+]

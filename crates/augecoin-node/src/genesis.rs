@@ -45,9 +45,7 @@ impl GenesisConfig {
     /// Shared initial validator set declared by this file: ids start at 1 in
     /// declaration order. `None` when the file declares no validators (legacy
     /// self-only bootstrap).
-    pub fn shared_validator_set(
-        &self,
-    ) -> Result<Option<(ed25519_dalek::VerifyingKey, Vec<(u64, [u8; 32])>)>, String> {
+    pub fn shared_validator_set(&self) -> Result<Option<SharedValidatorSet>, String> {
         if self.validators.is_empty() {
             return Ok(None);
         }
@@ -93,6 +91,10 @@ pub struct GenesisAccount {
     pub public_key_hex: Option<String>,
     pub private_key_file: Option<String>,
 }
+
+/// Admin verifying key plus the `(validator_id, ed25519 key)` membership list
+/// declared by a shared-set genesis file.
+pub type SharedValidatorSet = (ed25519_dalek::VerifyingKey, Vec<(u64, [u8; 32])>);
 
 impl GenesisConfig {
     pub fn load(path: &Path) -> Result<Self, String> {
@@ -190,7 +192,8 @@ mod tests {
         let path = dir.path().join("genesis.toml");
         std::fs::write(&path, "[genesis]\nchain_id=2\ntreasury_balance=1\nfaucet_balance=1\nvalidator_balance=1\nadmin_balance=0\n[[accounts]]\nrole='faucet'\naccount_number=1\nbalance=1\npublic_key_hex='0000000000000000000000000000000000000000000000000000000000000000'\n").unwrap();
         let storage = Storage::open(dir.path().join("db")).unwrap();
-        assert!(initialize(&storage, Some(&path)).is_err());
+        let config = GenesisConfig::load(&path).unwrap();
+        assert!(initialize(&storage, Some(&config)).is_err());
     }
 
     #[test]
@@ -204,7 +207,8 @@ mod tests {
         let path = dir.path().join("genesis.toml");
         std::fs::write(&path, format!("[genesis]\nchain_id=2\ntreasury_balance=1\nfaucet_balance=1\nvalidator_balance=1\nadmin_balance=0\n[[accounts]]\nrole='faucet'\naccount_number=1\nprivate_key_file='{}'\n", key.display())).unwrap();
         let storage = Storage::open(dir.path().join("db")).unwrap();
-        initialize(&storage, Some(&path)).unwrap();
+        let config = GenesisConfig::load(&path).unwrap();
+        initialize(&storage, Some(&config)).unwrap();
         assert_eq!(
             storage
                 .get_account(1)

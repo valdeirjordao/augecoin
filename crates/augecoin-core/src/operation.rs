@@ -1,3 +1,7 @@
+use crate::constants::{
+    CT_MAX_MULTI_OPERATION_CHANGERS, CT_MAX_MULTI_OPERATION_RECEIVERS,
+    CT_MAX_MULTI_OPERATION_SENDERS,
+};
 use augecoin_crypto::address::AddressHash;
 use augecoin_crypto::signature::Ed25519Signature;
 use augecoin_crypto::signature::HybridSignature;
@@ -244,6 +248,18 @@ fn read_u64(data: &[u8], pos: &mut usize) -> Result<u64, OperationError> {
 
 fn write_u32(buf: &mut Vec<u8>, v: u32) {
     buf.extend_from_slice(&v.to_be_bytes());
+}
+
+/// Reads an element count bounded by a protocol maximum, preventing
+/// attacker-controlled `Vec::with_capacity` allocations (OOM via u32 counts).
+fn read_bounded_count(data: &[u8], pos: &mut usize, max: usize) -> Result<usize, OperationError> {
+    let n = read_u32(data, pos)? as usize;
+    if n > max {
+        return Err(OperationError::InvalidSerialization(format!(
+            "element count {n} exceeds protocol maximum {max}"
+        )));
+    }
+    Ok(n)
 }
 
 fn read_u32(data: &[u8], pos: &mut usize) -> Result<u32, OperationError> {
@@ -752,17 +768,18 @@ impl OperationPayload {
         let op_tag = read_u8(data, pos)?;
         match op_tag {
             0x01 => {
-                let sender_count = read_u32(data, pos)? as usize;
+                let sender_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_SENDERS)?;
                 let mut senders = Vec::with_capacity(sender_count);
                 for _ in 0..sender_count {
                     senders.push(read_sender(data, pos)?);
                 }
-                let receiver_count = read_u32(data, pos)? as usize;
+                let receiver_count =
+                    read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_RECEIVERS)?;
                 let mut receivers = Vec::with_capacity(receiver_count);
                 for _ in 0..receiver_count {
                     receivers.push(read_receiver(data, pos)?);
                 }
-                let changer_count = read_u32(data, pos)? as usize;
+                let changer_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_CHANGERS)?;
                 let mut changers = Vec::with_capacity(changer_count);
                 for _ in 0..changer_count {
                     changers.push(read_changer(data, pos)?);
@@ -776,12 +793,13 @@ impl OperationPayload {
                 })
             }
             0x0F => {
-                let sender_count = read_u32(data, pos)? as usize;
+                let sender_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_SENDERS)?;
                 let mut senders = Vec::with_capacity(sender_count);
                 for _ in 0..sender_count {
                     senders.push(read_sender(data, pos)?);
                 }
-                let receiver_count = read_u32(data, pos)? as usize;
+                let receiver_count =
+                    read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_RECEIVERS)?;
                 let mut receivers = Vec::with_capacity(receiver_count);
                 for _ in 0..receiver_count {
                     let hash = read_fixed(data, pos)?;
@@ -902,17 +920,18 @@ impl OperationPayload {
                 })
             }
             0x09 => {
-                let sender_count = read_u32(data, pos)? as usize;
+                let sender_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_SENDERS)?;
                 let mut senders = Vec::with_capacity(sender_count);
                 for _ in 0..sender_count {
                     senders.push(read_sender(data, pos)?);
                 }
-                let receiver_count = read_u32(data, pos)? as usize;
+                let receiver_count =
+                    read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_RECEIVERS)?;
                 let mut receivers = Vec::with_capacity(receiver_count);
                 for _ in 0..receiver_count {
                     receivers.push(read_receiver(data, pos)?);
                 }
-                let changer_count = read_u32(data, pos)? as usize;
+                let changer_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_CHANGERS)?;
                 let mut changers = Vec::with_capacity(changer_count);
                 for _ in 0..changer_count {
                     changers.push(read_changer(data, pos)?);
@@ -930,17 +949,18 @@ impl OperationPayload {
                 let n_operation = read_u64(data, pos)?;
                 let fee = read_u64(data, pos)?;
                 let op_data = read_bytes_with_len(data, pos)?;
-                let sender_count = read_u32(data, pos)? as usize;
+                let sender_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_SENDERS)?;
                 let mut senders = Vec::with_capacity(sender_count);
                 for _ in 0..sender_count {
                     senders.push(read_sender(data, pos)?);
                 }
-                let receiver_count = read_u32(data, pos)? as usize;
+                let receiver_count =
+                    read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_RECEIVERS)?;
                 let mut receivers = Vec::with_capacity(receiver_count);
                 for _ in 0..receiver_count {
                     receivers.push(read_receiver(data, pos)?);
                 }
-                let changer_count = read_u32(data, pos)? as usize;
+                let changer_count = read_bounded_count(data, pos, CT_MAX_MULTI_OPERATION_CHANGERS)?;
                 let mut changers = Vec::with_capacity(changer_count);
                 for _ in 0..changer_count {
                     changers.push(read_changer(data, pos)?);
@@ -1020,7 +1040,7 @@ impl Operation {
         let mut pos = 0;
         let payload = OperationPayload::from_bytes(data, &mut pos)?;
         let chain_id = read_u64(data, &mut pos)?;
-        let sig_count = read_u32(data, &mut pos)? as usize;
+        let sig_count = read_bounded_count(data, &mut pos, CT_MAX_MULTI_OPERATION_SENDERS * 2)?;
         let mut signatures = Vec::with_capacity(sig_count);
         for _ in 0..sig_count {
             signatures.push(read_sig(data, &mut pos)?);
@@ -1042,6 +1062,24 @@ mod tests {
         Ed25519Signature {
             bytes: [7u8; ED25519_SIG_LEN],
         }
+    }
+
+    /// Regression (fuzz OOM-02ab382a): element counts are u32 on the wire and
+    /// must be rejected against protocol maxima BEFORE any Vec::with_capacity.
+    #[test]
+    fn rejects_unbounded_element_counts() {
+        // tag 0x01 (Transaction) + sender_count = u32::MAX
+        let mut data = vec![0x01];
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        let err = Operation::from_bytes(&data).unwrap_err();
+        assert!(err.to_string().contains("exceeds protocol maximum"));
+
+        // tag 0x01 + sender_count=0 + receiver_count = u32::MAX
+        let mut data = vec![0x01];
+        data.extend_from_slice(&0u32.to_be_bytes());
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        let err = Operation::from_bytes(&data).unwrap_err();
+        assert!(err.to_string().contains("exceeds protocol maximum"));
     }
 
     fn roundtrip(op: &Operation) {

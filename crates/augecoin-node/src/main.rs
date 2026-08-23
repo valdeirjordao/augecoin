@@ -605,7 +605,7 @@ fn main() {
                     validator_id,
                     vk_bytes,
                 );
-                augecoin_consensus::validator::ValidatorSet::new(verifying.clone(), vec![vi])
+                augecoin_consensus::validator::ValidatorSet::new(verifying, vec![vi])
             }
             Some(Err(e)) => {
                 eprintln!("[genesis] FATAL: {e}");
@@ -617,7 +617,7 @@ fn main() {
                     validator_id,
                     vk_bytes,
                 );
-                augecoin_consensus::validator::ValidatorSet::new(verifying.clone(), vec![vi])
+                augecoin_consensus::validator::ValidatorSet::new(verifying, vec![vi])
             }
         };
 
