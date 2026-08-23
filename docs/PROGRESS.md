@@ -59,9 +59,10 @@ motivo na coluna)
 **Status: TODAS AS 38 FASES CONCLUÍDAS.** Bateria MAINNET_READINESS executada
 em 2026-08-23 (410 testes, clippy/fmt limpos, fuzz limpo pós-fix OOM,
 cargo audit sem vulnerabilidades, TLS real Let's Encrypt nos validadores
-chain1). Pendências de lançamento: CI verde no remote, monitoring apontado
-aos nós finais, auditoria externa + pentest. Ver
-`docs/MAINNET_READINESS.md`.
+chain1). CI verde no remote confirmado em 2026-08-23 (run 32669200348,
+sha 3bdcad9; Security Audit também verde após migração wallet-mobile para
+Expo SDK 57). Pendências de lançamento: monitoring apontado aos nós finais,
+auditoria externa + pentest. Ver `docs/MAINNET_READINESS.md`.
 
 ## Validator Ecosystem (pós-mainnet)
 

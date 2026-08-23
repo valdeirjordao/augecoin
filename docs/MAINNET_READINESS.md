@@ -8,7 +8,7 @@
 - [x] cargo clippy --workspace --all-targets --all-features -- -D warnings (PASS)
 - [x] cargo fmt --all -- --check (PASS)
 - [x] TypeScript SDK tests (PASS — vitest, packages/sdk-ts)
-- [ ] CI green (verificar último run no GitHub Actions após push)
+- [x] CI green (run 32669200348 no GitHub Actions, sha 3bdcad9 — todos os jobs success, 2026-08-23)
 
 ## Consensus
 - [x] 4-node liveness test passes (crates augecoin-node, suite de integração)
