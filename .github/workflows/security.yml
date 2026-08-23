@@ -8,7 +8,8 @@ on:
     paths:
       - 'Cargo.lock'
       - '**/Cargo.toml'
-      - 'packages/sdk-ts/package-lock.json'
+      - '**/package-lock.json'
+      - '.github/workflows/security.yml'
   workflow_dispatch:
 
 jobs:
