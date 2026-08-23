@@ -1,6 +1,9 @@
-use augecoin_core::operation::{Operation, OperationPayload, OperationType, ValidatorAdminOp};
+use augecoin_core::constants::{CT_CHAIN_ID_MAINNET, MIN_FEE_AUGESAT};
+use augecoin_core::operation::{
+    Operation, OperationPayload, OperationType, ReceiverInfo, SenderInfo, ValidatorAdminOp,
+};
 use augecoin_crypto::hdkeys::HdWallet;
-use augecoin_crypto::signature::Ed25519Signature;
+use augecoin_crypto::signature::{Ed25519Signature, HybridKeyPair};
 
 const ED25519_PK_LEN: usize = 32;
 const ED25519_SIG_LEN: usize = 64;
@@ -22,6 +25,12 @@ pub enum CommandError {
     Rpc(#[from] crate::rpc::RpcError),
     #[error("failed to read key file: {0}")]
     KeyFile(std::io::Error),
+    #[error("insufficient balance: have {balance}, need {required} (amount + fee)")]
+    InsufficientBalance { balance: u64, required: u64 },
+    #[error("account response missing field: {0}")]
+    MissingField(String),
+    #[error("fee below minimum: {got} augesat (minimum {min})")]
+    FeeTooLow { got: u64, min: u64 },
 }
 
 fn dummy_signature() -> Ed25519Signature {
@@ -376,6 +385,112 @@ pub async fn handle_send_operation(cli: &Cli, op_hex: &str) -> Result<(), Comman
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct TransferArgs {
+    pub from: u64,
+    pub to: u64,
+    pub amount: u64,
+    pub fee: Option<u64>,
+    pub n_operation: Option<u64>,
+    pub chain_id: Option<u64>,
+    pub key_hex_file: String,
+}
+
+/// Parse a raw private-key file: plain 32+ byte hex, optionally in
+/// `AUGECOIN_VALIDATOR_KEY_HEX=<hex>` env-file style. The first 32 bytes are
+/// used as the Ed25519 seed — same convention as AUGECOIN_VALIDATOR_KEY_HEX.
+fn parse_raw_key_hex(content: &str) -> Result<HybridKeyPair, CommandError> {
+    let trimmed = content.trim();
+    let hex_str = match trimmed.split_once('=') {
+        Some((_, value)) => value.trim(),
+        None => trimmed,
+    };
+    let bytes = hex::decode(hex_str).map_err(|e| CommandError::InvalidHex(e.to_string()))?;
+    if bytes.len() < 32 {
+        return Err(CommandError::InvalidKeyLength {
+            expected: 32,
+            got: bytes.len(),
+        });
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&bytes[..32]);
+    Ok(HybridKeyPair::from_seed(seed))
+}
+
+/// Build and sign a Transaction operation with the given keypair.
+fn build_signed_transfer(
+    keypair: &HybridKeyPair,
+    args: &TransferArgs,
+    n_operation: u64,
+) -> Result<Operation, CommandError> {
+    let fee = args.fee.unwrap_or(MIN_FEE_AUGESAT);
+    if fee < MIN_FEE_AUGESAT {
+        return Err(CommandError::FeeTooLow {
+            got: fee,
+            min: MIN_FEE_AUGESAT,
+        });
+    }
+
+    let mut op = Operation {
+        op_type: OperationType::Transaction,
+        payload: OperationPayload::Transaction {
+            senders: vec![SenderInfo {
+                account: args.from,
+                n_operation,
+                amount: args.amount,
+                payload: Vec::new(),
+            }],
+            receivers: vec![ReceiverInfo {
+                account: args.to,
+                amount: args.amount,
+                payload: Vec::new(),
+            }],
+            changers: Vec::new(),
+            fee,
+        },
+        chain_id: args.chain_id.unwrap_or(CT_CHAIN_ID_MAINNET),
+        signatures: vec![dummy_signature()],
+    };
+
+    let message = op.to_bytes_stripped();
+    let sig = keypair.sign(&message);
+    op.signatures = vec![sig];
+    Ok(op)
+}
+
+pub async fn handle_send_transfer(cli: &Cli, args: TransferArgs) -> Result<(), CommandError> {
+    let key_content = std::fs::read_to_string(&args.key_hex_file).map_err(CommandError::KeyFile)?;
+    let keypair = parse_raw_key_hex(&key_content)?;
+
+    let client = RpcClient::new(cli.endpoint.clone())?;
+
+    // n_operation: use the override or query the node for the current nonce.
+    let account_info = client.get_account(args.from).await?;
+    let n_operation = match args.n_operation {
+        Some(n) => n,
+        None => account_info
+            .get("n_operation")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| CommandError::MissingField("n_operation".into()))?,
+    };
+    let balance = account_info
+        .get("balance")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| CommandError::MissingField("balance".into()))?;
+    let fee = args.fee.unwrap_or(MIN_FEE_AUGESAT);
+    if balance < args.amount.saturating_add(fee) {
+        return Err(CommandError::InsufficientBalance {
+            balance,
+            required: args.amount + fee,
+        });
+    }
+
+    let op = build_signed_transfer(&keypair, &args, n_operation)?;
+    let result = client.send_operation(&hex::encode(op.to_bytes())).await?;
+    crate::output::print_output(&result, false);
+    Ok(())
+}
+
 pub async fn handle_get_pendings(cli: &Cli, json: bool) -> Result<(), CommandError> {
     let client = RpcClient::new(cli.endpoint.clone())?;
     let result = client.get_pendings().await?;
@@ -552,5 +667,105 @@ mod tests {
         let bytes2 = op2.to_bytes();
 
         assert_ne!(bytes1, bytes2);
+    }
+
+    fn test_key_hex() -> String {
+        hex::encode([7u8; 32])
+    }
+
+    #[test]
+    fn raw_key_hex_accepts_plain_and_env_style() {
+        let hex_str = test_key_hex();
+
+        let kp1 = parse_raw_key_hex(&hex_str).unwrap();
+        let kp2 = parse_raw_key_hex(&format!("AUGECOIN_VALIDATOR_KEY_HEX={hex_str}")).unwrap();
+        let kp3 = parse_raw_key_hex(&format!("  AUGECOIN_VALIDATOR_KEY_HEX={hex_str}\n")).unwrap();
+
+        assert_eq!(
+            kp1.verifying_key().to_bytes(),
+            kp2.verifying_key().to_bytes()
+        );
+        assert_eq!(
+            kp1.verifying_key().to_bytes(),
+            kp3.verifying_key().to_bytes()
+        );
+
+        // Too short (< 32 bytes) must be rejected.
+        assert!(parse_raw_key_hex("aabbcc").is_err());
+        assert!(parse_raw_key_hex("zzzz").is_err());
+    }
+
+    fn transfer_args() -> TransferArgs {
+        TransferArgs {
+            from: 10,
+            to: 20,
+            amount: 500_000,
+            fee: Some(MIN_FEE_AUGESAT),
+            n_operation: None,
+            chain_id: None,
+            key_hex_file: String::new(),
+        }
+    }
+
+    #[test]
+    fn signed_transfer_roundtrips_and_verifies() {
+        let keypair = parse_raw_key_hex(&test_key_hex()).unwrap();
+        let args = transfer_args();
+        let op = build_signed_transfer(&keypair, &args, 5).unwrap();
+
+        assert_eq!(op.op_type, OperationType::Transaction);
+        assert_eq!(op.chain_id, CT_CHAIN_ID_MAINNET);
+        assert_eq!(op.signatures.len(), 1);
+
+        match &op.payload {
+            OperationPayload::Transaction {
+                senders,
+                receivers,
+                fee,
+                ..
+            } => {
+                assert_eq!(senders.len(), 1);
+                assert_eq!(senders[0].account, 10);
+                assert_eq!(senders[0].n_operation, 5);
+                assert_eq!(senders[0].amount, 500_000);
+                assert_eq!(receivers.len(), 1);
+                assert_eq!(receivers[0].account, 20);
+                assert_eq!(*fee, MIN_FEE_AUGESAT);
+            }
+            _ => panic!("expected Transaction payload"),
+        }
+
+        let bytes = op.to_bytes();
+        let restored = Operation::from_bytes(&bytes).unwrap();
+        assert_eq!(restored.to_bytes(), bytes);
+
+        let message = restored.to_bytes_stripped();
+        assert!(restored.signatures[0].verify(&keypair.verifying_key(), &message));
+    }
+
+    #[test]
+    fn transfer_fee_below_minimum_is_rejected() {
+        let keypair = parse_raw_key_hex(&test_key_hex()).unwrap();
+        let mut args = transfer_args();
+        args.fee = Some(MIN_FEE_AUGESAT - 1);
+        assert!(matches!(
+            build_signed_transfer(&keypair, &args, 1),
+            Err(CommandError::FeeTooLow { .. })
+        ));
+    }
+
+    #[test]
+    fn transfer_signature_depends_on_key() {
+        let args = transfer_args();
+        let kp_a = parse_raw_key_hex(&test_key_hex()).unwrap();
+        let kp_b = parse_raw_key_hex(&hex::encode([9u8; 32])).unwrap();
+
+        let op_a = build_signed_transfer(&kp_a, &args, 1).unwrap();
+        let op_b = build_signed_transfer(&kp_b, &args, 1).unwrap();
+
+        assert_ne!(op_a.to_bytes(), op_b.to_bytes());
+
+        // A signature from a different key must not verify.
+        assert!(!op_b.signatures[0].verify(&kp_a.verifying_key(), &op_b.to_bytes_stripped()));
     }
 }

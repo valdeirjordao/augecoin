@@ -57,6 +57,30 @@ pub enum Commands {
     SendOperation {
         hex: String,
     },
+    SendTransfer {
+        /// Sender account number (must be owned by the provided key)
+        #[arg(long)]
+        from: u64,
+        /// Destination account number
+        #[arg(long)]
+        to: u64,
+        /// Amount in augesat (1 AUGE = 100000000 augesat)
+        #[arg(long)]
+        amount: u64,
+        /// Fee in augesat (default: minimum 1000)
+        #[arg(long)]
+        fee: Option<u64>,
+        /// n_operation to use (default: query the node)
+        #[arg(long)]
+        n_operation: Option<u64>,
+        /// Target chain id (default: 1 = mainnet)
+        #[arg(long)]
+        chain_id: Option<u64>,
+        /// File with the raw private key hex (first 32 bytes = seed).
+        /// Accepts plain hex or AUGECOIN_VALIDATOR_KEY_HEX=<hex> style files.
+        #[arg(long)]
+        key_hex_file: String,
+    },
     GetPendings {
         #[arg(long)]
         json: bool,
@@ -183,6 +207,29 @@ fn main() {
                 commands::handle_get_block(&cli, *block_number, *json).await
             }
             Commands::SendOperation { hex } => commands::handle_send_operation(&cli, hex).await,
+            Commands::SendTransfer {
+                from,
+                to,
+                amount,
+                fee,
+                n_operation,
+                chain_id,
+                key_hex_file,
+            } => {
+                commands::handle_send_transfer(
+                    &cli,
+                    commands::TransferArgs {
+                        from: *from,
+                        to: *to,
+                        amount: *amount,
+                        fee: *fee,
+                        n_operation: *n_operation,
+                        chain_id: *chain_id,
+                        key_hex_file: key_hex_file.clone(),
+                    },
+                )
+                .await
+            }
             Commands::GetPendings { json } => commands::handle_get_pendings(&cli, *json).await,
             Commands::FindAccounts {
                 name,

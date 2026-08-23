@@ -84,11 +84,11 @@ impl RpcClient {
     }
 
     pub async fn get_validator_set(&self) -> Result<Value, RpcError> {
-        self.call("getValidatorSet", Value::Null).await
+        self.call("getvalidatorset", Value::Null).await
     }
 
     pub async fn get_network_status(&self) -> Result<Value, RpcError> {
-        self.call("getNetworkStatus", Value::Null).await
+        self.call("nodestatus", Value::Null).await
     }
 
     pub async fn get_validator_earnings(&self) -> Result<Value, RpcError> {
@@ -108,13 +108,13 @@ impl RpcClient {
     }
 
     pub async fn send_operation(&self, op_hex: &str) -> Result<Value, RpcError> {
-        self.call("sendOperation", serde_json::json!({ "op_hex": op_hex }))
+        self.call("sendoperation", serde_json::json!({ "hex": op_hex }))
             .await
     }
 
     pub async fn get_account(&self, account_number: u64) -> Result<Value, RpcError> {
         self.call(
-            "getAccount",
+            "getaccount",
             serde_json::json!({ "account_number": account_number }),
         )
         .await
@@ -122,14 +122,14 @@ impl RpcClient {
 
     pub async fn get_block(&self, block_number: u64) -> Result<Value, RpcError> {
         self.call(
-            "getBlock",
+            "getblock",
             serde_json::json!({ "block_number": block_number }),
         )
         .await
     }
 
     pub async fn get_pendings(&self) -> Result<Value, RpcError> {
-        self.call("getPendings", Value::Null).await
+        self.call("getpendings", Value::Null).await
     }
 
     pub async fn find_accounts(
@@ -140,7 +140,7 @@ impl RpcClient {
         max_balance: Option<u64>,
     ) -> Result<Value, RpcError> {
         self.call(
-            "findAccounts",
+            "findaccounts",
             serde_json::json!({
                 "name": name,
                 "type": account_type,
