@@ -10,9 +10,9 @@
 | Unidade mínima | `augesat` (1 AUGE = 100.000.000 augesat, 8 casas decimais) |
 | Tipo de conta | Conta nativa numerada, sem expiração |
 | Consenso | Proof of Authority, quórum 2/3+1, sem staking, sem lock de tokens |
-| Tempo de bloco | 60 segundos (tolerância de deriva ≤ 2s via NTP) |
-| Suprimento total | 750.000.000 AUGE, sem pré-mineração |
-| Duração da emissão | 50 anos, emissão determinística por bloco |
+| Tempo de bloco | 15 segundos (tolerância de deriva ≤ 2s via NTP) |
+| Suprimento total | 762.120.000 AUGE (hard cap de emissão), sem pré-mineração |
+| Duração da emissão | 50 anos = 105.120.000 blocos, emissão linear determinística por bloco |
 | Pós-quântico | Assinatura híbrida (clássica + PQC) desde o gênesis |
 
 ## 2. Criptografia
@@ -41,30 +41,29 @@
 ## 3. Emissão monetária
 
 ```
-DECIMALS               = 8
-TOTAL_SUPPLY_AUGE       = 750_000_000
-TOTAL_SUPPLY_AUGESAT    = 75_000_000_000_000_000
+DECIMALS                 = 8
+TOTAL_SUPPLY_AUGE        = 762_120_000
+TOTAL_SUPPLY_AUGESAT     = 76_212_000_000_000_000
 
-BLOCK_TIME_SECONDS      = 60
-EMISSION_YEARS          = 50
-BLOCKS_PER_YEAR         = 525_960
-TOTAL_EMISSION_BLOCKS   = 26_298_000
+BLOCK_TIME_SECONDS       = 15
+EMISSION_YEARS           = 50
+BLOCKS_PER_YEAR          = 2_102_400
+TOTAL_EMISSION_BLOCKS    = 105_120_000
 
-BASE_REWARD_AUGESAT     = TOTAL_SUPPLY_AUGESAT / TOTAL_EMISSION_BLOCKS
-                        = 2_852_383   (divisão inteira truncada)
-REMAINDER_AUGESAT       = TOTAL_SUPPLY_AUGESAT % TOTAL_EMISSION_BLOCKS
+CT_BLOCK_REWARD_AUGESAT  = 725_000_000   (7,25 AUGE por bloco, fixo)
 ```
 
 Regra de implementação de `block_reward(height: u64) -> u64`:
 
-1. Divisão inteira truncada para `BASE_REWARD_AUGESAT`.
-2. Resto `REMAINDER_AUGESAT` distribuído como 1 augesat extra para cada
-   um dos primeiros `REMAINDER_AUGESAT` blocos.
-3. A partir do bloco `TOTAL_EMISSION_BLOCKS + 1`, retorna `0` para
+1. Recompensa **fixa** de `725_000_000` augesat (7,25 AUGE) para todo
+   bloco com `height < TOTAL_EMISSION_BLOCKS` — linear, sem halving,
+   sem caso especial no gênesis.
+2. A partir do bloco `TOTAL_EMISSION_BLOCKS`, retorna `0` para
    sempre — sem cauda perpétua.
-4. Propriedade obrigatória (teste `proptest`):
-   `sum(block_reward(h) for h in 1..=TOTAL_EMISSION_BLOCKS) ==
-   TOTAL_SUPPLY_AUGESAT` exatamente.
+3. Propriedade obrigatória (testes em `augecoin-core::emission`):
+   `TOTAL_EMISSION_BLOCKS × CT_BLOCK_REWARD_AUGESAT ==
+   TOTAL_SUPPLY_AUGESAT` exatamente (105.120.000 × 7,25 AUGE =
+   762.120.000 AUGE).
 
 ## 4. O que cada bloco produz
 
@@ -72,19 +71,22 @@ A cada bloco finalizado, três coisas acontecem atomicamente:
 
 ```
 BLOCO N
- ├── 1 nova Conta AUGE criada        → Conta #N (numeração sequencial)
+ ├── 3 novas contas (AUGEIDs) emitidas → nº N·3+0..2, estado `Reserved`
+ │     (CT_ACCOUNTS_PER_BLOCK = 3, numeração determinística)
  ├── Recompensa de emissão           → block_reward(N) augesat
  └── Taxas de todas as tx do bloco   → soma(fee_i) augesat
         ↓
  Validador líder da rodada N recebe: block_reward(N) + soma(fee_i)
 ```
 
-- Conta nova criada vazia (saldo zero), auto-atribuída ao validador líder
-  da rodada dentro de execute_block() (ver ADR-005 em DECISIONS.md).
+- Contas emitidas nascem vazias (saldo zero), em estado `Reserved`,
+  ligadas à chave do validador líder da rodada dentro de
+  execute_block() (ver ADR-005 em DECISIONS.md). Slots já ocupados no
+  gênesis nunca são sobrescritos (guarda defensiva determinística).
 - Conta nunca expira. Sem operação de "Recover" por inatividade. Perda
   de chave privada = saldo permanentemente inacessível.
 - 100% da recompensa + 100% das taxas vão para o validador da rodada.
-  Sem split para fundação/desenvolvedores.
+  Sem split para fundação/desenvolvedores (`developer_reward = 0`).
 
 ## 5. Consenso PoA
 
@@ -92,7 +94,8 @@ BLOCO N
 Genesis: 4 validadores autorizados pelo administrador
 Quórum:  2/3 + 1 → 3 assinaturas válidas de 4 finalizam um bloco
 Líder:   round-robin determinístico, height % validator_count
-Timeout: 2x BLOCK_TIME_SECONDS (120s) → view-change automático
+Timeout: BLOCK_TIME + 5 s (20 s com bloco de 15 s) → round-change
+         automático
 Equivocation: 2 assinaturas do mesmo validador na mesma altura →
          prova on-chain (as duas assinaturas conflitantes), validador
          marcado como slashable, removível pelo administrador

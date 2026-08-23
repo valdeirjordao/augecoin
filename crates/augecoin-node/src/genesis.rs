@@ -9,6 +9,70 @@ pub struct GenesisConfig {
     pub genesis: GenesisBalances,
     #[serde(default)]
     pub accounts: Vec<GenesisAccount>,
+    /// Shared genesis admin key (Caminho A): when present together with
+    /// `validators`, every node booting non-dev builds the SAME initial
+    /// ValidatorSet from this file instead of a self-only set.
+    #[serde(default)]
+    pub admin: Option<GenesisKey>,
+    /// Initial validators, ids assigned in declaration order starting at 1.
+    #[serde(default)]
+    pub validators: Vec<GenesisKey>,
+}
+
+/// A 32-byte Ed25519 public key declared in the genesis file.
+#[derive(Debug, Deserialize, Clone)]
+pub struct GenesisKey {
+    pub ed25519_public_key_hex: String,
+}
+
+impl GenesisKey {
+    pub fn pubkey(&self, role: &str) -> Result<[u8; 32], String> {
+        let bytes = hex::decode(self.ed25519_public_key_hex.trim())
+            .map_err(|e| format!("{role} public key is not hex: {e}"))?;
+        let key: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| format!("{role} public key must contain 32 bytes"))?;
+        ed25519_dalek::VerifyingKey::from_bytes(&key)
+            .map_err(|_| format!("{role} public key is not a valid Ed25519 key"))?;
+        if key == [0u8; 32] {
+            return Err(format!("{role} public key cannot be zero"));
+        }
+        Ok(key)
+    }
+}
+
+impl GenesisConfig {
+    /// Shared initial validator set declared by this file: ids start at 1 in
+    /// declaration order. `None` when the file declares no validators (legacy
+    /// self-only bootstrap).
+    pub fn shared_validator_set(
+        &self,
+    ) -> Result<Option<(ed25519_dalek::VerifyingKey, Vec<(u64, [u8; 32])>)>, String> {
+        if self.validators.is_empty() {
+            return Ok(None);
+        }
+        let members = self
+            .validators
+            .iter()
+            .enumerate()
+            .map(|(i, v)| Ok((i as u64 + 1, v.pubkey("validator")?)))
+            .collect::<Result<Vec<(u64, [u8; 32])>, String>>()?;
+        let admin = match &self.admin {
+            Some(a) => ed25519_dalek::VerifyingKey::from_bytes(&a.pubkey("admin")?)
+                .map_err(|e| format!("admin key error: {e}"))?,
+            None => return Err("genesis declares [[validators]] but no [admin] key".to_string()),
+        };
+        Ok(Some((admin, members)))
+    }
+}
+
+/// Load the genesis config if a path is configured; `None` means no genesis
+/// file (node boots with legacy defaults).
+pub fn load_optional(path: Option<&Path>) -> Result<Option<GenesisConfig>, String> {
+    match path {
+        None => Ok(None),
+        Some(p) => Ok(Some(GenesisConfig::load(p)?)),
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -80,11 +144,10 @@ fn public_key(account: &GenesisAccount) -> Result<[u8; 32], String> {
 }
 
 /// Initialize configured accounts once. Existing accounts are never overwritten.
-pub fn initialize(storage: &Storage, path: Option<&Path>) -> Result<(), String> {
-    let Some(path) = path else {
+pub fn initialize(storage: &Storage, config: Option<&GenesisConfig>) -> Result<(), String> {
+    let Some(config) = config else {
         return Ok(());
     };
-    let config = GenesisConfig::load(path)?;
     let _configured_chain_id = config.genesis.chain_id;
     for entry in &config.accounts {
         if storage

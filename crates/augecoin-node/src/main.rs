@@ -522,11 +522,15 @@ fn main() {
     println!("[init] SafeBox snapshot interval: {safebox_snapshot_interval} blocks");
 
     let genesis_path = std::env::var("AUGECOIN_GENESIS_CONFIG").ok();
-    genesis::initialize(&storage, genesis_path.as_deref().map(std::path::Path::new))
+    let genesis_cfg = genesis::load_optional(genesis_path.as_deref().map(std::path::Path::new))
         .unwrap_or_else(|e| {
             eprintln!("[genesis] FATAL: {e}");
             std::process::exit(1);
         });
+    genesis::initialize(&storage, genesis_cfg.as_ref()).unwrap_or_else(|e| {
+        eprintln!("[genesis] FATAL: {e}");
+        std::process::exit(1);
+    });
 
     let (initial_validator_set, my_keypair, _admin_kp) = if is_dev_mode {
         let (vs, all_keys, admin) =
@@ -538,7 +542,7 @@ fn main() {
             // joining a 4-node dev network): derive its key deterministically.
             augecoin_node::consensus::create_dev_validator_key(validator_id)
         };
-        (vs, my_kp, admin)
+        (vs, my_kp, Some(admin))
     } else {
         let key_hex = if let Ok(hex) = std::env::var("AUGECOIN_VALIDATOR_KEY_HEX") {
             hex
@@ -578,11 +582,57 @@ fn main() {
         let my_kp = augecoin_crypto::signature::HybridKeyPair::from_seed(seed);
         let verifying = my_kp.verifying_key();
 
-        let vk_bytes = verifying.to_bytes();
-        let vi = augecoin_consensus::validator::ValidatorInfo::new_active(validator_id, vk_bytes);
-        let vs = augecoin_consensus::validator::ValidatorSet::new(verifying, vec![vi]);
+        // Shared genesis validator set (Caminho A): when the genesis file
+        // declares [[validators]] + [admin], ALL nodes boot with the same
+        // multi-member set — no DEV_MODE involved. Ids start at 1 in file order.
+        let vs = match genesis_cfg.as_ref().map(|c| c.shared_validator_set()) {
+            Some(Ok(Some((admin_vk, members)))) => {
+                println!(
+                    "[genesis] shared validator set: {} members from genesis file",
+                    members.len()
+                );
+                let members = members
+                    .into_iter()
+                    .map(|(id, key)| {
+                        augecoin_consensus::validator::ValidatorInfo::new_active(id, key)
+                    })
+                    .collect();
+                augecoin_consensus::validator::ValidatorSet::new(admin_vk, members)
+            }
+            Some(Ok(None)) => {
+                let vk_bytes = verifying.to_bytes();
+                let vi = augecoin_consensus::validator::ValidatorInfo::new_active(
+                    validator_id,
+                    vk_bytes,
+                );
+                augecoin_consensus::validator::ValidatorSet::new(verifying.clone(), vec![vi])
+            }
+            Some(Err(e)) => {
+                eprintln!("[genesis] FATAL: {e}");
+                std::process::exit(1);
+            }
+            None => {
+                let vk_bytes = verifying.to_bytes();
+                let vi = augecoin_consensus::validator::ValidatorInfo::new_active(
+                    validator_id,
+                    vk_bytes,
+                );
+                augecoin_consensus::validator::ValidatorSet::new(verifying.clone(), vec![vi])
+            }
+        };
 
-        let admin_kp = augecoin_crypto::signature::HybridKeyPair::from_seed(seed);
+        // Governance admin key: optional. When the set comes from the genesis
+        // file the admin is typically an OFFLINE key not held by any node.
+        let admin_kp = std::env::var("AUGECOIN_ADMIN_KEY_HEX").ok().and_then(|h| {
+            hex::decode(h.trim())
+                .ok()
+                .filter(|b| b.len() >= 32)
+                .map(|b| {
+                    augecoin_crypto::signature::HybridKeyPair::from_seed(
+                        b[..32].try_into().unwrap(),
+                    )
+                })
+        });
 
         (vs, my_kp, admin_kp)
     };
@@ -677,7 +727,7 @@ fn main() {
         mempool.clone(),
         node_status.clone(),
         rpc_port,
-        Some(_admin_kp.clone()),
+        _admin_kp.clone(),
         faucet_enabled,
         op_broadcast_tx,
     );

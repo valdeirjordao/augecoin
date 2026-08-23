@@ -265,3 +265,31 @@ keychain do SO (descartado para o seed do node — o processo precisa lê-lo com
 arquivo/env; o arquivo 0600 + diretório do usuário é o limite de segurança
 prático para operadores de nó).
 Status: Accepted
+
+## ADR-015
+
+Data: 2026-08-23
+Fase relacionada: Pré-mainnet (reconciliação SPEC v1 ↔ implementação)
+Decision: O parâmetro **tempo de bloco é 15 segundos** — a SPEC v1 (60 s)
+estava desatualizada e foi corrigida. A SPEC.md passa a refletir exatamente
+os valores congelados em `crates/augecoin-core/src/constants.rs`
+(fonte autoritativa usada pelo consenso):
+- `CT_BLOCK_TIME_SECONDS = 15` (round timeout = block_time + 5 s);
+- recompensa **fixa** de 7,25 AUGE/bloco (`CT_BLOCK_REWARD_AUGESAT`),
+  linear, sem halving, sem cauda;
+- emissão de 3 contas (AUGEIDs) por bloco (`CT_ACCOUNTS_PER_BLOCK = 3`);
+- `TOTAL_EMISSION_BLOCKS = 105_120_000` (50 anos × 2.102.400 blocos/ano
+  a 15 s);
+- hard cap de emissão/supply = **762.120.000 AUGE**
+  (105.120.000 × 7,25 AUGE, verificado por teste).
+A divergência já havia sido registrada no WHITEPAPER_V2 §1/§15; este ADR
+formaliza a reconciliação exigida pelo item "SPEC.md synchronized" do
+MAINNET_READINESS.
+Reason: A política monetária do código (constantes + proptest) é a fonte
+da verdade; documentar 60 s criava contradição pública antes do mainnet.
+Os múltiplos de emissão (210_240 = 2.102.400/10) só fecham com blocos de
+15 s.
+Alternativas consideradas: alterar o código para 60 s (descartado — a
+rede chain_id=1 e todos os vetores de teste já operam a 15 s; mudança
+quebraria a emissão projetada).
+Status: Accepted

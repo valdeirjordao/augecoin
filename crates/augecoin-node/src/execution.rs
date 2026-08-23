@@ -263,6 +263,17 @@ pub fn execute_block(
         if original.contains_key(&new_num) || modified.contains_key(&new_num) {
             continue;
         }
+        // Defensive guard against clobbering genesis-defined or otherwise
+        // pre-existing accounts: if the number is already persisted, the
+        // emission slot is skipped (deterministically on every node, since
+        // all nodes share the same genesis state).
+        if storage
+            .get_account(new_num)
+            .map_err(|e| ExecutionError::Storage(e.to_string()))?
+            .is_some()
+        {
+            continue;
+        }
         original.insert(new_num, Account::new(new_num, [0u8; 32], block_number));
         let new_account = Account {
             account_number: new_num,
