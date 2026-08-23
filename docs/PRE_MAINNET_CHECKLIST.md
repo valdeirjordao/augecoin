@@ -21,7 +21,7 @@
 
 ## 2. SPEC.md ↔ Implementation Parity
 
-- [x] Section 1 (Identity): Matches — 750M AUGE, 8 decimals, PoA, 60s blocks, hybrid sigs
+- [x] Section 1 (Identity): Matches — 762.12M AUGE cap, 8 decimals, PoA, 15s blocks, hybrid sigs (reconciliado via ADR-015, 2026-08-23)
 - [x] Section 2 (Cryptography): Matches — Ed25519 + ML-DSA-65, BLAKE3-512, Bech32m `auge1...`, HD wallet via HKDF-SHA3-512
 - [x] Section 3 (Emission): Matches — block_reward() implementation verified by proptest
 - [x] Section 4 (Block production): Matches — new account auto-assigned to leader (ADR-005)

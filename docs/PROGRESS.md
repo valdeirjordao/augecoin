@@ -56,7 +56,12 @@ motivo na coluna)
 
 ## Próximo passo
 
-**Status: TODAS AS 38 FASES CONCLUÍDAS.** Projeto pronto para mainnet.
+**Status: TODAS AS 38 FASES CONCLUÍDAS.** Bateria MAINNET_READINESS executada
+em 2026-08-23 (410 testes, clippy/fmt limpos, fuzz limpo pós-fix OOM,
+cargo audit sem vulnerabilidades, TLS real Let's Encrypt nos validadores
+chain1). Pendências de lançamento: CI verde no remote, monitoring apontado
+aos nós finais, auditoria externa + pentest. Ver
+`docs/MAINNET_READINESS.md`.
 
 ## Validator Ecosystem (pós-mainnet)
 
