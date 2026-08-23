@@ -10,8 +10,8 @@ export const CONFIG = Object.freeze({
     return qs || ls || 'https://www.augeco.in/rpc';
   },
 
-  NETWORK: 'Testnet',
-  CHAIN_ID: 2,
+  NETWORK: 'Mainnet',
+  CHAIN_ID: 1,
   PROTOCOL_VERSION: 5,
   PROTOCOL_AVAILABLE: 6,
 

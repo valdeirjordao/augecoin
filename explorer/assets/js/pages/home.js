@@ -19,7 +19,7 @@ export async function render() {
     <section class="hero">
       <div class="container hero-inner">
         <h1>AUGECOIN <span class="text-accent">Explorer</span></h1>
-        <p class="hero-sub">Search blocks, transactions, AUGEIDs and accounts on the AUGECOIN testnet.</p>
+        <p class="hero-sub">Search blocks, transactions, AUGEIDs and accounts on the AUGECOIN mainnet.</p>
         <form class="hero-search" data-search>
           <span class="hero-search-icon">🔍</span>
           <input name="q" type="text" autocomplete="off" placeholder="Buscar bloco, transação, AUGEID ou hash…" aria-label="Search" />

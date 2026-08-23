@@ -15,7 +15,7 @@ export async function render() {
     <main class="container page">
       <div class="page-head">
         <h1>Blocks</h1>
-        <p class="muted">All blocks on the AUGECOIN testnet.</p>
+        <p class="muted">All blocks on the AUGECOIN mainnet.</p>
       </div>
       <div class="card table-card" id="blocks-table">${skeleton(8, 5)}</div>
       <div id="pagination"></div>

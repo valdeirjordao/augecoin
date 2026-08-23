@@ -101,7 +101,7 @@ export function renderFooter(status = null) {
       <div class="container footer-bottom">
         <span>© ${new Date().getFullYear()} AUGECOIN</span>
         <span class="footer-dot">•</span>
-        <span>Network: Testnet</span>
+        <span>Network: Mainnet</span>
       </div>
     </footer>`;
 }
