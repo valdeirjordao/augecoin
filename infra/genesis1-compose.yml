@@ -1,0 +1,102 @@
+# AUGECOIN chain_id=1 — 4 validadores isolados (Caminho A), sem DEV_MODE.
+# Portas dedicadas na host: RPC 19401-19404 | P2P 19101-19104 | Metrics 19301-19304
+x-base: &base
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile
+  restart: unless-stopped
+  volumes:
+    - ./genesis1/genesis-chain1.toml:/config/genesis.toml:ro
+  environment: &baseenv
+    AUGECOIN_CHAIN_ID: "1"
+    AUGECOIN_VALIDATOR_COUNT: "4"
+    AUGECOIN_GENESIS_CONFIG: /config/genesis.toml
+    AUGECOIN_BLOCK_TIME: "15"
+    AUGECOIN_P2P_PORT: "9200"
+    AUGECOIN_RPC_PORT: "9443"
+    AUGECOIN_METRICS_PORT: "9110"
+    AUGECOIN_DATA_DIR: "/data"
+  networks:
+    genesis1:
+      ipv4_address: 172.31.100.10
+
+services:
+  genesis-validator-1:
+    <<: *base
+    container_name: augecoin-genesis-validator-1
+    hostname: genesis-validator-1
+    env_file: ./genesis1/v1.env
+    environment:
+      <<: *baseenv
+      AUGECOIN_VALIDATOR_ID: "1"
+      AUGECOIN_BOOTNODES: ""
+    networks:
+      genesis1:
+        ipv4_address: 172.31.100.11
+    ports:
+      - "19101:9200"
+      - "19401:9443"
+      - "19301:9110"
+
+  genesis-validator-2:
+    <<: *base
+    container_name: augecoin-genesis-validator-2
+    hostname: genesis-validator-2
+    env_file: ./genesis1/v2.env
+    environment:
+      <<: *baseenv
+      AUGECOIN_VALIDATOR_ID: "2"
+      AUGECOIN_BOOTNODES: "/ip4/172.31.100.11/tcp/9200"
+    networks:
+      genesis1:
+        ipv4_address: 172.31.100.12
+    ports:
+      - "19102:9200"
+      - "19402:9443"
+      - "19302:9110"
+    depends_on:
+      - genesis-validator-1
+
+  genesis-validator-3:
+    <<: *base
+    container_name: augecoin-genesis-validator-3
+    hostname: genesis-validator-3
+    env_file: ./genesis1/v3.env
+    environment:
+      <<: *baseenv
+      AUGECOIN_VALIDATOR_ID: "3"
+      AUGECOIN_BOOTNODES: "/ip4/172.31.100.11/tcp/9200"
+    networks:
+      genesis1:
+        ipv4_address: 172.31.100.13
+    ports:
+      - "19103:9200"
+      - "19403:9443"
+      - "19303:9110"
+    depends_on:
+      - genesis-validator-1
+
+  genesis-validator-4:
+    <<: *base
+    container_name: augecoin-genesis-validator-4
+    hostname: genesis-validator-4
+    env_file: ./genesis1/v4.env
+    environment:
+      <<: *baseenv
+      AUGECOIN_VALIDATOR_ID: "4"
+      AUGECOIN_BOOTNODES: "/ip4/172.31.100.11/tcp/9200"
+    networks:
+      genesis1:
+        ipv4_address: 172.31.100.14
+    ports:
+      - "19104:9200"
+      - "19404:9443"
+      - "19304:9110"
+    depends_on:
+      - genesis-validator-1
+
+networks:
+  genesis1:
+    ipam:
+      config:
+        - subnet: 172.31.100.0/24
