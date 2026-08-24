@@ -62,8 +62,12 @@ pub enum Commands {
         #[arg(long)]
         from: u64,
         /// Destination account number
+        #[arg(long, conflicts_with = "to_address")]
+        to: Option<u64>,
+        /// Destination AUGE address (self-describing addresses auto-activate
+        /// a new on-chain account on first receive)
         #[arg(long)]
-        to: u64,
+        to_address: Option<String>,
         /// Amount in augesat (1 AUGE = 100000000 augesat)
         #[arg(long)]
         amount: u64,
@@ -210,6 +214,7 @@ fn main() {
             Commands::SendTransfer {
                 from,
                 to,
+                to_address,
                 amount,
                 fee,
                 n_operation,
@@ -221,6 +226,7 @@ fn main() {
                     commands::TransferArgs {
                         from: *from,
                         to: *to,
+                        to_address: to_address.clone(),
                         amount: *amount,
                         fee: *fee,
                         n_operation: *n_operation,

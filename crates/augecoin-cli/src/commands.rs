@@ -1,6 +1,7 @@
 use augecoin_core::constants::{CT_CHAIN_ID_MAINNET, MIN_FEE_AUGESAT};
 use augecoin_core::operation::{
-    Operation, OperationPayload, OperationType, ReceiverInfo, SenderInfo, ValidatorAdminOp,
+    AddressReceiverInfo, Operation, OperationPayload, OperationType, ReceiverInfo, SenderInfo,
+    ValidatorAdminOp,
 };
 use augecoin_crypto::hdkeys::HdWallet;
 use augecoin_crypto::signature::{Ed25519Signature, HybridKeyPair};
@@ -31,6 +32,10 @@ pub enum CommandError {
     MissingField(String),
     #[error("fee below minimum: {got} augesat (minimum {min})")]
     FeeTooLow { got: u64, min: u64 },
+    #[error("destination required: use --to <account> or --to-address <address>")]
+    MissingDestination,
+    #[error("invalid AUGE address: {0}")]
+    InvalidAddress(String),
 }
 
 fn dummy_signature() -> Ed25519Signature {
@@ -388,7 +393,8 @@ pub async fn handle_send_operation(cli: &Cli, op_hex: &str) -> Result<(), Comman
 #[derive(Debug)]
 pub struct TransferArgs {
     pub from: u64,
-    pub to: u64,
+    pub to: Option<u64>,
+    pub to_address: Option<String>,
     pub amount: u64,
     pub fee: Option<u64>,
     pub n_operation: Option<u64>,
@@ -417,7 +423,9 @@ fn parse_raw_key_hex(content: &str) -> Result<HybridKeyPair, CommandError> {
     Ok(HybridKeyPair::from_seed(seed))
 }
 
-/// Build and sign a Transaction operation with the given keypair.
+/// Build and sign a Transaction (account → account) or AddressTransaction
+/// (account → address) operation with the given keypair. Self-describing
+/// destination addresses auto-activate a new on-chain account on first receive.
 fn build_signed_transfer(
     keypair: &HybridKeyPair,
     args: &TransferArgs,
@@ -430,26 +438,51 @@ fn build_signed_transfer(
             min: MIN_FEE_AUGESAT,
         });
     }
+    if args.to.is_none() && args.to_address.is_none() {
+        return Err(CommandError::MissingDestination);
+    }
 
-    let mut op = Operation {
-        op_type: OperationType::Transaction,
-        payload: OperationPayload::Transaction {
-            senders: vec![SenderInfo {
-                account: args.from,
-                n_operation,
-                amount: args.amount,
-                payload: Vec::new(),
-            }],
-            receivers: vec![ReceiverInfo {
-                account: args.to,
-                amount: args.amount,
-                payload: Vec::new(),
-            }],
-            changers: Vec::new(),
-            fee,
+    let sender = SenderInfo {
+        account: args.from,
+        n_operation,
+        amount: args.amount,
+        payload: Vec::new(),
+    };
+
+    let mut op = match &args.to_address {
+        Some(addr) => {
+            let address = augecoin_crypto::address::AddressHash::parse(addr)
+                .ok_or_else(|| CommandError::InvalidAddress(addr.clone()))?;
+            Operation {
+                op_type: OperationType::AddressTransaction,
+                payload: OperationPayload::AddressTransaction {
+                    senders: vec![sender],
+                    receivers: vec![AddressReceiverInfo {
+                        address,
+                        amount: args.amount,
+                        payload: Vec::new(),
+                    }],
+                    fee,
+                },
+                chain_id: args.chain_id.unwrap_or(CT_CHAIN_ID_MAINNET),
+                signatures: vec![dummy_signature()],
+            }
+        }
+        None => Operation {
+            op_type: OperationType::Transaction,
+            payload: OperationPayload::Transaction {
+                senders: vec![sender],
+                receivers: vec![ReceiverInfo {
+                    account: args.to.expect("validated above"),
+                    amount: args.amount,
+                    payload: Vec::new(),
+                }],
+                changers: Vec::new(),
+                fee,
+            },
+            chain_id: args.chain_id.unwrap_or(CT_CHAIN_ID_MAINNET),
+            signatures: vec![dummy_signature()],
         },
-        chain_id: args.chain_id.unwrap_or(CT_CHAIN_ID_MAINNET),
-        signatures: vec![dummy_signature()],
     };
 
     let message = op.to_bytes_stripped();
@@ -698,13 +731,83 @@ mod tests {
     fn transfer_args() -> TransferArgs {
         TransferArgs {
             from: 10,
-            to: 20,
+            to: Some(20),
+            to_address: None,
             amount: 500_000,
             fee: Some(MIN_FEE_AUGESAT),
             n_operation: None,
             chain_id: None,
             key_hex_file: String::new(),
         }
+    }
+
+    #[test]
+    fn signed_transfer_requires_destination() {
+        let keypair = parse_raw_key_hex(&test_key_hex()).unwrap();
+        let mut args = transfer_args();
+        args.to = None;
+        assert!(matches!(
+            build_signed_transfer(&keypair, &args, 1),
+            Err(CommandError::MissingDestination)
+        ));
+    }
+
+    #[test]
+    fn signed_transfer_to_address_roundtrips_and_verifies() {
+        let keypair = parse_raw_key_hex(&test_key_hex()).unwrap();
+        // Self-describing destination (v2): embeds the recipient public key so
+        // the node can auto-activate an account on first receive.
+        let dest_kp = parse_raw_key_hex(&hex::encode([5u8; 32])).unwrap();
+        let addr = augecoin_crypto::address::derive_embedded_address(&dest_kp.verifying_key());
+
+        let mut args = transfer_args();
+        args.to = None;
+        args.to_address = Some(addr.clone());
+        let op = build_signed_transfer(&keypair, &args, 7).unwrap();
+
+        assert_eq!(op.op_type, OperationType::AddressTransaction);
+        assert_eq!(op.chain_id, CT_CHAIN_ID_MAINNET);
+
+        match &op.payload {
+            OperationPayload::AddressTransaction {
+                senders,
+                receivers,
+                fee,
+            } => {
+                assert_eq!(senders.len(), 1);
+                assert_eq!(senders[0].account, 10);
+                assert_eq!(senders[0].n_operation, 7);
+                assert_eq!(receivers.len(), 1);
+                assert_eq!(receivers[0].amount, 500_000);
+                assert_eq!(
+                    receivers[0].address.to_address(),
+                    addr,
+                    "self-describing roundtrip"
+                );
+                assert!(receivers[0].address.public_key.is_some());
+                assert_eq!(*fee, MIN_FEE_AUGESAT);
+            }
+            _ => panic!("expected AddressTransaction payload"),
+        }
+
+        let bytes = op.to_bytes();
+        let restored = Operation::from_bytes(&bytes).unwrap();
+        assert_eq!(restored.to_bytes(), bytes);
+        assert!(
+            restored.signatures[0].verify(&keypair.verifying_key(), &restored.to_bytes_stripped())
+        );
+    }
+
+    #[test]
+    fn transfer_rejects_invalid_address() {
+        let keypair = parse_raw_key_hex(&test_key_hex()).unwrap();
+        let mut args = transfer_args();
+        args.to = None;
+        args.to_address = Some("nao-eum-endereco".into());
+        assert!(matches!(
+            build_signed_transfer(&keypair, &args, 1),
+            Err(CommandError::InvalidAddress(_))
+        ));
     }
 
     #[test]
