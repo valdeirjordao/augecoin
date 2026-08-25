@@ -120,11 +120,7 @@ fn activate_input(augeid: &str, machine: u8, pubkey: u8) -> augecoin_ops::valida
     }
 }
 
-fn activate_by_key<'a>(
-    key: &'a str,
-    machine: u8,
-    pubkey: u8,
-) -> augecoin_ops::validator::ActivateInput {
+fn activate_by_key(key: &str, machine: u8, pubkey: u8) -> augecoin_ops::validator::ActivateInput {
     augecoin_ops::validator::ActivateInput {
         license_key: Some(key.to_string()),
         augeid: None,
