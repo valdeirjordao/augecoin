@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::license::{LicenseStatus, LicenseView, Plan};
 use crate::release::{NewRelease, Platform};
 use crate::state::AppState;
@@ -103,7 +103,10 @@ pub async fn validate_license(
 
 #[derive(Debug, Deserialize)]
 pub struct ActivateRequest {
-    pub augeid: String,
+    /// Plaintext license key (`XXXX-XXXX-…`, Crockford Base32). Preferred.
+    pub license_key: Option<String>,
+    /// Legacy identifier (bound AUGEID number). Kept for old clients.
+    pub augeid: Option<String>,
     pub machine_id: String,
     pub public_key: String,
     pub os: Option<String>,
@@ -112,17 +115,25 @@ pub struct ActivateRequest {
     pub version: Option<String>,
 }
 
-/// Activate a license on a machine by its bound AUGEID number. The client IP is
-/// taken from the TCP connection, never from the request body, so a client
-/// cannot spoof it.
+/// Activate a license on a machine, resolving it by plaintext license key
+/// (preferred) or legacy AUGEID. The client IP is taken from the TCP
+/// connection, never from the request body, so a client cannot spoof it.
 pub async fn activate(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<ActivateRequest>,
 ) -> Result<(StatusCode, Json<Value>)> {
+    if body.license_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).is_none()
+        && body.augeid.as_deref().map(str::trim).filter(|a| !a.is_empty()).is_none()
+    {
+        return Err(AppError::InvalidInput(
+            "license_key or augeid is required".into(),
+        ));
+    }
     let response = state
         .validators
         .activate(ActivateInput {
+            license_key: body.license_key,
             augeid: body.augeid,
             machine_id: body.machine_id,
             public_key: body.public_key,
@@ -138,7 +149,8 @@ pub async fn activate(
 
 #[derive(Debug, Deserialize)]
 pub struct HeartbeatRequest {
-    pub augeid: String,
+    pub license_key: Option<String>,
+    pub augeid: Option<String>,
     pub uptime: i64,
     pub cpu: Option<i32>,
     pub ram: Option<i32>,
@@ -152,6 +164,7 @@ pub async fn heartbeat(
     let response = state
         .validators
         .heartbeat(HeartbeatInput {
+            license_key: body.license_key,
             augeid: body.augeid,
             uptime: body.uptime,
             cpu: body.cpu,
@@ -164,14 +177,29 @@ pub async fn heartbeat(
 
 #[derive(Debug, Deserialize)]
 pub struct StatsQuery {
-    pub augeid: String,
+    pub license_key: Option<String>,
+    pub augeid: Option<String>,
 }
 
 pub async fn validator_stats(
     State(state): State<AppState>,
     Query(query): Query<StatsQuery>,
 ) -> Result<Json<Value>> {
-    let stats = state.validators.stats_by_augeid(&query.augeid).await?;
+    let stats = if query.license_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).is_some() {
+        state
+            .validators
+            .stats_by_license_key(query.license_key.as_deref().unwrap_or_default())
+            .await?
+    } else if query.augeid.as_deref().map(str::trim).filter(|a| !a.is_empty()).is_some() {
+        state
+            .validators
+            .stats_by_augeid(query.augeid.as_deref().unwrap_or_default())
+            .await?
+    } else {
+        return Err(AppError::InvalidInput(
+            "license_key or augeid is required".into(),
+        ));
+    };
     Ok(Json(serde_json::to_value(stats)?))
 }
 

@@ -23,11 +23,13 @@ pub const HEARTBEAT_INTERVAL_SECS: u64 = 30;
 /// A validator is `online` while its last heartbeat is within this window.
 pub const ONLINE_WINDOW_SECS: i64 = 120;
 
-/// Activation request as submitted by the desktop app. The member identifies
-/// the license by its bound AUGEID number (no license key needed).
-#[derive(Debug, Clone)]
+/// Activation request as submitted by the desktop app. The license is
+/// identified by its plaintext license key (preferred); legacy clients may
+/// still identify it by the bound AUGEID number.
+#[derive(Debug, Clone, Default)]
 pub struct ActivateInput {
-    pub augeid: String,
+    pub license_key: Option<String>,
+    pub augeid: Option<String>,
     pub machine_id: String,
     pub public_key: String,
     pub os: Option<String>,
@@ -50,10 +52,12 @@ pub struct ActivationResponse {
     pub config: ActivationConfig,
 }
 
-/// Heartbeat request as submitted every 30 seconds.
-#[derive(Debug, Clone)]
+/// Heartbeat request as submitted every 30 seconds. Identified by license key
+/// (preferred) or legacy AUGEID.
+#[derive(Debug, Clone, Default)]
 pub struct HeartbeatInput {
-    pub augeid: String,
+    pub license_key: Option<String>,
+    pub augeid: Option<String>,
     pub uptime: i64,
     pub cpu: Option<i32>,
     pub ram: Option<i32>,
@@ -102,15 +106,37 @@ impl ValidatorService {
         }
     }
 
-    /// Activate a license on a machine, resolving the license by its bound AUGEID
-    /// number. Idempotent for the same machine: a re-activation refreshes system
-    /// info without resetting the lifecycle. A different machine or public key
-    /// is rejected (anti-cloning).
+    /// Resolve a license from an activation/heartbeat identifier: plaintext
+    /// license key when present, otherwise the legacy bound AUGEID number.
+    async fn resolve_license(
+        &self,
+        license_key: Option<&str>,
+        augeid: Option<&str>,
+    ) -> Result<License> {
+        let key = license_key.map(str::trim).filter(|k| !k.is_empty());
+        if let Some(key) = key {
+            return self.licenses.resolve(key).await;
+        }
+        let augeid = augeid.map(str::trim).filter(|a| !a.is_empty());
+        if let Some(augeid) = augeid {
+            return self.licenses.resolve_by_augeid(augeid).await;
+        }
+        Err(AppError::InvalidInput(
+            "license_key or augeid is required".into(),
+        ))
+    }
+
+    /// Activate a license on a machine, resolving the license by its plaintext
+    /// license key (or legacy AUGEID). Idempotent for the same machine: a
+    /// re-activation refreshes system info without resetting the lifecycle. A
+    /// different machine or public key is rejected (anti-cloning).
     pub async fn activate(&self, input: ActivateInput) -> Result<ActivationResponse> {
         validate_machine_id(&input.machine_id)?;
         validate_public_key(&input.public_key)?;
 
-        let license = self.licenses.resolve_by_augeid(&input.augeid).await?;
+        let license = self
+            .resolve_license(input.license_key.as_deref(), input.augeid.as_deref())
+            .await?;
         if self.licenses.status_of(&license) != LicenseStatus::Active {
             return Err(AppError::LicenseNotActive);
         }
@@ -147,7 +173,7 @@ impl ValidatorService {
                         license.id,
                         &input.machine_id,
                         &input.public_key,
-                        Some(&input.augeid),
+                        input.augeid.as_deref(),
                         input.ip.as_deref(),
                         "activation",
                     )
@@ -180,14 +206,17 @@ impl ValidatorService {
         })
     }
 
-    /// Record a heartbeat. The bound AUGEID number authenticates the call; the
-    /// reply tells the client whether it is still authorized to validate.
+    /// Record a heartbeat. The license key (or legacy AUGEID) authenticates the
+    /// call; the reply tells the client whether it is still authorized to
+    /// validate.
     pub async fn heartbeat(&self, input: HeartbeatInput) -> Result<HeartbeatResponse> {
         if input.uptime < 0 {
             return Err(AppError::InvalidInput("uptime must be non-negative".into()));
         }
 
-        let license = self.licenses.resolve_by_augeid(&input.augeid).await?;
+        let license = self
+            .resolve_license(input.license_key.as_deref(), input.augeid.as_deref())
+            .await?;
         let validator = self
             .repo
             .find_by_license_id(license.id)
@@ -217,9 +246,19 @@ impl ValidatorService {
         })
     }
 
-    /// Statistics for a license (by bound AUGEID), served to the wallet portal.
+    /// Statistics for a license (by plaintext key or legacy bound AUGEID),
+    /// served to the wallet portal and the desktop dashboard.
+    pub async fn stats_by_license_key(&self, key: &str) -> Result<ValidatorStats> {
+        let license = self.licenses.resolve(key).await?;
+        self.stats_for(license).await
+    }
+
     pub async fn stats_by_augeid(&self, augeid: &str) -> Result<ValidatorStats> {
         let license = self.licenses.resolve_by_augeid(augeid).await?;
+        self.stats_for(license).await
+    }
+
+    async fn stats_for(&self, license: License) -> Result<ValidatorStats> {
         let validator = self
             .repo
             .find_by_license_id(license.id)

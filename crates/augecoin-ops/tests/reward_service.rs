@@ -62,7 +62,8 @@ async fn activate_validator(ctx: &TestCtx, machine: u8, pubkey: u8) -> Uuid {
     let resp = ctx
         .svc
         .activate(ActivateInput {
-            augeid: "AUGE1".into(),
+            license_key: None,
+            augeid: Some("AUGE1".into()),
             machine_id: hex64(machine),
             public_key: hex64(pubkey),
             os: Some("linux".into()),

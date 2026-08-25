@@ -97,10 +97,10 @@ pub fn clear_state() -> Result<(), String> {
 // ── Activation ─────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn activate(augeid: String) -> Result<ActivationSummary, String> {
-    let aug = augeid.trim().to_string();
-    if aug.is_empty() {
-        return Err("AUGEID é obrigatório".into());
+pub async fn activate(license_key: String) -> Result<ActivationSummary, String> {
+    let key = license_key.trim().to_string();
+    if key.is_empty() {
+        return Err("Chave de licença é obrigatória".into());
     }
 
     // Generate the validator keypair on-device. The seed never leaves here.
@@ -113,7 +113,8 @@ pub async fn activate(augeid: String) -> Result<ActivationSummary, String> {
 
     let response = ops()
         .activate(&crate::ops::ActivatePayload {
-            augeid: &aug,
+            license_key: &key,
+            augeid: None,
             machine_id: &machine_id,
             public_key: &public_key_hex,
             os: Some(&os),
@@ -124,8 +125,8 @@ pub async fn activate(augeid: String) -> Result<ActivationSummary, String> {
         .await?;
 
     let state = SavedState {
-        license_key: String::new(),
-        augeid: Some(aug),
+        license_key: key,
+        augeid: None,
         public_key: public_key_hex,
         machine_id,
         activated_at: Some(chrono::Utc::now().to_rfc3339()),
@@ -272,7 +273,8 @@ fn start_heartbeat() {
             };
             let _ = ops()
                 .heartbeat(
-                    state.augeid.as_deref().unwrap_or(""),
+                    Some(state.license_key.as_str()),
+                    state.augeid.as_deref(),
                     uptime,
                     None,
                     None,
@@ -351,7 +353,9 @@ pub async fn get_dashboard() -> Result<DashboardData, String> {
         return Err("validador ainda não ativado".into());
     }
 
-    let stats = ops().stats(state.augeid.as_deref().unwrap_or("")).await?;
+    let stats = ops()
+        .stats(Some(state.license_key.as_str()), state.augeid.as_deref())
+        .await?;
     let node = query_node_status().await;
 
     Ok(DashboardData {

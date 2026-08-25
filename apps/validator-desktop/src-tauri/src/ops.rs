@@ -23,7 +23,9 @@ pub struct OpsClient {
 
 #[derive(Debug, Serialize)]
 pub struct ActivatePayload<'a> {
-    pub augeid: &'a str,
+    pub license_key: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub augeid: Option<&'a str>,
     pub machine_id: &'a str,
     pub public_key: &'a str,
     pub os: Option<&'a str>,
@@ -163,24 +165,37 @@ impl OpsClient {
         serde_json::from_str(&body).map_err(|e| format!("bad activate response: {e}"))
     }
 
+    /// Heartbeat identified by license key (preferred) or legacy AUGEID.
     pub async fn heartbeat(
         &self,
-        augeid: &str,
+        license_key: Option<&str>,
+        augeid: Option<&str>,
         uptime: i64,
         cpu: Option<i32>,
         ram: Option<i32>,
         block: Option<i64>,
     ) -> Result<bool, String> {
+        let mut payload = serde_json::Map::new();
+        if let Some(k) = license_key.filter(|k| !k.is_empty()) {
+            payload.insert("license_key".into(), serde_json::Value::String(k.into()));
+        }
+        if let Some(a) = augeid.filter(|a| !a.is_empty()) {
+            payload.insert("augeid".into(), serde_json::Value::String(a.into()));
+        }
+        payload.insert("uptime".into(), serde_json::Value::from(uptime));
+        if let Some(cpu) = cpu {
+            payload.insert("cpu".into(), serde_json::Value::from(cpu));
+        }
+        if let Some(ram) = ram {
+            payload.insert("ram".into(), serde_json::Value::from(ram));
+        }
+        if let Some(block) = block {
+            payload.insert("block".into(), serde_json::Value::from(block));
+        }
         let res = self
             .http
             .post(format!("{}/validator/heartbeat", self.base))
-            .json(&serde_json::json!({
-                "augeid": augeid,
-                "uptime": uptime,
-                "cpu": cpu,
-                "ram": ram,
-                "block": block,
-            }))
+            .json(&serde_json::Value::Object(payload))
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -199,11 +214,23 @@ impl OpsClient {
             .unwrap_or(false))
     }
 
-    pub async fn stats(&self, augeid: &str) -> Result<StatsResponse, String> {
+    /// Dashboard statistics, identified by license key (preferred) or legacy
+    /// AUGEID.
+    pub async fn stats(
+        &self,
+        license_key: Option<&str>,
+        augeid: Option<&str>,
+    ) -> Result<StatsResponse, String> {
+        let mut query = Vec::new();
+        if let Some(k) = license_key.filter(|k| !k.is_empty()) {
+            query.push(("license_key", k));
+        } else if let Some(a) = augeid.filter(|a| !a.is_empty()) {
+            query.push(("augeid", a));
+        }
         let res = self
             .http
             .get(format!("{}/validator/stats", self.base))
-            .query(&[("augeid", augeid)])
+            .query(&query)
             .send()
             .await
             .map_err(|e| e.to_string())?;

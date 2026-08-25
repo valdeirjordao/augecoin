@@ -106,7 +106,7 @@ export default function App() {
 
   useEffect(() => {
     invoke<SavedState>('get_state')
-      .then((s) => setState(s.augeid ? s : null))
+      .then((s) => setState(s.license_key || s.augeid ? s : null))
       .catch(() => setState(null))
       .finally(() => setLoading(false));
   }, []);
@@ -139,14 +139,14 @@ function Activation({
   error: string | null;
   setError: (v: string | null) => void;
 }) {
-  const [augeid, setAugeid] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
 
   const submit = useCallback(async () => {
     setError(null);
     setActivating(true);
     try {
       const summary = await invoke<ActivationSummary>('activate', {
-        augeid: augeid.trim(),
+        licenseKey: licenseKey.trim(),
       });
       onActivated(summary);
     } catch (e) {
@@ -154,7 +154,7 @@ function Activation({
     } finally {
       setActivating(false);
     }
-  }, [augeid, onActivated, setActivating, setError]);
+  }, [licenseKey, onActivated, setActivating, setError]);
 
   return (
     <div className="screen">
@@ -166,10 +166,20 @@ function Activation({
         {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="label">AUGEID</label>
-            <input className="input" value={augeid} onChange={(e) => setAugeid(e.target.value)} placeholder="número do seu AUGEID (ex.: 154650)" />
+            <label className="label">Chave de licença</label>
+            <input
+              className="input mono"
+              value={licenseKey}
+              onChange={(e) => setLicenseKey(e.target.value)}
+              placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+              maxLength={39 + 7}
+              style={{ textTransform: 'uppercase' }}
+            />
+            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              Informe a chave de 32 caracteres recebida na confirmação do pagamento.
+            </p>
           </div>
-          <button className="primary" disabled={activating || !augeid.trim()} onClick={submit}>
+          <button className="primary" disabled={activating || !licenseKey.trim()} onClick={submit}>
             {activating ? 'Ativando…' : 'Finalizar Ativação'}
           </button>
           {activating && (
@@ -270,7 +280,11 @@ function Dashboard({ state, onReset }: { state: SavedState; onReset: () => void 
 
       <div className="card">
         <h2>Licença</h2>
-        <div className="row"><span className="kv-k">AUGEID</span><span className="kv-v mono">{state.augeid || '—'}</span></div>
+        {state.license_key ? (
+          <div className="row"><span className="kv-k">Chave</span><span className="kv-v mono">{state.license_key.slice(0, 19)}…</span></div>
+        ) : (
+          <div className="row"><span className="kv-k">AUGEID</span><span className="kv-v mono">{state.augeid || '—'}</span></div>
+        )}
         <div className="row"><span className="kv-k">Chave pública</span><span className="kv-v mono">{state.public_key.slice(0, 24)}…</span></div>
         <div className="row"><span className="kv-k">Expiração</span><span className="kv-v">{v?.license_expires_at?.slice(0, 10) || '—'}</span></div>
         <div className="row"><span className="kv-k">Uptime</span><span className="kv-v">{node ? fmtUptime(node.uptime_seconds) : '—'}</span></div>

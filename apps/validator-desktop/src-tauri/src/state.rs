@@ -26,9 +26,11 @@ pub struct SavedState {
 }
 
 impl SavedState {
-    /// True when a license has been activated on this machine.
+    /// True when a license has been activated on this machine (license key for
+    /// current activations, AUGEID for legacy states).
     pub fn is_activated(&self) -> bool {
-        self.augeid.is_some() && !self.public_key.is_empty()
+        let has_identifier = !self.license_key.is_empty() || self.augeid.is_some();
+        has_identifier && !self.public_key.is_empty()
     }
 }
 

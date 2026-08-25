@@ -108,7 +108,26 @@ async fn setup(node: Option<NodeClient>) -> Option<TestCtx> {
 
 fn activate_input(augeid: &str, machine: u8, pubkey: u8) -> augecoin_ops::validator::ActivateInput {
     augecoin_ops::validator::ActivateInput {
-        augeid: augeid.to_string(),
+        license_key: None,
+        augeid: Some(augeid.to_string()),
+        machine_id: hex64(machine),
+        public_key: hex64(pubkey),
+        os: Some("linux".to_string()),
+        cpu: Some(32),
+        ram: Some(48),
+        version: Some("1.0.0".to_string()),
+        ip: Some("203.0.113.10".to_string()),
+    }
+}
+
+fn activate_by_key<'a>(
+    key: &'a str,
+    machine: u8,
+    pubkey: u8,
+) -> augecoin_ops::validator::ActivateInput {
+    augecoin_ops::validator::ActivateInput {
+        license_key: Some(key.to_string()),
+        augeid: None,
         machine_id: hex64(machine),
         public_key: hex64(pubkey),
         os: Some("linux".to_string()),
@@ -245,7 +264,8 @@ async fn heartbeat_updates_metrics_and_marks_online() {
     let hb = ctx
         .svc
         .heartbeat(augecoin_ops::validator::HeartbeatInput {
-            augeid: "AUGE123".to_string(),
+            license_key: None,
+            augeid: Some("AUGE123".to_string()),
             uptime: 86400,
             cpu: Some(32),
             ram: Some(48),
@@ -272,7 +292,8 @@ async fn heartbeat_with_unknown_license_is_rejected() {
     let err = ctx
         .svc
         .heartbeat(augecoin_ops::validator::HeartbeatInput {
-            augeid: "UNKNOWN".to_string(),
+            license_key: None,
+            augeid: Some("UNKNOWN".to_string()),
             uptime: 10,
             cpu: None,
             ram: None,
@@ -281,6 +302,47 @@ async fn heartbeat_with_unknown_license_is_rejected() {
         .await
         .unwrap_err();
     assert!(matches!(err, augecoin_ops::AppError::InvalidLicenseKey));
+}
+
+#[tokio::test]
+async fn activate_and_heartbeat_by_license_key() {
+    let Some(ctx) = setup(None).await else { return };
+    let issued = ctx
+        .licenses
+        .issue(Uuid::new_v4(), Plan::Annual, None)
+        .await
+        .unwrap();
+
+    // No AUGEID anywhere: the plaintext key alone resolves the license.
+    let resp = ctx
+        .svc
+        .activate(activate_by_key(&issued.license_key, 0x11, 0x22))
+        .await
+        .unwrap();
+    assert_eq!(resp.validator.status, ValidatorStatus::Pending);
+    assert_eq!(resp.validator.augeid, None);
+
+    let hb = ctx
+        .svc
+        .heartbeat(augecoin_ops::validator::HeartbeatInput {
+            license_key: Some(issued.license_key.clone()),
+            augeid: None,
+            uptime: 120,
+            cpu: None,
+            ram: None,
+            block: Some(42),
+        })
+        .await
+        .unwrap();
+    assert!(hb.authorized);
+
+    let stats = ctx
+        .svc
+        .stats_by_license_key(&issued.license_key)
+        .await
+        .unwrap();
+    assert!(stats.validator.online);
+    assert_eq!(stats.validator.blocks, 42);
 }
 
 #[tokio::test]
