@@ -24,10 +24,7 @@ fn period_condition(period: &str) -> &'static str {
 }
 
 /// Build the 24-column aggregate SELECT (5 buckets × 4 metrics + total).
-///
-/// `table` is the ledger to read (`validator_rewards` for per-validator
-/// attribution, `network_rewards` for chain-wide emission).
-fn aggregate_select(table: &str, where_clause: &str) -> String {
+fn aggregate_select(where_clause: &str) -> String {
     let mut cols: Vec<String> = Vec::with_capacity(24);
     for p in PERIODS {
         let cond = period_condition(p);
@@ -48,7 +45,10 @@ fn aggregate_select(table: &str, where_clause: &str) -> String {
     cols.push("COALESCE(SUM(augeids), 0)::bigint AS total_augeids".into());
     cols.push("COALESCE(SUM(fees), 0)::bigint AS total_fees".into());
     cols.push("COALESCE(COUNT(*), 0)::bigint AS total_blocks".into());
-    format!("SELECT {} FROM {table} {where_clause}", cols.join(", "))
+    format!(
+        "SELECT {} FROM validator_rewards {where_clause}",
+        cols.join(", ")
+    )
 }
 
 #[derive(sqlx::FromRow)]
@@ -156,38 +156,9 @@ impl RewardRepo {
         Ok(result.rows_affected() == 1)
     }
 
-    /// Append a network-wide reward row for a single block. Records the block
-    /// regardless of who led it, so chain-wide emission is always complete.
-    /// Idempotent: re-syncing an already-processed block is a no-op.
-    pub async fn insert_network(
-        &self,
-        block_number: i64,
-        auge: i64,
-        fees: i64,
-        augeids: i64,
-        block_ts: chrono::DateTime<chrono::Utc>,
-    ) -> Result<bool> {
-        let result = sqlx::query(
-            r#"
-            INSERT INTO network_rewards
-                (block_number, auge, fees, augeids, block_ts)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (block_number) DO NOTHING
-            "#,
-        )
-        .bind(block_number)
-        .bind(auge)
-        .bind(fees)
-        .bind(augeids)
-        .bind(block_ts)
-        .execute(&self.pool)
-        .await?;
-        Ok(result.rows_affected() == 1)
-    }
-
     /// Period-bucketed summary for a single validator.
     pub async fn summarize(&self, validator_id: uuid::Uuid) -> Result<RewardSummary> {
-        let sql = aggregate_select("validator_rewards", "WHERE validator_id = $1");
+        let sql = aggregate_select("WHERE validator_id = $1");
         let row: SummaryRow = sqlx::query_as(&sql)
             .bind(validator_id)
             .fetch_one(&self.pool)
@@ -196,12 +167,8 @@ impl RewardRepo {
     }
 
     /// Period-bucketed summary across the whole network (operational KPIs).
-    ///
-    /// Reads `network_rewards`, which records *every* block produced on-chain
-    /// (including blocks led by genesis / non-SaaS validators), so the totals
-    /// match the chain's real emission rather than only SaaS-enrolled leaders.
     pub async fn network_summary(&self) -> Result<RewardSummary> {
-        let sql = aggregate_select("network_rewards", "");
+        let sql = aggregate_select("");
         let row: SummaryRow = sqlx::query_as(&sql).fetch_one(&self.pool).await?;
         Ok(row.into_summary())
     }

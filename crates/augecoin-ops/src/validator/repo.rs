@@ -294,29 +294,6 @@ impl ValidatorRepo {
         row.ok_or(AppError::NotFound)?.into_validator()
     }
 
-    /// Increment a validator's mirrored on-chain production counters as a block
-    /// it led is attributed by the reward sync. Also refreshes `last_seen` so the
-    /// validator derives as online from its chain activity.
-    pub async fn record_production(&self, id: Uuid, auge_augesat: i64) -> Result<Validator> {
-        let row: Option<ValidatorRow> = sqlx::query_as(
-            r#"
-            UPDATE validators
-            SET blocks = blocks + 1,
-                leadership = leadership + 1,
-                total_rewards = total_rewards + $1,
-                last_seen = now(),
-                updated_at = now()
-            WHERE id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(auge_augesat)
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
-        row.ok_or(AppError::NotFound)?.into_validator()
-    }
-
     /// Refresh the reported system profile (os/cpu/ram/version) on re-activation.
     pub async fn update_system(
         &self,
