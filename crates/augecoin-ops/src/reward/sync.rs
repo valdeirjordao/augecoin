@@ -31,6 +31,7 @@ const CURSOR_KEY: &str = "reward_last_block";
 pub struct SyncReport {
     pub processed: u64,
     pub attributed: u64,
+    pub network: u64,
     pub skipped: u64,
     pub tip: u64,
 }
@@ -70,7 +71,10 @@ impl RewardSync {
             });
         }
 
-        let start = cursor + 1;
+        // Blocks are 1-indexed on this chain; block 0 does not exist. Starting
+        // at 0 would make every tick fail permanently (see historical bug), so
+        // clamp the cursor to at least 1.
+        let start = (cursor + 1).max(1);
         let end = (start + max_blocks as i64 - 1).min(tip as i64);
 
         let mut report = SyncReport {
@@ -79,11 +83,43 @@ impl RewardSync {
         };
 
         for height in start..=end {
-            let block = self.node.get_block(height as u64).await?;
+            // A block may be temporarily unavailable (node still syncing, pruned
+            // history, etc.). Skip it but always advance the cursor so a single
+            // missing block can never wedge the whole sync.
+            let block = match self.node.get_block(height as u64).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::warn!(height, error = %e, "reward sync: block unavailable, skipping");
+                    report.skipped += 1;
+                    report.processed += 1;
+                    self.write_cursor(height).await?;
+                    continue;
+                }
+            };
             let auge = block.reward.saturating_add(block.fee) as i64;
             let block_ts =
                 DateTime::<Utc>::from_timestamp(block.timestamp as i64, 0).unwrap_or_else(Utc::now);
 
+            // Record the block in the chain-wide ledger unconditionally, so the
+            // network emission total is always 100% complete — regardless of
+            // whether the leader is enrolled in the SaaS (genesis validators,
+            // external validators, etc.).
+            if self
+                .rewards
+                .insert_network(
+                    height,
+                    auge,
+                    block.fee as i64,
+                    AUGEIDS_PER_BLOCK as i64,
+                    block_ts,
+                )
+                .await?
+            {
+                report.network += 1;
+            }
+
+            // Also attribute the block to a SaaS-enrolled validator when the
+            // leader is one, for per-validator reward views.
             match self
                 .validators
                 .find_by_node_id(block.leader_id as i64)
@@ -104,10 +140,14 @@ impl RewardSync {
                         .await?;
                     if inserted {
                         report.attributed += 1;
+                        // Keep the validator's mirrored counters in sync with the
+                        // chain: each attributed block is one it led.
+                        let _ = self.validators.record_production(validator.id, auge).await;
                     }
                 }
-                // A leader not present in the SaaS (e.g. genesis validators)
-                // has no row to attribute; it is skipped, not an error.
+                // A leader not present in the SaaS has no row to attribute; it is
+                // skipped for the per-validator ledger (already counted above in
+                // the network ledger), not an error.
                 None => report.skipped += 1,
             }
 

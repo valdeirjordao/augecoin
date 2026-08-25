@@ -16,6 +16,7 @@ pub enum Plan {
     Monthly,
     Semiannual,
     Annual,
+    Lifetime,
 }
 
 impl Plan {
@@ -24,6 +25,7 @@ impl Plan {
             Plan::Monthly => "monthly",
             Plan::Semiannual => "semiannual",
             Plan::Annual => "annual",
+            Plan::Lifetime => "lifetime",
         }
     }
 
@@ -33,6 +35,8 @@ impl Plan {
             Plan::Monthly => 30,
             Plan::Semiannual => 180,
             Plan::Annual => 365,
+            // Effectively never expires; used for permanent/genesis operators.
+            Plan::Lifetime => 36500,
         }
     }
 }
@@ -45,6 +49,7 @@ impl FromStr for Plan {
             "monthly" => Ok(Plan::Monthly),
             "semiannual" => Ok(Plan::Semiannual),
             "annual" => Ok(Plan::Annual),
+            "lifetime" => Ok(Plan::Lifetime),
             _ => Err(AppError::InvalidInput(format!("unknown plan: {s}"))),
         }
     }

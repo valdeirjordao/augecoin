@@ -123,8 +123,18 @@ pub async fn activate(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<ActivateRequest>,
 ) -> Result<(StatusCode, Json<Value>)> {
-    if body.license_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).is_none()
-        && body.augeid.as_deref().map(str::trim).filter(|a| !a.is_empty()).is_none()
+    if body
+        .license_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .is_none()
+        && body
+            .augeid
+            .as_deref()
+            .map(str::trim)
+            .filter(|a| !a.is_empty())
+            .is_none()
     {
         return Err(AppError::InvalidInput(
             "license_key or augeid is required".into(),
@@ -185,12 +195,24 @@ pub async fn validator_stats(
     State(state): State<AppState>,
     Query(query): Query<StatsQuery>,
 ) -> Result<Json<Value>> {
-    let stats = if query.license_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).is_some() {
+    let stats = if query
+        .license_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .is_some()
+    {
         state
             .validators
             .stats_by_license_key(query.license_key.as_deref().unwrap_or_default())
             .await?
-    } else if query.augeid.as_deref().map(str::trim).filter(|a| !a.is_empty()).is_some() {
+    } else if query
+        .augeid
+        .as_deref()
+        .map(str::trim)
+        .filter(|a| !a.is_empty())
+        .is_some()
+    {
         state
             .validators
             .stats_by_augeid(query.augeid.as_deref().unwrap_or_default())
