@@ -1,0 +1,32 @@
+══════════════════════════════════════════
+       AUGECOIN NODE - Validator #0     
+══════════════════════════════════════════
+ Data dir:    /tmp/augecoin-node-0        
+ Chain ID:    2                           
+ RPC:         0.0.0.0:9005                   
+ Wallet:      0.0.0.0:8081                   
+ Metrics:     0.0.0.0:9100                   
+ P2P LibP2P:  0.0.0.0:9200                   
+ Block time:  60s                         
+══════════════════════════════════════════
+
+[init] opening RocksDB at /tmp/augecoin-node-0
+[init] storing genesis validator set
+[init] current block height: 0
+[init] validators: 1
+[init]   validator #0: ed25519=2833361084c028f6...
+[wallet] static file server listening on 0.0.0.0:8081
+[metrics] listening on 0.0.0.0:9100
+[network] gossipsub max_transmit_size=1048576
+[network] LibP2P consensus transport initialized on port 9200
+[network] LibP2P consensus network listening on port 9200
+[network] local peer_id: 12D3KooWCXHmWLCT88znthQPc6KfNSQ4rww9JzLuQzJaG1ApsVRd
+[network] external address configured: /ip4/127.0.0.1/tcp/9200
+WARNING: AUGECOIN_TLS_CERT/AUGECOIN_TLS_KEY not set; using self-signed certificate. Configure real TLS certs for production.
+[network] kademlia bootstrap skipped: NoKnownPeers
+[network] listening on /ip4/127.0.0.1/tcp/9200
+[network] listening on /ip4/184.174.36.240/tcp/9200
+[rpc] JSON-RPC over TLS listening on 0.0.0.0:9005
+[rpc] WARNING: no AUGECOIN_ADMIN_API_KEYS set; admin methods (validatorAdd/Remove/Activate/Deactivate) are blocked
+[faucet] disabled (start with --enable-faucet to enable)
+[consensus] waiting for peer discovery...

@@ -1,0 +1,24 @@
+
+> @augecoin/sdk@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /opt/augecoin/packages/sdk-ts
+
+(node:728558) ExperimentalWarning: Importing WebAssembly module instances is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:728552) ExperimentalWarning: Importing WebAssembly module instances is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:728550) ExperimentalWarning: Importing WebAssembly module instances is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/utils.test.ts (20 tests) 56ms
+ ✓ tests/transaction.test.ts (7 tests) 97ms
+ ✓ tests/wallet.test.ts (7 tests) 99ms
+ ✓ tests/address.test.ts (4 tests) 28ms
+ ✓ tests/hdkeys_parity.test.ts (8 tests) 116ms
+
+ Test Files  5 passed (5)
+      Tests  46 passed (46)
+   Start at  02:10:33
+   Duration  1.98s (transform 1.06s, setup 0ms, collect 1.74s, tests 395ms, environment 2ms, prepare 1.94s)
+

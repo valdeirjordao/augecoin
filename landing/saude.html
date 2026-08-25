@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AUGECOIN - Saude da rede</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 1100px; margin: 0 auto; padding: 24px; background: #0b0f14; color: #e6edf3; }
+    h1 { color: #ffa057; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .card { padding: 16px; border: 1px solid #243140; border-radius: 12px; background: #151c26; }
+    .label { color: #8b98a5; font-size: 12px; text-transform: uppercase; }
+    .value { margin-top: 6px; font-size: 28px; font-weight: 700; }
+    #status { margin: 12px 0; color: #34d399; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { padding: 9px; border-bottom: 1px solid #243140; text-align: left; }
+    @media (max-width: 600px) { body { padding: 14px; } }
+  </style>
+</head>
+<body>
+  <h1>AUGECOIN - Saude da rede</h1>
+  <div id="status">Carregando...</div>
+  <section class="grid">
+    <div class="card"><div class="label">Altura</div><div class="value" id="height">-</div></div>
+    <div class="card"><div class="label">TPS</div><div class="value" id="tps">-</div></div>
+    <div class="card"><div class="label">Tx admitidas</div><div class="value" id="admitted">-</div></div>
+    <div class="card"><div class="label">Blocos do teste</div><div class="value" id="blocks">-</div></div>
+  </section>
+  <table><thead><tr><th>Validador</th><th>Altura</th><th>Peers</th><th>MemPool</th><th>TPS</th></tr></thead><tbody id="validators"></tbody></table>
+  <script>
+    const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+    async function refresh() {
+      try {
+        const data = await fetch('/saude-api/status', { cache: 'no-store' }).then((r) => r.json());
+        const stress = data.stress || {};
+        document.querySelector('#status').textContent = stress.running ? 'Teste em execução' : 'Rede operacional';
+        document.querySelector('#height').textContent = fmt(data.chain_height);
+        document.querySelector('#tps').textContent = fmt(data.transactions_per_second);
+        document.querySelector('#admitted').textContent = fmt(stress.total_admitted);
+        document.querySelector('#blocks').textContent = `${fmt(stress.blocks_done)} / ${fmt(stress.blocks_total)}`;
+        document.querySelector('#validators').innerHTML = (data.validators || []).map((v) => `<tr><td>v${v.id}</td><td>${fmt(v.height)}</td><td>${fmt(v.peers)}</td><td>${fmt(v.mempool_size)}</td><td>${fmt(v.transactions_per_second)}</td></tr>`).join('');
+      } catch (error) { document.querySelector('#status').textContent = `Falha ao carregar: ${error.message}`; }
+    }
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

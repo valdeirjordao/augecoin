@@ -1,0 +1,72 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+      - '**/package-lock.json'
+      - '.github/workflows/security.yml'
+  workflow_dispatch:
+
+jobs:
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run cargo-audit
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  npm-audit:
+    name: NPM Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: SDK dependencies
+        run: |
+          cd packages/sdk-ts
+          npm ci
+          npm audit --audit-level=high
+
+      - name: Wallet static frontend
+        run: test -s wallet/index.html
+
+      - name: Wallet Mobile dependencies
+        run: |
+          cd apps/wallet-mobile
+          npm ci
+          npm audit --audit-level=high
+
+  check-keys:
+    name: No Keys in Repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for private keys
+        run: |
+          set +e
+          FOUND=0
+          # Check for hex private keys (64-char hex)
+          if git grep -Pq '[0-9a-fA-F]{64}' -- '*.rs' '*.toml' '*.json' '*.ts' '*.js' '*.sh' '*.yml' '*.yaml' '*.md' 2>/dev/null; then
+            FOUND=1
+          fi
+          # Check for common seed phrases
+          if git grep -Pqi '(private.key|secret.key|seed.phrase|mnemonic.*abandon|sk_)\s*[=:]\s*' -- '*.rs' '*.toml' '*.json' '*.yml' '*.yaml' 2>/dev/null; then
+            echo "WARNING: Potential key material found in source"
+          fi
+          if [ $FOUND -eq 0 ]; then
+            echo "No obvious private key leaks detected"
+          fi

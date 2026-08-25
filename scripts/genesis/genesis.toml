@@ -1,0 +1,59 @@
+# AUGECOIN Genesis Parameters
+# All values comply with SPEC.md section 3.
+
+[network]
+chain_id = "augecoin-testnet-1"
+block_time_seconds = 15
+timeout_seconds = 30
+
+[emission]
+total_supply_auge = 762_120_000
+total_supply_augesat = 76_212_000_000_000_000
+reward_per_block_auge = 7.25
+emission_years = 50
+blocks_per_year = 2_102_400
+total_emission_blocks = 105_120_000
+decimals = 8
+emission_model = "linear"
+halving = "none"
+premine = "none"
+developer_reward_percent = 0
+validator_reward_percent = 100
+fee_distribution = "100_percent_validator"
+
+[consensus]
+initial_validators = 4
+quorum_formula = "2/3+1"
+leader_selection = "round_robin"
+
+# Genesis: first 4 validator identities.
+# Each validator has an Ed25519 + ML-DSA-65 keypair derived from a deterministic seed.
+# Admin key controls validator set changes (single-key per ADR).
+[[validators]]
+id = 1
+seed = "genesis-validator-1-key-seed-00000000000000000000000000000000000000000000000000000000000000"
+name = "genesis-validator-1"
+bootnode = true
+
+[[validators]]
+id = 2
+seed = "genesis-validator-2-key-seed-00000000000000000000000000000000000000000000000000000000000000"
+name = "genesis-validator-2"
+bootnode = true
+
+[[validators]]
+id = 3
+seed = "genesis-validator-3-key-seed-00000000000000000000000000000000000000000000000000000000000000"
+name = "genesis-validator-3"
+bootnode = true
+
+[[validators]]
+id = 4
+seed = "genesis-validator-4-key-seed-00000000000000000000000000000000000000000000000000000000000000"
+name = "genesis-validator-4"
+bootnode = true
+
+# Admin key: single-key authority for validator set management
+[admin]
+mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+key_index = 0

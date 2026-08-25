@@ -1,0 +1,14 @@
+{
+  "commit": "unknown",
+  "version": "unknown",
+  "graphify": "graphify-data-present",
+  "rust": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "generated": "2026-08-19T13:26:12.699753+00:00",
+  "stats": {
+    "nodes": 3713,
+    "edges": 8310,
+    "communities": 217,
+    "extracted_pct": 99
+  },
+  "chapters": 14
+}

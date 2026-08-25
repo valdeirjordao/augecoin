@@ -1,0 +1,32 @@
+/* AUGECOIN Explorer — dashboard-specific styles & animations. */
+
+/* Animated counters (numbers count up on first render). */
+.stat-value, .hero-stat span, .balance-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fade + slide entrance for cards & sections. */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.grid-stats .stat-card { animation: fadeUp 0.4s ease both; }
+.grid-stats .stat-card:nth-child(1) { animation-delay: 0.02s; }
+.grid-stats .stat-card:nth-child(2) { animation-delay: 0.08s; }
+.grid-stats .stat-card:nth-child(3) { animation-delay: 0.14s; }
+.grid-stats .stat-card:nth-child(4) { animation-delay: 0.2s; }
+
+.section { animation: fadeUp 0.4s ease both; }
+
+/* Glow pulse on the primary accent for the hero title. */
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 24px rgba(249,115,22,0.25); }
+  50% { text-shadow: 0 0 40px rgba(249,115,22,0.45); }
+}
+.hero h1 .text-accent { animation: glow 3.5s ease-in-out infinite; }
+
+/* Live indicator dot for realtime sections. */
+.live-indicator { display: inline-flex; align-items: center; gap: 6px; color: var(--color-success); font-size: 0.75rem; font-weight: 600; }
+.live-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); animation: blink 1.6s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }

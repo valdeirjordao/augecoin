@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise — Emission, Constants & Execution (AugeCoin)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --type: #ffa657;
+    --func: #d2a8ff;
+    --number: #79c0ff;
+    --comment: #8b949e;
+    --macro: #7ee787;
+    --attr: #79c0ff;
+    --lifetime: #79c0ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    position: sticky;
+    top: 0; z-index: 10;
+  }
+  header h1 { color: var(--accent); font-size: 1.3rem; }
+  header p { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
+
+  main { max-width: 1300px; margin: 0 auto; padding: 24px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--surface); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-color: var(--border);
+    border-bottom-color: var(--bg);
+    background: var(--bg);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Info card */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card h3 {
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .path {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    word-break: break-all;
+  }
+  .card table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .card td { padding: 4px 8px; font-size: 0.85rem; }
+  .card td:first-child { color: var(--text-muted); width: 1px; white-space: nowrap; }
+  .card td:last-child { font-family: monospace; }
+
+  /* Code */
+  .code-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #0d1117;
+    border-bottom: 1px solid var(--border);
+  }
+  .code-header span { font-size: 0.8rem; color: var(--text-muted); }
+  .code-header .line-count { color: var(--accent); }
+
+  pre {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    counter-reset: line;
+  }
+  code { display: block; }
+  .line {
+    display: block;
+    counter-increment: line;
+    white-space: pre;
+  }
+  .line::before {
+    content: counter(line);
+    display: inline-block;
+    width: 42px;
+    text-align: right;
+    margin-right: 16px;
+    color: var(--text-muted);
+    opacity: 0.4;
+    font-size: 0.78rem;
+    user-select: none;
+  }
+
+  /* Syntax */
+  .kw { color: var(--keyword); }
+  .ty { color: var(--type); }
+  .fn { color: var(--func); }
+  .st { color: var(--string); }
+  .nu { color: var(--number); }
+  .cm { color: var(--comment); font-style: italic; }
+  .mc { color: var(--macro); }
+  .at { color: var(--attr); }
+  .lt { color: var(--lifetime); }
+
+  /* Legend */
+  .legend {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 0.78rem;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Call graph */
+  .call-graph {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+  }
+  .call-graph h3 { color: var(--accent); margin-bottom: 12px; }
+  .flow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 0.9rem; }
+  .node {
+    background: #1c2533;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: monospace;
+    font-weight: 600;
+  }
+  .arrow { color: var(--accent); font-size: 1.2rem; }
+  .node.emission { border-color: #d2a8ff; color: var(--func); }
+  .node.constants { border-color: #ffa657; color: var(--type); }
+  .node.execution { border-color: #58a6ff; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Análise de Emissão Monetária — AugeCoin</h1>
+  <p>
+    constants.rs ·
+    emission.rs ·
+    execution.rs (execute_block)
+  </p>
+</header>
+
+<main>
+
+<!-- Summary Cards -->
+<div class="info-grid">
+  <div class="card">
+    <h3>📄 constants.rs</h3>
+    <div class="path">crates/augecoin-core/src/constants.rs</div>
+    <table>
+      <tr><td>CT_FIRST_REWARD_AUGESAT</td><td>100.000.000 (1 AUGE)</td></tr>
+      <tr><td>CT_MIN_REWARD_AUGESAT</td><td>10.000.000 (0,1 AUGE)</td></tr>
+      <tr><td>CT_NEW_LINE_REWARD_DECREASE</td><td>210.240 blocos (~146 dias)</td></tr>
+      <tr><td>CT_DEVELOPER_REWARD_PERCENT</td><td>20%</td></tr>
+      <tr><td>ONE_AUGE</td><td>100.000.000 augesat</td></tr>
+      <tr><td>TOTAL_SUPPLY_AUGE</td><td>750.000.000</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>⚙️ emission.rs</h3>
+    <div class="path">crates/augecoin-core/src/emission.rs</div>
+    <table>
+      <tr><td>block_reward()</td><td>Recompensa por bloco (halving)</td></tr>
+      <tr><td>developer_reward()</td><td>20% da recompensa</td></tr>
+      <tr><td>developer_leader_reward()</td><td>80% da recompensa</td></tr>
+      <tr><td>developer_account_for_block()</td><td>Rotação entre devs (0..4)</td></tr>
+      <tr><td>TOTAL_SUPPLY_AUGESAT</td><td>75.000.000.000.000.000</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🔗 execution.rs (execute_block)</h3>
+    <div class="path">crates/augecoin-node/src/execution.rs</div>
+    <table>
+      <tr><td>Fase 1</td><td>Verificação paralela de assinaturas</td></tr>
+      <tr><td>Fase 2</td><td>Execução sequencial das operações</td></tr>
+      <tr><td>Fase 3</td><td>Distribui reward + fees</td></tr>
+      <tr><td>Fase 4</td><td>Cria CT_ACCOUNTS_PER_BLOCK novas contas</td></tr>
+      <tr><td>Fase 5</td><td>Compute SafeBox hash</td></tr>
+      <tr><td>Fase 6</td><td>Commit atômico</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('constants')">constants.rs</button>
+  <button class="tab-btn" onclick="switchTab('emission')">emission.rs</button>
+  <button class="tab-btn" onclick="switchTab('execution')">execution.rs</button>
+</div>
+
+<!-- constants.rs -->
+<div class="tab-panel active" id="tab-constants">
+  <div class="code-container">
+    <div class="code-header">
+      <span>crates/augecoin-core/src/constants.rs</span>
+      <span class="line-count">45 linhas</span>
+    </div>
+    <pre><code>const DECIMALS: u8 = 8;
+const ONE_AUGE: u64 = 100_000_000;
+
+const MINER_FEE_PER_OPERATION: u64 = 0;
+
+const CT_ACCOUNTS_PER_BLOCK: u64 = 5;
+const CT_MAX_ACCOUNT_DATA: usize = 32;
+
+const CT_MAX_BLOCK_PAYLOAD: usize = 255;
+const CT_MAX_OPERATION_PAYLOAD: usize = 255;
+const CT_MAX_MULTI_OPERATION_SENDERS: usize = 100;
+const CT_MAX_MULTI_OPERATION_RECEIVERS: usize = 1000;
+const CT_MAX_MULTI_OPERATION_CHANGERS: usize = 100;
+
+const CT_FIRST_REWARD_AUGESAT: u64 = 100_000_000;    // 1 AUGE
+const CT_MIN_REWARD_AUGESAT: u64 = 10_000_000;       // 0,1 AUGE
+const CT_NEW_LINE_REWARD_DECREASE: u64 = 210_240;     // ~146 dias
+
+const CT_DEVELOPER_ACCOUNT_START: u64 = 0;
+const CT_DEVELOPER_ACCOUNT_COUNT: u64 = 5;
+const CT_DEVELOPER_REWARD_PERCENT: u64 = 20;
+
+const CT_BUILD_PROTOCOL: u16 = 5;
+const CT_MAX_PROTOCOL: u16 = 6;
+
+const CT_PROTOCOL_2_ACTIVATION: u64 = 0;
+const CT_PROTOCOL_3_ACTIVATION: u64 = 0;
+const CT_PROTOCOL_4_ACTIVATION: u64 = 0;
+const CT_PROTOCOL_5_ACTIVATION: u64 = 0;
+const CT_PROTOCOL_6_ACTIVATION: u64 = u64::MAX;
+
+const CT_NET_PROTOCOL_VERSION: u16 = 14;
+const CT_NET_PROTOCOL_AVAILABLE: u16 = 15;
+
+const CT_DEFAULT_P2P_PORT: u16 = 4004;
+const CT_DEFAULT_JSON_RPC_PORT: u16 = 4003;
+const CT_DEFAULT_MINER_RPC_PORT: u16 = 4009;
+
+const CT_BLOCK_TIME_SECONDS: u64 = 60;
+const CT_MAX_FUTURE_BLOCK_TIMESTAMP_SECONDS: u64 = 300;
+const CT_NEW_LINE_SECONDS_AVG: u64 = 60;
+
+const CT_MAX_SENDERS_PER_OPERATION: usize = 100;
+const CT_MAX_RECEIVERS_PER_OPERATION: usize = 1000;
+const CT_MAX_CHANGERS_PER_OPERATION: usize = 100;</code></pre>
+  </div>
+</div>
+
+<!-- emission.rs -->
+<div class="tab-panel" id="tab-emission">
+  <div class="code-container">
+    <div class="code-header">
+      <span>crates/augecoin-core/src/emission.rs</span>
+      <span class="line-count">104 linhas</span>
+    </div>
+<pre><code><span class="line cm">// ===============================</span>
+<span class="line cm">//        EMISSION (EMISSÃO)</span>
+<span class="line cm">// ===============================</span>
+
+<span class="line kw">use</span> crate::constants::{
+    CT_FIRST_REWARD_AUGESAT, CT_MIN_REWARD_AUGESAT, CT_NEW_LINE_REWARD_DECREASE,
+    CT_DEVELOPER_ACCOUNT_START, CT_DEVELOPER_ACCOUNT_COUNT, CT_DEVELOPER_REWARD_PERCENT,
+};
+<span class="line kw">use</span> crate::constants::ONE_AUGE;
+
+<span class="line kw">pub const</span> TOTAL_SUPPLY_AUGE: <span class="ty">u64</span> = <span class="nu">750_000_000</span>;
+<span class="line kw">pub const</span> TOTAL_SUPPLY_AUGESAT: <span class="ty">u64</span> = TOTAL_SUPPLY_AUGE.saturating_mul(ONE_AUGE);
+<span class="line cm">                             // = 75.000.000.000.000.000</span>
+
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line cm">//  block_reward — recompensa com halving exponencial</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line kw">pub fn</span> <span class="fn">block_reward</span>(block_number: <span class="ty">u64</span>) -> <span class="ty">u64</span> {
+    <span class="line kw">if</span> block_number == <span class="nu">0</span> {
+        <span class="line kw">return</span> CT_FIRST_REWARD_AUGESAT;             <span class="cm">// bloco gênesis</span>
+    }
+
+    <span class="line kw">let</span> halvings = block_number / CT_NEW_LINE_REWARD_DECREASE;  <span class="cm">// a cada 210.240 blocos</span>
+    <span class="line kw">let mut</span> reward = CT_FIRST_REWARD_AUGESAT;
+    <span class="line kw">for</span> _ <span class="line kw">in</span> <span class="nu">0</span>..halvings {
+        reward /= <span class="nu">2</span>;
+        <span class="line kw">if</span> reward &lt; CT_MIN_REWARD_AUGESAT {
+            <span class="line kw">return</span> CT_MIN_REWARD_AUGESAT;              <span class="cm">// piso: 0,1 AUGE</span>
+        }
+    }
+    <span class="line kw">if</span> reward &lt; CT_MIN_REWARD_AUGESAT {
+        CT_MIN_REWARD_AUGESAT
+    } <span class="line kw">else</span> {
+        reward
+    }
+}
+
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line cm">//  developer_reward — 20% da recompensa por bloco</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line kw">pub fn</span> <span class="fn">developer_reward</span>(reward: <span class="ty">u64</span>) -> <span class="ty">u64</span> {
+    reward.saturating_mul(CT_DEVELOPER_REWARD_PERCENT) / <span class="nu">100</span>
+}
+
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line cm">//  developer_leader_reward — 80% para o líder (miner)</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line kw">pub fn</span> <span class="fn">developer_leader_reward</span>(reward: <span class="ty">u64</span>) -> <span class="ty">u64</span> {
+    reward.saturating_sub(developer_reward(reward))
+}
+
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line cm">//  developer_account_for_block — rotação entre devs</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line kw">pub fn</span> <span class="fn">developer_account_for_block</span>(block_number: <span class="ty">u64</span>) -> <span class="ty">u64</span> {
+    <span class="line kw">if</span> CT_DEVELOPER_ACCOUNT_COUNT == <span class="nu">0</span> { <span class="line kw">return</span> <span class="nu">0</span>; }
+    CT_DEVELOPER_ACCOUNT_START + (block_number % CT_DEVELOPER_ACCOUNT_COUNT)
+}
+
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line cm">//  TESTES</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════</span>
+<span class="line at">#[cfg(test)]</span>
+<span class="line kw">mod</span> tests {
+    <span class="line kw">use super</span>::*;
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">genesis_block_reward</span>() {
+        <span class="line mc">assert_eq!</span>(block_reward(<span class="nu">0</span>), CT_FIRST_REWARD_AUGESAT);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">first_block_reward</span>() {
+        <span class="line mc">assert_eq!</span>(block_reward(<span class="nu">1</span>), CT_FIRST_REWARD_AUGESAT);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">before_first_halving</span>() {
+        <span class="line kw">for</span> h <span class="line kw">in</span> [<span class="nu">1</span>, <span class="nu">100</span>, <span class="nu">1000</span>, <span class="nu">100000</span>, CT_NEW_LINE_REWARD_DECREASE - <span class="nu">1</span>] {
+            <span class="line mc">assert_eq!</span>(block_reward(h), CT_FIRST_REWARD_AUGESAT);
+        }
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">after_first_halving</span>() {
+        <span class="line kw">let</span> halving_block = CT_NEW_LINE_REWARD_DECREASE;
+        <span class="line kw">let</span> expected = CT_FIRST_REWARD_AUGESAT / <span class="nu">2</span>;
+        <span class="line mc">assert_eq!</span>(block_reward(halving_block), expected);
+        <span class="line mc">assert_eq!</span>(block_reward(halving_block + <span class="nu">1</span>), expected);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">after_second_halving</span>() {
+        <span class="line kw">let</span> h = CT_NEW_LINE_REWARD_DECREASE * <span class="nu">2</span>;
+        <span class="line mc">assert_eq!</span>(block_reward(h), CT_FIRST_REWARD_AUGESAT / <span class="nu">4</span>);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">bottoms_out_at_min_reward</span>() {
+        <span class="line kw">let</span> far = CT_NEW_LINE_REWARD_DECREASE * <span class="nu">100</span>;
+        <span class="line mc">assert_eq!</span>(block_reward(far), CT_MIN_REWARD_AUGESAT);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">developer_reward_is_20_percent</span>() {
+        <span class="line kw">let</span> reward = <span class="nu">100_000</span>;
+        <span class="line kw">let</span> dev = developer_reward(reward);
+        <span class="line kw">let</span> leader = developer_leader_reward(reward);
+        <span class="line mc">assert_eq!</span>(dev, <span class="nu">20_000</span>);
+        <span class="line mc">assert_eq!</span>(leader, <span class="nu">80_000</span>);
+        <span class="line mc">assert_eq!</span>(dev + leader, reward);
+    }
+
+    <span class="line at">#[test]</span>
+    <span class="line kw">fn</span> <span class="fn">developer_account_rotation</span>() {
+        <span class="line kw">let</span> dev_count = CT_DEVELOPER_ACCOUNT_COUNT;
+        <span class="line kw">for</span> i <span class="line kw">in</span> <span class="nu">0</span>..dev_count * <span class="nu">3</span> {
+            <span class="line kw">let</span> expected = CT_DEVELOPER_ACCOUNT_START + (i % dev_count);
+            <span class="line mc">assert_eq!</span>(developer_account_for_block(i), expected);
+        }
+    }
+}</code></pre>
+  </div>
+</div>
+
+<!-- execution.rs (compact excerpt of the key sections) -->
+<div class="tab-panel" id="tab-execution">
+  <div class="code-container">
+    <div class="code-header">
+      <span>crates/augecoin-node/src/execution.rs</span>
+      <span class="line-count">1351+ linhas (exibindo trecho crítico)</span>
+    </div>
+<pre><code><span class="line cm">// ===============================</span>
+<span class="line cm">//     EXECUTION (EXECUÇÃO)</span>
+<span class="line cm">// ===============================</span>
+
+<span class="line kw">use</span> augecoin_core::account::{Account, AccountInfo, AccountState, HybridAccountKey};
+<span class="line kw">use</span> augecoin_core::block::OperationBlock;
+<span class="line kw">use</span> augecoin_core::constants::CT_ACCOUNTS_PER_BLOCK;
+<span class="line kw">use</span> augecoin_core::emission::{block_reward, developer_account_for_block,
+<span class="line">                              developer_leader_reward, developer_reward};</span>
+<span class="line kw">use</span> augecoin_core::operation::{Operation, OperationPayload};
+<span class="line kw">use</span> augecoin_core::safe_box::SafeBox;
+<span class="line kw">use</span> augecoin_crypto::signature::HybridPublicKey;
+<span class="line kw">use</span> augecoin_storage::Storage;
+<span class="line kw">use</span> rayon::prelude::*;
+
+<span class="line cm">// ═══════════════════════════════════════════════════════════════</span>
+<span class="line cm">//  execute_block — pipeline de 6 fases</span>
+<span class="line cm">// ═══════════════════════════════════════════════════════════════</span>
+<span class="line kw">pub fn</span> <span class="fn">execute_block</span>(
+    block: &amp;<span class="ty">OperationBlock</span>,
+    storage: &amp;<span class="ty">Storage</span>,
+) -> <span class="ty">Result</span>&lt;[<span class="ty">u8</span>; <span class="nu">64</span>], ExecutionError&gt; {
+    <span class="line kw">let</span> block_number = block.header.block_number;
+    <span class="line kw">let</span> leader_id = block.header.leader_id;
+
+    <span class="line cm">// Snapshot para atomicidade</span>
+    <span class="line kw">let mut</span> modified: <span class="ty">HashMap</span>&lt;<span class="ty">u64</span>, Account&gt; = HashMap::new();
+    <span class="line kw">let mut</span> original: <span class="ty">HashMap</span>&lt;<span class="ty">u64</span>, Account&gt; = HashMap::new();
+
+    <span class="line cm">// ... load_account closure ...</span>
+
+    <span class="line cm">// ── FASE 1: Verificação paralela de assinaturas ──</span>
+    <span class="line kw">let</span> verification_results = block.operations.par_iter()
+        .enumerate()
+        .map(|(idx, op)| verify_operation_signatures(op, storage, block_number)
+            .map_err(|e| (idx, e)))
+        .collect::&lt;Vec&lt;_&gt;&gt;();
+
+    <span class="line cm">// ── FASE 2: Execução sequencial das operações ──</span>
+    <span class="line kw">let</span> total_fee_ref = &amp;<span class="line kw">mut</span> <span class="nu">0u64</span>;
+    <span class="line kw">for</span> op <span class="line kw">in</span> &amp;block.operations {
+        <span class="line kw">let</span> op_fee = execute_operation(op, block_number, &amp;<span class="line kw">mut</span> modified,
+                                      &amp;<span class="line kw">mut</span> original, storage)?;
+        *total_fee_ref = total_fee_ref.saturating_add(op_fee);
+    }
+    <span class="line kw">let</span> total_fees = *total_fee_ref;
+
+    <span class="line cm">// ── FASE 3: Distribuir fees + block reward ──</span>
+    <span class="kw">let</span> reward = <span class="fn">block_reward</span>(block_number);          <span class="cm">// ★ CHAMADA CENTRAL</span>
+    <span class="kw">let</span> dev_reward = <span class="fn">developer_reward</span>(reward);       <span class="cm">// 20%</span>
+    <span class="kw">let</span> leader_reward = <span class="fn">developer_leader_reward</span>(reward); <span class="cm">// 80%</span>
+
+    <span class="cm">// Developer recebe 20% do block reward + todas as fees</span>
+    <span class="cm">// Leader recebe 80% do block reward</span>
+    <span class="kw">let</span> dev_account_num = <span class="fn">developer_account_for_block</span>(block_number);
+
+    <span class="kw">if</span> dev_account_num == leader_id {
+        <span class="cm">// Mesma conta: leader = dev — recebe reward integral + fees</span>
+        leader_account.add_balance(reward.saturating_add(total_fees))?;
+        <span class="cm">// ... cria CT_ACCOUNTS_PER_BLOCK novas contas com leader_key ...</span>
+    } <span class="kw">else</span> {
+        <span class="cm">// Contas separadas</span>
+        dev_account.add_balance(dev_reward.saturating_add(total_fees))?;
+        leader_account.add_balance(leader_reward)?;
+        <span class="cm">// ... cria CT_ACCOUNTS_PER_BLOCK novas contas com leader_key ...</span>
+    }
+
+    <span class="line cm">// ── FASE 5: Compute novo SafeBox hash ──</span>
+    <span class="line kw">let mut</span> safebox = build_safebox_from_modified(storage, &amp;modified)?;
+    safebox.update_hash();
+
+    <span class="line cm">// ── FASE 6: Commit atômico ──</span>
+    commit_changes(&amp;modified, storage)?;
+    storage.put_safe_box(&amp;safebox)?;
+
+    Ok(safe_box_hash)
+}</code></pre>
+  </div>
+</div>
+
+<!-- Call Graph -->
+<div class="call-graph">
+  <h3>Grafo de Chamadas — Fluxo da Recompensa</h3>
+  <div class="flow">
+    <div class="node execution">execute_block()</div>
+    <span class="arrow">→</span>
+    <div class="node emission">block_reward(block_number)</div>
+    <span class="arrow">↘</span>
+    <div class="node constants">CT_FIRST_REWARD_AUGESAT</div>
+  </div>
+  <div class="flow" style="margin-top:12px">
+    <div class="node emission">block_reward()</div>
+    <span class="arrow">→</span>
+    <span style="color:var(--text-muted);">halvings = block_number / 210.240</span>
+    <span class="arrow">→</span>
+    <span style="color:var(--text-muted);">reward /= 2 a cada halving</span>
+    <span class="arrow">→</span>
+    <div class="node constants">CT_MIN_REWARD_AUGESAT (piso)</div>
+  </div>
+  <div class="flow" style="margin-top:12px">
+    <div class="node execution">execute_block()</div>
+    <span class="arrow">→</span>
+    <div class="node emission">developer_reward(20%)</div>
+    <span class="arrow">+</span>
+    <div class="node emission">developer_leader_reward(80%)</div>
+    <span class="arrow">→</span>
+    <div class="node emission">developer_account_for_block()</div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <strong>Legenda de cores:</strong>
+  <span><span class="dot" style="background:var(--keyword)"></span> keyword (pub, fn, let, if)</span>
+  <span><span class="dot" style="background:var(--func)"></span> função</span>
+  <span><span class="dot" style="background:var(--type)"></span> tipo (u64, String)</span>
+  <span><span class="dot" style="background:var(--number)"></span> número literal</span>
+  <span><span class="dot" style="background:var(--comment)"></span> comentário</span>
+  <span><span class="dot" style="background:var(--macro)"></span> macro</span>
+  <span><span class="dot" style="background:var(--attr)"></span> atributo</span>
+</div>
+
+</main>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

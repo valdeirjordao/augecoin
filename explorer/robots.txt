@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://explorer.augeco.in/sitemap.xml

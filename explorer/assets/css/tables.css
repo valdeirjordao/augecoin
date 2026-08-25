@@ -1,0 +1,18 @@
+/* AUGECOIN Explorer — table refinements. */
+
+/* Sticky header inside scrollable table cards. */
+.table-wrap { max-height: 720px; overflow: auto; }
+.table-wrap thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-elevated); }
+
+/* Monospace cell alignment helpers. */
+.table td.mono, .table th.mono { font-family: var(--mono); }
+
+/* Zebra striping (subtle). */
+.table tbody tr:nth-child(even) { background: rgba(148, 163, 184, 0.03); }
+.table tbody tr:nth-child(even):hover { background: var(--bg-card-hover); }
+
+/* Right-align numeric columns. */
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Hash cells wrap-safe but truncate with ellipsis when needed. */
+.table .hash { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }

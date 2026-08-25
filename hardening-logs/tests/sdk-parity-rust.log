@@ -1,0 +1,18 @@
+   Compiling augecoin-crypto v0.1.0 (/opt/augecoin/crates/augecoin-crypto)
+   Compiling augecoin-core v0.1.0 (/opt/augecoin/crates/augecoin-core)
+   Compiling augecoin-storage v0.1.0 (/opt/augecoin/crates/augecoin-storage)
+   Compiling augecoin-consensus v0.1.0 (/opt/augecoin/crates/augecoin-consensus)
+   Compiling augecoin-network v0.1.0 (/opt/augecoin/crates/augecoin-network)
+   Compiling augecoin-rpc v0.1.0 (/opt/augecoin/crates/augecoin-rpc)
+   Compiling augecoin-node v0.1.0 (/opt/augecoin/crates/augecoin-node)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 45.52s
+     Running tests/sdk_parity.rs (target/debug/deps/sdk_parity-72f70c722d35cef3)
+
+running 4 tests
+test operation_serialization_matches_cross_language_vector ... ok
+test address_matches_cross_language_vector ... ok
+test signature_matches_cross_language_vector ... ok
+test hd_key_matches_cross_language_vector ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

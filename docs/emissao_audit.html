@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Auditoria de Emissão & Halving</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #13131d;
+    --border: #1e1e30;
+    --text: #c8c8d4;
+    --gold: #f0b90b;
+    --green: #00d4aa;
+    --red: #ff4d6a;
+    --blue: #4da6ff;
+    --purple: #a855f7;
+    --accent: #6366f1;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; line-height:1.6; padding:2rem; }
+  .container { max-width:1200px; margin:0 auto; }
+  h1 { color:var(--gold); font-size:2rem; margin-bottom:.25rem; }
+  h2 { color:var(--gold); font-size:1.4rem; margin:2rem 0 1rem; padding-bottom:.5rem; border-bottom:2px solid var(--border); }
+  h3 { color:var(--blue); font-size:1.1rem; margin:1.5rem 0 .5rem; }
+  .subtitle { color:#888; margin-bottom:2rem; }
+  
+  .alert { background:#1a0e0e; border:1px solid #ff4d6a44; border-radius:8px; padding:1rem 1.5rem; margin:1rem 0; }
+  .alert strong { color:var(--red); }
+  .info { background:#0e1a1a; border:1px solid #00d4aa44; border-radius:8px; padding:1rem 1.5rem; margin:1rem 0; }
+  .info strong { color:var(--green); }
+  
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin:1.5rem 0; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.5rem; margin:1.5rem 0; }
+  .grid4 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:1rem; margin:1.5rem 0; }
+  
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.5rem; }
+  .card h3 { margin-top:0; }
+  
+  .stat { text-align:center; }
+  .stat .value { font-size:2rem; font-weight:700; color:var(--gold); }
+  .stat .label { font-size:.8rem; color:#888; text-transform:uppercase; letter-spacing:1px; margin-top:.25rem; }
+  
+  table { width:100%; border-collapse:collapse; margin:1rem 0; }
+  th, td { padding:.6rem .8rem; text-align:left; border-bottom:1px solid var(--border); }
+  th { color:var(--blue); font-size:.8rem; text-transform:uppercase; letter-spacing:1px; background:#0f0f1a; }
+  tr:hover td { background:#1a1a2a; }
+  td.num { text-align:right; font-family:'Consolas','Courier New',monospace; }
+  td.highlight { color:var(--gold); font-weight:600; }
+  
+  .bar-wrap { background:var(--bg); border-radius:4px; height:8px; overflow:hidden; margin-top:4px; }
+  .bar-inner { height:100%; border-radius:4px; transition:width 0.3s; }
+  .bar-inner.gold { background:var(--gold); }
+  .bar-inner.green { background:var(--green); }
+  .bar-inner.blue { background:var(--blue); }
+  .bar-inner.purple { background:var(--purple); }
+  .bar-inner.red { background:var(--red); }
+  
+  .formula { background:#0f0f1a; border-left:3px solid var(--accent); padding:.8rem 1rem; margin:.8rem 0; font-family:'Consolas',monospace; font-size:.85rem; }
+  
+  .epoch-row { display:flex; align-items:center; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--border); }
+  .epoch-label { width:80px; font-size:.8rem; color:#888; }
+  .epoch-range { width:200px; font-size:.8rem; }
+  .epoch-reward { width:180px; font-family:monospace; font-size:.9rem; }
+  .epoch-bar { flex:1; }
+  
+  code { background:#1a1a2a; padding:.1em .4em; border-radius:3px; font-size:.85em; color:var(--gold); }
+  .big-num { font-family:'Consolas',monospace; word-break:break-all; }
+  
+  .comparison td { vertical-align:top; }
+  .comparison td:first-child { color:#888; width:250px; }
+  
+  .dev-dist { margin:1rem 0; }
+  .dev-dist .bar-wrap { height:20px; }
+  
+  @media (max-width:768px) {
+    .grid2,.grid3,.grid4 { grid-template-columns:1fr; }
+    body { padding:1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>AUGECOIN — Auditoria de Emissão &amp; Halving</h1>
+<p class="subtitle">Comparação entre Whitepaper vs Código-fonte atual — <code>emission.rs</code> &amp; <code>constants.rs</code></p>
+
+<!-- ===== ALERTA PRINCIPAL ===== -->
+<div class="alert">
+  <strong>DISCREPÂNCIA CRÍTICA:</strong> O whitepaper descreve um modelo de <em>recompensa fixa</em> com emissão finita em 26.298.000 blocos. O código implementa um modelo de <em>halving</em> com emissão perpétua. São dois sistemas fundamentalmente diferentes.
+</div>
+
+<!-- ===== RESUMO DAS CONSTANTES ===== -->
+<h2>1. Constantes Definidas no Código</h2>
+<p style="color:#888;margin-bottom:1rem;">Arquivo: <code>/crates/augecoin-core/src/constants.rs</code></p>
+
+<div class="grid4">
+  <div class="card stat">
+    <div class="value">1</div>
+    <div class="label">AUGE</div>
+    <div style="color:var(--gold);font-size:.8rem;margin-top:.5rem;">= 100.000.000 augesat</div>
+  </div>
+  <div class="card stat">
+    <div class="value">100M</div>
+    <div class="label">Recompensa Inicial (augesat)</div>
+    <div style="color:var(--gold);font-size:.8rem;margin-top:.5rem;">= 1 AUGE por bloco</div>
+  </div>
+  <div class="card stat">
+    <div class="value">10M</div>
+    <div class="label">Recompensa Mínima (augesat)</div>
+    <div style="color:var(--gold);font-size:.8rem;margin-top:.5rem;">= 0,1 AUGE (piso)</div>
+  </div>
+  <div class="card stat">
+    <div class="value">210.240</div>
+    <div class="label">Blocos por Halving</div>
+    <div style="color:var(--gold);font-size:.8rem;margin-top:.5rem;">~146 dias a 1 min/bloco</div>
+  </div>
+</div>
+
+<div class="grid4">
+  <div class="card stat">
+    <div class="value">8</div>
+    <div class="label">Decimais</div>
+  </div>
+  <div class="card stat">
+    <div class="value">750M</div>
+    <div class="label">Supply Total (AUGE)</div>
+    <div style="color:#ff4d6a;font-size:.7rem;margin-top:.5rem;">definido mas NÃO aplicado</div>
+  </div>
+  <div class="card stat">
+    <div class="value">20%</div>
+    <div class="label">Corte Desenvolvedores</div>
+  </div>
+  <div class="card stat">
+    <div class="value">5</div>
+    <div class="label">Contas Dev (round-robin)</div>
+  </div>
+</div>
+
+<!-- ===== MODELO DE HALVING ===== -->
+<h2>2. Cronograma de Halving (Modelo Real do Código)</h2>
+
+<div class="card">
+  <h3>Curva de Emissão por Época</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Época</th>
+        <th>Blocos</th>
+        <th>Duração (1 min/bloco)</th>
+        <th>Recompensa (augesat)</th>
+        <th>Recompensa (AUGE)</th>
+        <th>Emissão da Época (augesat)</th>
+        <th>Acumulado (augesat)</th>
+        <th>% do Supply</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>0</td>
+        <td>0 — 210.239</td>
+        <td>~146 dias</td>
+        <td class="num">100.000.000</td>
+        <td class="num">1,00000000</td>
+        <td class="num">21.024.000.000.000</td>
+        <td class="num">21.024.000.000.000</td>
+        <td class="num">0,028%</td>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td>210.240 — 420.479</td>
+        <td>~146 dias</td>
+        <td class="num">50.000.000</td>
+        <td class="num">0,50000000</td>
+        <td class="num">10.512.000.000.000</td>
+        <td class="num">31.536.000.000.000</td>
+        <td class="num">0,042%</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>420.480 — 630.719</td>
+        <td>~146 dias</td>
+        <td class="num">25.000.000</td>
+        <td class="num">0,25000000</td>
+        <td class="num">5.256.000.000.000</td>
+        <td class="num">36.792.000.000.000</td>
+        <td class="num">0,049%</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>630.720 — 840.959</td>
+        <td>~146 dias</td>
+        <td class="num">12.500.000</td>
+        <td class="num">0,12500000</td>
+        <td class="num">2.628.000.000.000</td>
+        <td class="num">39.420.000.000.000</td>
+        <td class="num">0,053%</td>
+      </tr>
+      <tr style="background:#1a0e0e;">
+        <td><strong>4+</strong></td>
+        <td><strong>840.960 — ∞</strong></td>
+        <td><strong>PERPÉTUO</strong></td>
+        <td class="num highlight">10.000.000</td>
+        <td class="num highlight">0,10000000</td>
+        <td class="num highlight">2.102.400.000.000/época</td>
+        <td class="num highlight">∞</td>
+        <td class="num highlight" style="color:var(--red);">∞</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== BARRA DE PROGRESSO ===== -->
+<div class="card" style="margin-top:1.5rem;">
+  <h3>Progresso da Emissão vs Supply de 750M AUGE</h3>
+  
+  <div style="margin:1rem 0;">
+    <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#888;margin-bottom:.25rem;">
+      <span>Pré-piso (4 épocas): 39,42 tri augesat</span>
+      <span>750M AUGE = 75 quadrilhões augesat</span>
+    </div>
+    <div class="bar-wrap" style="height:12px;">
+      <div class="bar-inner gold" style="width:0.053%;"></div>
+    </div>
+    <div style="font-size:.75rem;color:var(--red);margin-top:.25rem;">
+      Apenas <strong>0,053%</strong> do supply é emitido nas 4 épocas de halving ativo.
+    </div>
+  </div>
+  
+  <div style="margin-top:1.5rem;">
+    <table>
+      <tr><td class="num" style="text-align:left;">Blocos até 50% do supply:</td><td class="num">3.748.449.480</td><td class="num" style="text-align:left;color:#888;">(~7.127 anos)</td></tr>
+      <tr><td class="num" style="text-align:left;">Blocos até 90% do supply:</td><td class="num">6.747.209.064</td><td class="num" style="text-align:left;color:#888;">(~12.829 anos)</td></tr>
+      <tr><td class="num" style="text-align:left;">Blocos até 99% do supply:</td><td class="num">7.421.929.970</td><td class="num" style="text-align:left;color:#888;">(~14.105 anos)</td></tr>
+      <tr><td class="num" style="text-align:left;">Blocos até 100% do supply:</td><td class="num highlight">7.496.898.960</td><td class="num" style="color:var(--red);">~14.254 anos</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===== DISTRIBUIÇÃO DAS RECOMPENSAS ===== -->
+<h2>3. Distribuição por Bloco</h2>
+
+<div class="card">
+  <h3>Divisão da Recompensa</h3>
+  
+  <p>80% vai para o <strong>líder (minerador)</strong> que propôs o bloco. 20% vai para uma das <strong>5 contas desenvolvedoras</strong> em round-robin.</p>
+  
+  <div class="formula">
+    block_reward(block_number) → total_reward<br>
+    developer_reward = total_reward × 20%<br>
+    leader_reward = total_reward × 80%
+  </div>
+  
+  <div style="margin:1rem 0;">
+    <div style="display:flex;gap:1rem;margin-bottom:.5rem;">
+      <div style="flex:4;">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;">
+          <span>Líder (80%)</span><span class="big-num">80.000.000 augesat</span>
+        </div>
+        <div class="bar-wrap" style="height:20px;">
+          <div class="bar-inner green" style="width:80%;"></div>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;">
+          <span>Dev (20%)</span><span class="big-num">20.000.000</span>
+        </div>
+        <div class="bar-wrap" style="height:20px;">
+          <div class="bar-inner purple" style="width:100%;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:.7rem;color:#888;">Exemplo com recompensa da Época 0 (100M augesat)</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <h3>Round-Robin das Contas Desenvolvedoras</h3>
+  <p>Contas 0 a 4 recebem alternadamente a cada bloco + todas as taxas (miner fees) do bloco.</p>
+  
+  <div class="formula">
+    developer_account_for_block(block_number) = 0 + (block_number % 5)
+  </div>
+  
+  <table>
+    <thead><tr><th>Bloco</th><th>Conta Dev</th><th>Recebe (20% reward + fees)</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0</td><td class="num">Conta #0</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td class="num">1</td><td class="num">Conta #1</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td class="num">2</td><td class="num">Conta #2</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td class="num">3</td><td class="num">Conta #3</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td class="num">4</td><td class="num">Conta #4</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td class="num">5</td><td class="num">Conta #0</td><td class="num">100.000.000 × 20% = 20.000.000 augesat</td></tr>
+      <tr><td colspan="3" style="text-align:center;color:#888;">... cíclico a cada 5 blocos ...</td></tr>
+    </tbody>
+  </table>
+  
+  <div style="margin-top:1rem;">
+    <div style="font-size:.8rem;color:#888;margin-bottom:.5rem;">Distribuição por conta dev após cada halving:</div>
+    <table>
+      <thead><tr><th>Conta</th><th>Época 0</th><th>Época 1</th><th>Época 2</th><th>Época 3</th><th>Época 4+ (por época)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="num">#0</td>
+          <td class="num">4.204.800.000.000</td>
+          <td class="num">2.102.400.000.000</td>
+          <td class="num">1.051.200.000.000</td>
+          <td class="num">525.600.000.000</td>
+          <td class="num">420.480.000.000</td>
+        </tr>
+        <tr>
+          <td class="num">#1</td>
+          <td class="num">4.204.800.000.000</td>
+          <td class="num">2.102.400.000.000</td>
+          <td class="num">1.051.200.000.000</td>
+          <td class="num">525.600.000.000</td>
+          <td class="num">420.480.000.000</td>
+        </tr>
+        <tr>
+          <td class="num">#2</td>
+          <td class="num">4.204.800.000.000</td>
+          <td class="num">2.102.400.000.000</td>
+          <td class="num">1.051.200.000.000</td>
+          <td class="num">525.600.000.000</td>
+          <td class="num">420.480.000.000</td>
+        </tr>
+        <tr>
+          <td class="num">#3</td>
+          <td class="num">4.204.800.000.000</td>
+          <td class="num">2.102.400.000.000</td>
+          <td class="num">1.051.200.000.000</td>
+          <td class="num">525.600.000.000</td>
+          <td class="num">420.480.000.000</td>
+        </tr>
+        <tr>
+          <td class="num">#4</td>
+          <td class="num">4.204.800.000.000</td>
+          <td class="num">2.102.400.000.000</td>
+          <td class="num">1.051.200.000.000</td>
+          <td class="num">525.600.000.000</td>
+          <td class="num">420.480.000.000</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:.75rem;color:#888;margin-top:.5rem;">
+      Blocos por época: 210.240 ÷ 5 contas = 42.048 blocos por conta dev<br>
+      Cada conta dev recebe: 42.048 × (reward × 20%) por época
+    </div>
+  </div>
+</div>
+
+<!-- ===== CÓDIGO-FONTE RELEVANTE ===== -->
+<h2>4. Código-Fonte Relevante</h2>
+
+<div class="card">
+  <h3>emission.rs — Função block_reward()</h3>
+  <pre style="background:#0f0f1a;padding:1rem;border-radius:6px;overflow-x:auto;font-size:.8rem;line-height:1.5;"><code>pub fn block_reward(block_number: u64) -> u64 {
+    if block_number == 0 {
+        return CT_FIRST_REWARD_AUGESAT;      // 100_000_000
+    }
+
+    let halvings = block_number / CT_NEW_LINE_REWARD_DECREASE;   // / 210_240
+    let mut reward = CT_FIRST_REWARD_AUGESAT;                    // 100_000_000
+    for _ in 0..halvings {
+        reward /= 2;
+        if reward &lt; CT_MIN_REWARD_AUGESAT {   // 10_000_000
+            return CT_MIN_REWARD_AUGESAT;
+        }
+    }
+    if reward &lt; CT_MIN_REWARD_AUGESAT {
+        CT_MIN_REWARD_AUGESAT
+    } else {
+        reward
+    }
+}</code></pre>
+</div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <h3>Link para os arquivos</h3>
+  <table>
+    <tr><td><code>emission.rs</code></td><td><code>/crates/augecoin-core/src/emission.rs</code></td></tr>
+    <tr><td><code>constants.rs</code></td><td><code>/crates/augecoin-core/src/constants.rs</code></td></tr>
+    <tr><td><code>execution.rs</code></td><td><code>/crates/augecoin-node/src/execution.rs</code> — execute_block() usa block_reward()</td></tr>
+  </table>
+</div>
+
+<!-- ===== WHITEPAPER vs CÓDIGO ===== -->
+<h2>5. Whitepaper vs Código — Tabela Comparativa</h2>
+
+<div class="card">
+  <table class="comparison">
+    <thead><tr><th>Item</th><th>Whitepaper</th><th>Código (real)</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Modelo de emissão</td>
+        <td>Recompensa fixa por bloco</td>
+        <td>Halving a cada 210.240 blocos</td>
+        <td style="color:var(--red);">DIVERGENTE</td>
+      </tr>
+      <tr>
+        <td>Supply total</td>
+        <td class="num">750.000.000 AUGE</td>
+        <td class="num">750.000.000 AUGE (definido, não usado)</td>
+        <td style="color:var(--green);">OK</td>
+      </tr>
+      <tr>
+        <td>TOTAL_EMISSION_BLOCKS</td>
+        <td class="num">26.298.000</td>
+        <td class="num" style="color:var(--red);">NÃO EXISTE</td>
+        <td style="color:var(--red);">AUSENTE</td>
+      </tr>
+      <tr>
+        <td>BASE_REWARD_AUGESAT</td>
+        <td class="num">2.852.383 (errado no doc)<br>2.851.927.903 (correto mat.)</td>
+        <td class="num" style="color:var(--red);">NÃO EXISTE</td>
+        <td style="color:var(--red);">AUSENTE</td>
+      </tr>
+      <tr>
+        <td>REMAINDER_AUGESAT</td>
+        <td class="num">6.906.000</td>
+        <td class="num" style="color:var(--red);">NÃO EXISTE</td>
+        <td style="color:var(--red);">AUSENTE</td>
+      </tr>
+      <tr>
+        <td>Recompensa inicial</td>
+        <td class="num">~2.851.927.903 augesat</td>
+        <td class="num">100.000.000 augesat</td>
+        <td style="color:var(--red);">DIVERGENTE</td>
+      </tr>
+      <tr>
+        <td>Recompensa mínima</td>
+        <td class="num">BASE_REWARD + 1 = ~2.851.927.904</td>
+        <td class="num">10.000.000 augesat (piso halving)</td>
+        <td style="color:var(--red);">DIVERGENTE</td>
+      </tr>
+      <tr>
+        <td>Duração da emissão</td>
+        <td>Finita: 26.298.000 blocos (~50 anos)</td>
+        <td>Infinita: reward = 0,1 AUGE para sempre</td>
+        <td style="color:var(--red);">DIVERGENTE</td>
+      </tr>
+      <tr>
+        <td>Corte desenvolvedores</td>
+        <td class="num">20%</td>
+        <td class="num">20%</td>
+        <td style="color:var(--green);">OK</td>
+      </tr>
+      <tr>
+        <td>Contas desenvolvedoras</td>
+        <td class="num">5 (round-robin)</td>
+        <td class="num">5 (round-robin)</td>
+        <td style="color:var(--green);">OK</td>
+      </tr>
+      <tr>
+        <td>Supply cap enforcement</td>
+        <td>Implícito (emissão para no último bloco)</td>
+        <td style="color:var(--red);">NENHUM — sem hard cap</td>
+        <td style="color:var(--red);">AUSENTE</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== DIAGRAMA DE FLUXO ===== -->
+<h2>6. Fluxo de Execução do Bloco</h2>
+
+<div class="card">
+  <pre style="background:#0f0f1a;padding:1rem;border-radius:6px;font-size:.8rem;line-height:1.8;overflow-x:auto;">
+<span style="color:#888;">// execute_block() em execution.rs</span>
+
+for each operation:
+    verify_signature()           <span style="color:#888;">→ paralelo</span>
+    execute_operation()           <span style="color:#888;">→ sequencial, coleta fees</span>
+
+<span style="color:#4da6ff;">reward = block_reward(block_number)</span>    <span style="color:#888;">→ calcula por halving</span>
+<span style="color:#a855f7;">dev_reward = reward × 20%</span>              <span style="color:#888;">→ developer_reward()</span>
+<span style="color:#00d4aa;">leader_reward = reward × 80%</span>           <span style="color:#888;">→ developer_leader_reward()</span>
+
+<span style="color:#a855f7;">dev_account = developer_account_for_block(block_number)</span>
+<span style="color:#a855f7;">credit(dev_account, dev_reward + fees)</span> <span style="color:#888;">→ dev recebe 20% + todas as taxas</span>
+<span style="color:#00d4aa;">credit(leader, leader_reward)</span>          <span style="color:#888;">→ líder recebe 80%</span>
+
+create_5_new_accounts()          <span style="color:#888;">→ CT_ACCOUNTS_PER_BLOCK = 5</span>
+compute_safe_box_hash()          <span style="color:#888;">→ novo hash do estado</span>
+commit()                         <span style="color:#888;">→ atômico</span>
+  </pre>
+</div>
+
+<!-- ===== CONCLUSÃO ===== -->
+<h2>7. Conclusão da Auditoria</h2>
+
+<div class="info">
+  <strong>Constantes que batem com o whitepaper:</strong>
+  <ul style="margin:.5rem 0 0 1.5rem;font-size:.9rem;">
+    <li><code>ONE_AUGE = 100.000.000</code> (8 decimais) ✅</li>
+    <li><code>TOTAL_SUPPLY_AUGE = 750.000.000</code> ✅</li>
+    <li><code>CT_DEVELOPER_REWARD_PERCENT = 20</code> ✅</li>
+    <li><code>CT_DEVELOPER_ACCOUNT_COUNT = 5</code> ✅</li>
+  </ul>
+</div>
+
+<div class="alert">
+  <strong>Divergências críticas com o whitepaper:</strong>
+  <ul style="margin:.5rem 0 0 1.5rem;font-size:.9rem;">
+    <li><code>TOTAL_EMISSION_BLOCKS</code> — <strong>NÃO EXISTE</strong></li>
+    <li><code>BASE_REWARD_AUGESAT</code> — <strong>NÃO EXISTE</strong></li>
+    <li><code>REMAINDER_AUGESAT</code> — <strong>NÃO EXISTE</strong></li>
+    <li>Modelo de emissão: whitepaper usa recompensa fixa, código usa <strong>halving</strong></li>
+    <li>Emissão do whitepaper é finita (26.298.000 blocos), código é <strong>perpétua</strong></li>
+    <li><code>TOTAL_SUPPLY_AUGESAT</code> é definido mas <strong>nunca é usado como hard cap</strong></li>
+    <li>O valor <code>2.852.383</code> no whitepaper <strong>não é o BASE_REWARD correto</strong> nem aparece no código</li>
+  </ul>
+</div>
+
+<div class="card" style="margin-top:1.5rem;text-align:center;">
+  <div style="font-size:.8rem;color:#888;">Gerado em: 11/08/2026 | Fonte: /opt/augecoin — crates/augecoin-core/src/emission.rs & constants.rs</div>
+</div>
+
+</div>
+</body>
+</html>

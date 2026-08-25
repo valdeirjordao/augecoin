@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Auditoria de Reconciliação Whitepaper × Código</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --text: #e0e0e0;
+    --accent: #e94560;
+    --ok: #00c853;
+    --warn: #ff9100;
+    --crit: #ff1744;
+    --muted: #8892b0;
+    --border: #2a2a4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin-bottom: .25rem; color: #fff; }
+  h2 { font-size: 1.35rem; margin: 2rem 0 1rem; color: #fff; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+  h3 { font-size: 1.1rem; color: var(--accent); margin: 1.5rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .badge { display: inline-block; padding: .15rem .6rem; border-radius: 4px; font-size: .75rem; font-weight: 700; text-transform: uppercase; }
+  .badge-crit { background: var(--crit); color: #fff; }
+  .badge-warn { background: var(--warn); color: #000; }
+  .badge-ok   { background: var(--ok); color: #000; }
+  .badge-fail { background: var(--crit); color: #fff; font-size: .85rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .card h3 { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+  th, td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .75rem; letter-spacing: .5px; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  .code  { background: #0d1117; color: #c9d1d9; padding: .1rem .4rem; border-radius: 3px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: .83rem; }
+  .file  { color: #58a6ff; }
+  .lineno{ color: var(--muted); font-size: .8rem; }
+  .violation { background: rgba(255,23,68,.1); border-left: 3px solid var(--crit); padding: .6rem 1rem; margin: .5rem 0; border-radius: 0 6px 6px 0; }
+  .warning   { background: rgba(255,145,0,.08); border-left: 3px solid var(--warn); padding: .6rem 1rem; margin: .5rem 0; border-radius: 0 6px 6px 0; }
+  .mismatch  { background: rgba(233,69,96,.08); border-left: 3px solid var(--accent); padding: .6rem 1rem; margin: .5rem 0; border-radius: 0 6px 6px 0; }
+  .hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .summary-box { background: var(--card); border-radius: 8px; padding: 1.2rem; text-align: center; }
+  .summary-box .num { font-size: 2rem; font-weight: 800; }
+  .summary-box .lbl { color: var(--muted); font-size: .8rem; margin-top: .25rem; }
+  .num-crit { color: var(--crit); }
+  .num-warn { color: var(--warn); }
+  .num-info { color: #58a6ff; }
+  .blockquote { border-left: 3px solid #30363d; padding: .8rem 1.2rem; margin: 1rem 0; color: var(--muted); font-style: italic; background: rgba(255,255,255,.02); border-radius: 0 6px 6px 0; }
+  ul { margin: .5rem 0 .5rem 1.5rem; }
+  li { margin: .3rem 0; }
+  .tag-row { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+  .tag { font-size: .75rem; padding: .15rem .5rem; border-radius: 3px; background: rgba(255,255,255,.06); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Auditoria de Reconciliação<br>Whitepaper × Código — AUGECOIN</h1>
+<div class="meta">
+  Data: 2026-08-11 &nbsp;|&nbsp; Whitepaper v1.0 (2026-08-09) &nbsp;|&nbsp;
+  <span class="badge badge-fail">REPROVADO</span>
+</div>
+
+<div class="summary-grid">
+  <div class="summary-box"><div class="num num-crit">6</div><div class="lbl">Divergências Críticas</div></div>
+  <div class="summary-box"><div class="num num-warn">2</div><div class="lbl">Divergências Graves</div></div>
+  <div class="summary-box"><div class="num num-info">3</div><div class="lbl">Regras PROJECT_RULES violadas</div></div>
+  <div class="summary-box"><div class="num num-info">2</div><div class="lbl">Sistemas de transação paralelos</div></div>
+</div>
+
+<div class="blockquote">
+  <strong>Resumo Executivo:</strong> O código atual <strong>não implementa a AUGECOIN descrita no whitepaper</strong>. Ele implementa uma variante do PascalCoin traduzida para Rust, com modelo de emissão halving-style, 20% de taxa de desenvolvedor, 5 contas por bloco, marketplace de contas (ForSale/BuyAccount), e cabeçalhos de bloco tipo PascalCoin. O arquivo <span class="code">transaction.rs</span> (SPEC-compliant) existe mas <strong>não é usado por nenhum outro módulo</strong>. O checklist <span class="code">PRE_MAINNET_CHECKLIST.md</span> afirma incorretamente que a SPEC e a implementação estão alinhadas.
+</div>
+
+<!-- ================================================================== -->
+<h2>1. Emissão <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:30%">Aspecto</th><th style="width:35%">Whitepaper / SPEC</th><th style="width:35%">Código</th></tr>
+    <tr>
+      <td>Modelo</td>
+      <td>Determinístico: <span class="code">TOTAL_SUPPLY / TOTAL_EMISSION_BLOCKS</span></td>
+      <td>Halving (estilo Bitcoin)</td>
+    </tr>
+    <tr>
+      <td>Recompensa base</td>
+      <td><span class="code">2.852.383</span> augesat</td>
+      <td><span class="code">CT_FIRST_REWARD_AUGESAT = 100.000.000</span> (1 AUGE)</td>
+    </tr>
+    <tr>
+      <td>Blocos de emissão</td>
+      <td><span class="code">26.298.000</span></td>
+      <td>Perpétuo (nunca zera)</td>
+    </tr>
+    <tr>
+      <td>Término</td>
+      <td><strong>ZERO</strong> após 50 anos — "sem cauda perpétua"</td>
+      <td><span class="code">CT_MIN_REWARD_AUGESAT = 10.000.000</span> (0,1 AUGE) eterno</td>
+    </tr>
+    <tr>
+      <td>Supply total</td>
+      <td><strong>Exatamente</strong> 75.000.000.000.000.000 augesat</td>
+      <td><strong>Impossível</strong> de garantir com halving</td>
+    </tr>
+    <tr>
+      <td>Proptest</td>
+      <td><span class="code">sum(block_reward(h)) == TOTAL_SUPPLY_AUGESAT</span></td>
+      <td>Testa monotonicidade, <strong>não o total exato</strong></td>
+    </tr>
+  </table>
+
+  <p><span class="file">emission.rs</span> <span class="lineno">:10-28</span></p>
+  <div class="mismatch">A função <span class="code">block_reward()</span> implementa divisão sucessiva por 2 a cada <span class="code">CT_NEW_LINE_REWARD_DECREASE = 210.240</span> blocos, com piso de <span class="code">CT_MIN_REWARD_AUGESAT</span>. Esse modelo <strong>nunca chega a zero</strong> — a emissão é perpétua, violando a SPEC que exige 0 após o bloco 26.298.000.</div>
+</div>
+
+<!-- ================================================================== -->
+<h2>2. Supply <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <p>As constantes em <span class="file">emission.rs</span> <span class="lineno">:7-8</span>:</p>
+  <div class="code" style="padding:.8rem 1rem; margin:.5rem 0;">
+    pub const TOTAL_SUPPLY_AUGE: u64 = 750_000_000;<br>
+    pub const TOTAL_SUPPLY_AUGESAT: u64 = TOTAL_SUPPLY_AUGE.saturating_mul(ONE_AUGE);
+  </div>
+
+  <div class="mismatch">
+    <strong>Nenhuma função de emissão usa essas constantes como constraint.</strong> O total de 750 milhões de AUGE nunca será atingido com precisão porque:
+    <ul>
+      <li>Halving a cada 210.240 blocos, começando em 1 AUGE (100M augesat), mínimo 0,1 AUGE (10M augesat)</li>
+      <li>Cada bloco emite entre 10M e 100M augesat — as contas não fecham para 75 quadrilhões exatos</li>
+      <li><strong>Não existe</strong> o teste de propriedade que a SPEC exige (<span class="code">sum(block_reward(h)) == TOTAL_SUPPLY_AUGESAT</span>)</li>
+    </ul>
+  </div>
+
+  <p>O teste <span class="file">emission_total_supply.rs</span> verifica apenas que a recompensa é monotonicamente decrescente, que nunca excede <span class="code">CT_FIRST_REWARD_AUGESAT</span> e que não vai abaixo do mínimo — <strong>não verifica o total exato.</strong></p>
+</div>
+
+<!-- ================================================================== -->
+<h2>3. Recompensa &amp; Distribuição <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:45%">Whitepaper / SPEC</th><th style="width:55%">Código</th></tr>
+    <tr>
+      <td><strong>100%</strong> da recompensa → líder</td>
+      <td><strong>80%</strong> líder + <strong>20%</strong> 5 contas de desenvolvedor</td>
+    </tr>
+    <tr>
+      <td><strong>100%</strong> das taxas → líder</td>
+      <td><strong>100%</strong> das taxas → conta de desenvolvedor</td>
+    </tr>
+  </table>
+
+  <p><span class="file">execution.rs</span> <span class="lineno">:90-102</span></p>
+
+  <div class="violation">
+    <strong>Contas de desenvolvedor</strong> (em <span class="file">constants.rs</span> <span class="lineno">:19-21</span>):
+    <div class="code" style="padding:.4rem .8rem; margin:.3rem 0;">
+      CT_DEVELOPER_ACCOUNT_START  = 0<br>
+      CT_DEVELOPER_ACCOUNT_COUNT  = 5<br>
+      CT_DEVELOPER_REWARD_PERCENT = 20
+    </div>
+    Contas #0 a #4 recebem 20% de toda emissão monetária + 100% das taxas.
+  </div>
+
+  <div class="blockquote">
+    SPEC Seção 4: "100% da recompensa + 100% das taxas vão para o validador da rodada. Sem split para fundação/desenvolvedores."
+  </div>
+  <div class="blockquote">
+    PROJECT_RULES.md Rule 2: "Proibido pré-mineração. Nenhuma conta, endereço de fundador, alocação especial de gênesis ou <strong>taxa de desenvolvedor embutida no protocolo</strong>."
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>4. Taxas <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:45%">Whitepaper / SPEC</th><th style="width:55%">Código</th></tr>
+    <tr><td>Taxas vão 100% ao líder</td><td>Taxas vão 100% ao dev (<span class="file">execution.rs</span> <span class="lineno">:140</span>)</td></tr>
+    <tr><td>Taxa mínima requerida pela SPEC seção 7</td><td><span class="code">MINER_FEE_PER_OPERATION = 0</span> (<span class="file">constants.rs</span> <span class="lineno">:4</span>)</td></tr>
+  </table>
+</div>
+
+<!-- ================================================================== -->
+<h2>5. AUGEConta — Número de Contas por Bloco <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:45%">Whitepaper / SPEC</th><th style="width:55%">Código</th></tr>
+    <tr><td><strong>1</strong> conta por bloco (Conta #N)</td><td><span class="code">CT_ACCOUNTS_PER_BLOCK = 5</span> (<span class="file">constants.rs</span> <span class="lineno">:6</span>)</td></tr>
+  </table>
+
+  <h3>Estrutura da Conta — Divergências</h3>
+  <table>
+    <tr><th style="width:30%">SPEC</th><th style="width:70%">Código (<span class="file">account.rs</span>)</th></tr>
+    <tr>
+      <td><span class="code">account_number, pubkeys, balance, name, metadata, op_sequence, created_at_height</span></td>
+      <td>
+        Campos extras <strong>PascalCoin</strong>:
+        <span class="code">state</span> (Normal, ForSale, ForAtomicAccountSwap, ForAtomicCoinSwap),
+        <span class="code">locked_until_block</span>,
+        <span class="code">price</span>,
+        <span class="code">account_to_pay</span>,
+        <span class="code">new_public_key</span>,
+        <span class="code">hashed_secret</span>,
+        <span class="code">account_seal</span>, etc.
+      </td>
+    </tr>
+  </table>
+</div>
+
+<hr class="hr">
+
+<!-- ================================================================== -->
+<h2>6. Validadores &amp; Seleção de Líder <span class="badge badge-ok">OK</span></h2>
+
+<div class="card">
+  <p>A lógica de <span class="code">leader_for_height(height) = active_validators[height % active_validators.len()]</span>, <span class="code">activation_height</span> futuro, round-robin determinístico, e quórum 2/3+1 em <span class="file">validator.rs</span> e <span class="file">quorum.rs</span> <strong>está alinhada</strong> com a SPEC.</p>
+  <div class="warning">Ressalva: <span class="file">validator.rs</span> usa as estruturas de <span class="file">operation.rs</span> (PascalCoin) em vez de <span class="file">transaction.rs</span> (SPEC).</div>
+  <p>Quórum verificado corretamente:</p>
+  <ul>
+    <li><span class="code">quorum_threshold(4) = 3</span> ✅</li>
+    <li><span class="code">quorum_threshold(7) = 5</span> ✅</li>
+    <li><span class="code">quorum_threshold(2) = 2</span> ✅</li>
+  </ul>
+</div>
+
+<!-- ================================================================== -->
+<h2>7. Recompensas dos Validadores <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <p>Mesma divergência do item 3. O validador líder recebe apenas <strong>80%</strong> da emissão (e 0% das taxas), em vez de 100% de ambos conforme a SPEC.</p>
+
+  <p>Fluxo real em <span class="file">execution.rs</span> <span class="lineno">:90-188</span>:</p>
+  <div class="mismatch">
+    <ol>
+      <li><span class="code">reward = block_reward(block_number)</span></li>
+      <li><span class="code">dev_reward = reward * 20 / 100</span> → conta dev</li>
+      <li><span class="code">leader_reward = reward - dev_reward</span> → líder</li>
+      <li><span class="code">total_fees</span> → <strong>conta dev</strong> (não líder)</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>8. Genesis <span class="badge badge-crit">CRÍTICO</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:35%">Parâmetro</th><th style="width:30%">genesis.toml (SPEC)</th><th style="width:35%">Código (constants.rs)</th></tr>
+    <tr><td>Recompensa base</td><td><span class="code">2.852.383</span></td><td><span class="code">CT_FIRST_REWARD_AUGESAT = 100.000.000</span></td></tr>
+    <tr><td>Blocos emissão</td><td><span class="code">26.298.000</span></td><td>Não usado</td></tr>
+    <tr><td>Resto</td><td><span class="code">22.446.192</span></td><td>Não existe no código</td></tr>
+    <tr><td>Decimais</td><td><span class="code">8</span></td><td><span class="code">8</span> ✅</td></tr>
+  </table>
+
+  <div class="violation">
+    O <span class="file">genesis.toml</span> registra corretamente os parâmetros da SPEC, mas <strong>nenhum código lê esses valores de runtime</strong> — a emissão é definida por constantes hardcoded em <span class="file">constants.rs</span>.
+  </div>
+  <div class="warning" style="margin-top:.5rem;">
+    <strong>Segurança:</strong> Seeds de validadores estão hardcoded no <span class="file">genesis.toml</span> <span class="lineno">:29-49</span>. Em produção, isso é inaceitável — chaves privadas nunca devem ser versionadas.
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>9. RPC <span class="badge badge-warn">GRAVE</span></h2>
+
+<div class="card">
+  <p>O RPC funciona com os tipos de <span class="file">operation.rs</span> (PascalCoin), não com os tipos SPEC de <span class="file">transaction.rs</span>.</p>
+
+  <table>
+    <tr><th style="width:33%">Endpoint SPEC</th><th style="width:33%">Implementação</th><th style="width:33%">Status</th></tr>
+    <tr><td><span class="code">getAccount</span></td><td><span class="code">handle_get_account</span></td><td>✅</td></tr>
+    <tr><td><span class="code">getBlock</span></td><td><span class="code">handle_get_block</span> (usa <span class="code">OperationBlockHeader</span> sem <span class="code">state_root</span>)</td><td>⚠️</td></tr>
+    <tr><td><span class="code">getBlockByHeight</span></td><td><span class="code">handle_get_block_operations</span></td><td>⚠️</td></tr>
+    <tr><td><span class="code">sendTransaction</span></td><td><span class="code">handle_send_operation</span></td><td>⚠️</td></tr>
+    <tr><td><span class="code">getMempool</span></td><td><span class="code">handle_get_pendings</span></td><td>⚠️</td></tr>
+    <tr><td><span class="code">getValidatorSet</span></td><td><span class="code">handle_get_validator_set</span> (usa JSON em vez do formato canônico)</td><td>⚠️</td></tr>
+    <tr><td><span class="code">getValidatorEarnings</span></td><td><strong>Não implementado</strong></td><td>❌</td></tr>
+    <tr><td><span class="code">getNetworkStatus</span></td><td><span class="code">handle_get_node_status</span></td><td>✅</td></tr>
+  </table>
+
+  <div class="warning" style="margin-top:.8rem;">
+    Tipos de operação no RPC incluem operações PascalCoin não previstas na SPEC: <span class="code">RecoverFounds</span>, <span class="code">ListAccountForSale</span>, <span class="code">DelistAccount</span>, <span class="code">BuyAccount</span>, <span class="code">MultiOperation</span>, <span class="code">Data</span>.
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>10. State Root <span class="badge badge-warn">GRAVE</span></h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:45%">SPEC</th><th style="width:55%">Código</th></tr>
+    <tr>
+      <td>Merkle tree sobre todas as contas → <span class="code">state_root: [u8; 64]</span></td>
+      <td><span class="code">safe_box_hash</span> via <span class="code">SafeBox</span> (estrutura PascalCoin)</td>
+    </tr>
+    <tr>
+      <td>Campos no BlockHeader: <span class="code">state_root, tx_merkle_root, prev_hash</span></td>
+      <td>Campos no <span class="code">OperationBlockHeader</span>: <span class="code">initial_safe_box_hash, proof_of_work, previous_proof_of_work</span></td>
+    </tr>
+  </table>
+
+  <div class="mismatch">
+    <ul>
+      <li><span class="file">state_root.rs</span> tem uma implementação de Merkle tree correta (<span class="code">compute_state_root()</span> com <span class="code">BTreeMap</span>)</li>
+      <li><span class="file">execution.rs</span> <strong>não usa</strong> <span class="code">compute_state_root()</span> — usa <span class="code">SafeBox</span> (<span class="file">safe_box.rs</span>)</li>
+      <li><span class="code">execute_block()</span> retorna <span class="code">safe_box_hash</span>, não <span class="code">state_root</span></li>
+      <li>O <span class="code">OperationBlockHeader</span> contém <span class="code">proof_of_work</span> (32 bytes) — conceito PascalCoin inexistente na SPEC AUGECOIN</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>11. Problemas Arquiteturais</h2>
+
+<div class="card">
+  <h3>11.1 — Dois Sistemas de Transação Paralelos</h3>
+  <table>
+    <tr><th style="width:25%"></th><th style="width:37%"><span class="file">transaction.rs</span> (SPEC)</th><th style="width:37%"><span class="file">operation.rs</span> (PascalCoin)</th></tr>
+    <tr>
+      <td>Tipos</td>
+      <td>Transfer, ChangeKey, ClaimAccount, SetAccountName, AttachData, ValidatorAdmin</td>
+      <td>Transaction, ChangeKey, RecoverFounds, ListAccountForSale, DelistAccount, BuyAccount, ChangeKeySigned, ChangeAccountInfo, MultiOperation, Data, ValidatorAdminOp</td>
+    </tr>
+    <tr>
+      <td>Usado por</td>
+      <td><strong>Nenhum módulo</strong> (código morto)</td>
+      <td>block.rs, execution.rs, mempool.rs, validator.rs, endpoints.rs, commands.rs</td>
+    </tr>
+    <tr>
+      <td>Signatures</td>
+      <td><span class="code">Vec&lt;HybridSignature&gt;</span> (permite múltiplas)</td>
+      <td><span class="code">Vec&lt;HybridSignature&gt;</span></td>
+    </tr>
+  </table>
+
+  <div class="violation">
+    <strong>Toda a engine de execução usa <span class="file">operation.rs</span>.</strong> O <span class="file">transaction.rs</span> existe no código mas é completamente ignorado — é código morto que nunca é instanciado por nenhum outro módulo.
+  </div>
+
+  <h3>11.2 — Cabeçalho do Bloco</h3>
+  <table>
+    <tr><th style="width:45%">BlockHeader (SPEC)</th><th style="width:55%">OperationBlockHeader (Código)</th></tr>
+    <tr>
+      <td>
+        <span class="code">height</span><br>
+        <span class="code">prev_hash</span> (BLAKE3-512)<br>
+        <span class="code">state_root</span><br>
+        <span class="code">tx_merkle_root</span><br>
+        <span class="code">timestamp</span><br>
+        <span class="code">leader_id</span><br>
+        <span class="code">round_reward</span><br>
+        <span class="code">new_account_number</span>
+      </td>
+      <td>
+        <span class="code">block_number</span><br>
+        <span class="code">account_key</span> (32 bytes)<br>
+        <span class="code">reward</span><br>
+        <span class="code">fee</span><br>
+        <span class="code">protocol_version</span><br>
+        <span class="code">protocol_available</span><br>
+        <span class="code">timestamp</span><br>
+        <span class="code">initial_safe_box_hash</span> (64 bytes)<br>
+        <span class="code">operations_hash</span> (64 bytes)<br>
+        <span class="code">block_payload</span><br>
+        <span class="code">proof_of_work</span> (32 bytes)<br>
+        <span class="code">previous_proof_of_work</span> (32 bytes)<br>
+        <span class="code">leader_id</span>
+      </td>
+    </tr>
+  </table>
+
+  <div class="mismatch">
+    O cabeçalho do bloco é inteiramente o modelo PascalCoin. Não existe <span class="code">prev_hash</span>, <span class="code">state_root</span> ou <span class="code">tx_merkle_root</span> — campos essenciais para auditabilidade e integridade da cadeia conforme a SPEC.
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>12. Violações de PROJECT_RULES.md</h2>
+
+<div class="card">
+  <table>
+    <tr><th style="width:10%">Regra</th><th style="width:40%">Descrição</th><th style="width:15%">Status</th></tr>
+    <tr>
+      <td><strong>Rule 2</strong></td>
+      <td>"Proibido pré-mineração. Nenhuma conta, endereço de fundador, alocação especial de gênesis ou <strong>taxa de desenvolvedor embutida</strong> no protocolo."</td>
+      <td><span class="badge badge-crit">VIOLADA</span></td>
+    </tr>
+    <tr>
+      <td><strong>Rule 7</strong></td>
+      <td>"Nada de tradução literal de código de terceiros. Nenhum código Object Pascal deve ser traduzido linha por linha."</td>
+      <td><span class="badge badge-crit">VIOLADA</span></td>
+    </tr>
+    <tr>
+      <td><strong>Rule 9</strong></td>
+      <td>"Sem hard fork silencioso de regras monetárias ou de consenso."</td>
+      <td><span class="badge badge-crit">VIOLADA</span></td>
+    </tr>
+    <tr>
+      <td><strong>Rule 1</strong></td>
+      <td>"Proibido simular, placeholder, mock, dados fake."</td>
+      <td>✅ OK</td>
+    </tr>
+  </table>
+
+  <div class="violation" style="margin-top:1rem;">
+    <strong>Rule 2 — 20% de taxa de desenvolvedor.</strong> O código reserva 20% de toda emissão + 100% de todas as taxas para 5 contas de desenvolvedor (<span class="code">CT_DEVELOPER_ACCOUNT_START</span> a <span class="code">CT_DEVELOPER_ACCOUNT_COUNT</span>). Isso constitui uma taxa de desenvolvedor embutida no protocolo — explicitamente proibida.
+  </div>
+
+  <div class="violation">
+    <strong>Rule 7 — Tradução do PascalCoin.</strong> O sistema de operações (<span class="file">operation.rs</span>), o modelo de conta com estados ForSale/BuyAccount (<span class="file">account.rs</span>), o SafeBox (<span class="file">safe_box.rs</span>), e o cabeçalho de bloco com proof_of_work (<span class="file">block.rs</span>) são uma tradução direta do protocolo PascalCoin. O ADR-002 afirma que "nenhum código PascalCoin é traduzido linha a linha", mas a estrutura inteira da camada de execução é derivada dele.
+  </div>
+
+  <div class="violation">
+    <strong>Rule 9 — Hard fork silencioso de regras monetárias.</strong> O modelo de emissão halving perpétuo substitui o modelo determinístico de 50 anos com supply exato de 750 milhões. Nenhum ADR registra essa decisão.
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>PRE_MAINNET_CHECKLIST.md — Falsos Positivos</h2>
+
+<div class="card">
+  <p>O checklist em <span class="file">docs/PRE_MAINNET_CHECKLIST.md</span> afirma:</p>
+
+  <div class="blockquote">
+    "Section 3 (Emission): Matches — block_reward() implementation verified by proptest"
+  </div>
+
+  <div class="violation">
+    <strong>Isso é falso.</strong> O proptest <span class="code">emission_total_supply</span> NÃO verifica <span class="code">sum(block_reward(h)) == TOTAL_SUPPLY_AUGESAT</span> — ele testa apenas monotonicidade, teto máximo e piso mínimo. O modelo de emissão no código é halving-style, não o determinístico da SPEC.
+  </div>
+
+  <div class="blockquote">
+    "Section 4 (Block production): Matches — new account auto-assigned to leader (ADR-005)"
+  </div>
+
+  <div class="violation">
+    <strong>Parcialmente falso.</strong> A atribuição ao líder está implementada, mas o código cria <strong>5 contas por bloco</strong> (<span class="code">CT_ACCOUNTS_PER_BLOCK = 5</span>), não 1 como manda a SPEC.
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2>Conclusão</h2>
+
+<div class="card" style="border-color: var(--crit);">
+  <p>O código atual <strong>não é a implementação da AUGECOIN descrita no whitepaper</strong>. É uma fork do PascalCoin traduzida para Rust, com:</p>
+
+  <div class="tag-row">
+    <span class="tag">Emissão halving perpétua</span>
+    <span class="tag">Nunca atinge 750M exatos</span>
+    <span class="tag">20% taxa de desenvolvedor</span>
+    <span class="tag">5 contas por bloco</span>
+    <span class="tag">Marketplace de contas</span>
+    <span class="tag">Bloco estilo PascalCoin</span>
+    <span class="tag">proof_of_work no header</span>
+    <span class="tag">SafeBox em vez de state_root</span>
+  </div>
+
+  <h3 style="margin-top:1.5rem;">Caminhos para Correção</h3>
+
+  <div class="warning">
+    <strong>Opção A — Alinhar código ao Whitepaper:</strong>
+    <ol>
+      <li>Reescrever <span class="file">emission.rs</span> com o modelo determinístico da SPEC (base_reward + remainder, zero após TOTAL_EMISSION_BLOCKS)</li>
+      <li>Remover <span class="code">developer_reward()</span>, <span class="code">developer_account_for_block()</span>, e contas de dev</li>
+      <li>Reduzir <span class="code">CT_ACCOUNTS_PER_BLOCK</span> para 1</li>
+      <li>Substituir <span class="file">operation.rs</span> por <span class="file">transaction.rs</span> na engine de execução</li>
+      <li>Alinhar <span class="file">block.rs</span> com o BlockHeader da SPEC (prev_hash, state_root, tx_merkle_root, round_reward, new_account_number)</li>
+      <li>Remover SafeBox e usar <span class="code">compute_state_root()</span> em <span class="code">execute_block()</span></li>
+      <li>Distribuir 100% da recompensa + 100% das taxas ao líder</li>
+      <li>Implementar <span class="code">getValidatorEarnings</span> no RPC</li>
+      <li>Remover seeds do <span class="file">genesis.toml</span> (usar variáveis de ambiente)</li>
+    </ol>
+  </div>
+
+  <div class="mismatch" style="margin-top:.8rem;">
+    <strong>Opção B — Formalizar o modelo atual como regra oficial:</strong> Registrar um ADR explícito em <span class="file">DECISIONS.md</span> declarando que o protocolo adota o modelo halving, 20% dev, 5 contas/bloco, e estrutura PascalCoin. Atualizar <span class="file">SPEC.md</span> e <span class="file">AUGECOIN_WHITEPAPER.md</span> para refletir essa decisão. <strong>Ambos os documentos precisam dizer a mesma verdade que o código.</strong>
+  </div>
+</div>
+
+<hr class="hr">
+<div class="meta" style="text-align:center;">
+  Auditoria gerada em 2026-08-11 &nbsp;|&nbsp; AUGECOIN v1.0-pre &nbsp;|&nbsp; 12 áreas auditadas &nbsp;|&nbsp; 6 divergências críticas encontradas
+</div>
+
+</div>
+</body>
+</html>

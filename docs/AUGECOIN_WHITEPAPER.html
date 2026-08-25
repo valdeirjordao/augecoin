@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Whitepaper v1.0</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a28;
+    --border: #2a2a3a;
+    --text: #d4d4d8;
+    --text2: #a1a1aa;
+    --gold: #c8a94e;
+    --gold2: #e6c860;
+    --accent: #6b8cff;
+    --accent2: #4a6cf7;
+    --green: #34d399;
+    --red: #f87171;
+    --font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── HEADER ─── */
+  .hero {
+    background: linear-gradient(165deg, #0e0e1a 0%, #12122a 40%, #0a0a18 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 70px 24px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 700px; height: 700px;
+    background: radial-gradient(circle at center, rgba(200,169,78,0.06) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero-logo {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--gold);
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .hero-logo span { color: var(--text); font-weight: 300; }
+  .hero-subtitle {
+    font-size: 18px;
+    color: var(--text2);
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  .hero-version {
+    display: inline-block;
+    background: rgba(200,169,78,0.1);
+    border: 1px solid rgba(200,169,78,0.2);
+    color: var(--gold);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* ─── LAYOUT ─── */
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ─── EXECUTIVE SUMMARY ─── */
+  .exec-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-top: -30px;
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .exec-summary h2 {
+    color: var(--gold2);
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  .exec-summary p {
+    color: var(--text2);
+    font-size: 15px;
+  }
+
+  /* ─── SECTIONS ─── */
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #e4e4e7;
+    margin-bottom: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-size: 19px;
+    font-weight: 600;
+    color: #d4d4d8;
+    margin: 24px 0 10px;
+  }
+  p, li { color: var(--text2); font-size: 15px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 16px; }
+  li { margin-bottom: 4px; }
+  strong { color: #e4e4e7; font-weight: 600; }
+
+  /* ─── TABLES ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px;
+    font-size: 14px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+  }
+  th {
+    background: var(--surface2);
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    background: var(--surface);
+    color: var(--text2);
+    border-bottom: 1px solid rgba(42,42,58,0.5);
+  }
+  tr:last-child td { border-bottom: none; }
+  code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  /* ─── CODE BLOCKS ─── */
+  pre {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0 18px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: #c4c4cc;
+  }
+  pre .comment { color: #5c6370; }
+  pre .keyword { color: var(--accent2); }
+  pre .string { color: var(--green); }
+  pre .number { color: var(--gold2); }
+
+  /* ─── CARDS ─── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 16px 0 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #e4e4e7;
+  }
+  .card-sub {
+    font-size: 13px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  /* ─── STEP FLOW ─── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 0 20px;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e4e4e7;
+  }
+  .flow-step.active {
+    border-color: var(--gold);
+    color: var(--gold2);
+    box-shadow: 0 0 12px rgba(200,169,78,0.1);
+  }
+  .flow-arrow {
+    color: var(--accent2);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--text2);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .hero-logo { font-size: 36px; }
+    .exec-summary { margin-top: -20px; padding: 20px; }
+    table { font-size: 12px; }
+    th, td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─────────────────── HERO ─────────────────── -->
+<header class="hero">
+  <div class="hero-logo">AUGE<span>COIN</span></div>
+  <div class="hero-subtitle">Blockchain Permissionada Pós-Quântica de Camada 1</div>
+  <span class="hero-version">Whitepaper v1.0 — Agosto 2026</span>
+</header>
+
+<div class="container">
+
+<!-- ─── EXECUTIVE SUMMARY ─── -->
+<div class="exec-summary">
+  <h2>Resumo Executivo</h2>
+  <p>
+    AUGECOIN é uma blockchain permissionada de camada 1, projetada para redes institucionais fechadas com alta exigência de previsibilidade monetária, segurança de longo prazo e simplicidade operacional. Utiliza consenso <strong>Proof of Authority (PoA)</strong> com quórum de <strong>2/3+1</strong>, assinaturas híbridas <strong>pós-quânticas obrigatórias</strong> desde o bloco gênesis, e emissão monetária determinística com suprimento total fixo de <strong>750 milhões de AUGE</strong> distribuído ao longo de <strong>50 anos</strong>, sem pré-mineração, sem taxas ocultas e sem fundação ou alocação especial de gênesis.
+  </p>
+</div>
+
+<!-- ═══════ 1. IDENTIDADE ═══════ -->
+<section>
+<h2>1. Identidade do Protocolo</h2>
+
+<div class="card-grid">
+  <div class="card"><div class="card-label">Nome da Rede</div><div class="card-value">AUGECOIN</div></div>
+  <div class="card"><div class="card-label">Símbolo</div><div class="card-value">AUGE</div><div class="card-sub">1 AUGE = 100.000.000 augesat</div></div>
+  <div class="card"><div class="card-label">Consenso</div><div class="card-value">PoA</div><div class="card-sub">Quórum 2/3+1 · Sem staking</div></div>
+  <div class="card"><div class="card-label">Tempo de Bloco</div><div class="card-value">60s</div><div class="card-sub">Deriva máxima 2s via NTP</div></div>
+  <div class="card"><div class="card-label">Suprimento</div><div class="card-value">750M AUGE</div><div class="card-sub">Sem pré-mineração</div></div>
+  <div class="card"><div class="card-label">Duração da Emissão</div><div class="card-value">50 anos</div><div class="card-sub">26.298.000 blocos</div></div>
+  <div class="card"><div class="card-label">Criptografia</div><div class="card-value">Híbrida PQC</div><div class="card-sub">Ed25519 + ML-DSA desde o gênesis</div></div>
+  <div class="card"><div class="card-label">Decimais</div><div class="card-value">8</div></div>
+</div>
+</section>
+
+<!-- ═══════ 2. MODELO DE CONTAS ═══════ -->
+<section>
+<h2>2. Modelo de Contas</h2>
+<p>AUGECOIN adota um modelo de contas numeradas permanentes. Cada conta recebe um número sequencial único e perpétuo.</p>
+
+<h3>Estrutura da Conta (AugeAccount)</h3>
+<table>
+  <tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr>
+  <tr><td><code>account_number</code></td><td><code>u64</code></td><td>Número sequencial da conta</td></tr>
+  <tr><td><code>pubkeys</code></td><td><code>HybridKeyPair</code></td><td>Par de chaves públicas (Ed25519 + Dilithium)</td></tr>
+  <tr><td><code>balance</code></td><td><code>u64</code></td><td>Saldo em augesat</td></tr>
+  <tr><td><code>name</code></td><td><code>Option&lt;String&gt;</code></td><td>Nome reservado (sem lógica de unicidade no MVP)</td></tr>
+  <tr><td><code>metadata</code></td><td><code>Vec&lt;u8&gt;</code></td><td>Dados arbitrários anexados</td></tr>
+  <tr><td><code>op_sequence</code></td><td><code>u64</code></td><td>Contador de operações (anti-replay)</td></tr>
+  <tr><td><code>created_at_height</code></td><td><code>u64</code></td><td>Altura do bloco em que a conta foi criada</td></tr>
+</table>
+
+<h3>Criação de Contas</h3>
+<p>A cada bloco finalizado, uma nova conta numerada é criada automaticamente e atribuída ao validador líder da rodada. Não há custo adicional — a atribuição é automática e integrada à execução atômica do bloco.</p>
+<ul>
+  <li>Conta <strong>nunca expira</strong></li>
+  <li>Perda de chave privada = saldo permanentemente inacessível</li>
+  <li>Sem mecanismo de leilão ou claim — atribuição direta ao líder</li>
+</ul>
+</section>
+
+<!-- ═══════ 3. ECONOMIA E EMISSÃO ═══════ -->
+<section>
+<h2>3. Economia e Emissão Monetária</h2>
+
+<h3>3.1 Parâmetros Fundamentais</h3>
+<pre>
+DECIMALS               = 8
+TOTAL_SUPPLY_AUGE       = 750.000.000
+TOTAL_SUPPLY_AUGESAT    = 75.000.000.000.000.000
+
+BLOCK_TIME_SECONDS      = 60
+EMISSION_YEARS          = 50
+BLOCKS_PER_YEAR         = 525.960
+TOTAL_EMISSION_BLOCKS   = 26.298.000
+
+BASE_REWARD_AUGESAT     = TOTAL_SUPPLY_AUGESAT / TOTAL_EMISSION_BLOCKS
+                        = 2.852.383 (divisão inteira truncada)
+REMAINDER_AUGESAT       = TOTAL_SUPPLY_AUGESAT % TOTAL_EMISSION_BLOCKS</pre>
+
+<h3>3.2 Função de Recompensa por Bloco</h3>
+<p><code>block_reward(height: u64) -&gt; u64</code></p>
+<ol>
+  <li>Se <code>height &gt; TOTAL_EMISSION_BLOCKS</code>: retorna <strong>0</strong> — sem cauda perpétua.</li>
+  <li>Caso contrário: recompensa = <code>BASE_REWARD_AUGESAT</code>.</li>
+  <li>Se <code>height &lt;= REMAINDER_AUGESAT</code>: adiciona 1 augesat extra.</li>
+</ol>
+<p><strong>Propriedade fundamental:</strong> Σ block_reward(h) para h = 1..TOTAL_EMISSION_BLOCKS ≡ TOTAL_SUPPLY_AUGESAT. Verificada por proptest determinístico.</p>
+
+<h3>3.3 O que Cada Bloco Produz</h3>
+<pre>
+BLOCO N
+ ├── 1 nova Conta AUGE criada           → Conta #N
+ ├── Recompensa de emissão              → block_reward(N) augesat
+ └── Taxas de todas as tx do bloco      → soma(fee_i) augesat
+        ↓
+ Validador líder da rodada N recebe: block_reward(N) + soma(fee_i)</pre>
+<ul>
+  <li><strong>100% recompensa + 100% taxas</strong> para o validador líder</li>
+  <li>Sem split para fundação ou desenvolvedores</li>
+  <li>Todo AUGE é gerado exclusivamente via recompensa de bloco</li>
+</ul>
+</section>
+
+<!-- ═══════ 4. CRIPTOGRAFIA ═══════ -->
+<section>
+<h2>4. Criptografia</h2>
+
+<h3>4.1 Assinatura Híbrida Dual-Sign Obrigatória</h3>
+<p>Toda transação e bloco exige <strong>duas assinaturas simultâneas</strong>, ambas válidas desde o bloco gênesis:</p>
+<table>
+  <tr><th>Esquema</th><th>Algoritmo</th><th>Biblioteca</th></tr>
+  <tr><td><strong>Clássico</strong></td><td>Ed25519</td><td><code>ed25519-dalek</code></td></tr>
+  <tr><td><strong>Pós-Quântico</strong></td><td>ML-DSA / CRYSTALS-Dilithium (NIST FIPS 204)</td><td><code>pqcrypto-dilithium</code></td></tr>
+</table>
+
+<h3>Estrutura HybridSignature</h3>
+<pre>
+HybridSignature {
+    classic: Ed25519Signature,
+    post_quantum: DilithiumSignature,
+}</pre>
+<p>A verificação exige <strong>ambas</strong> as assinaturas válidas. Quebrar Ed25519 via computador quântico futuro não é suficiente para forjar uma transação — defesa em profundidade contra <em>"harvest now, decrypt later"</em>.</p>
+
+<h3>4.2 Hashing</h3>
+<table>
+  <tr><td>Algoritmo</td><td><strong>BLAKE3</strong> em modo XOF (eXtendable Output Function)</td></tr>
+  <tr><td>Saída</td><td><strong>512 bits</strong> (64 bytes)</td></tr>
+  <tr><td>Aplicações</td><td>Hash de bloco, state root, derivação de endereços</td></tr>
+</table>
+
+<h3>4.3 Endereços</h3>
+<pre>
+address = blake3_512(ed25519_pubkey || dilithium_pubkey)
+endereço codificado em Bech32m, prefixo: auge1...</pre>
+<p>Exemplo: <code>auge1abc...def</code> — com checksum Bech32m integrado e validação de integridade.</p>
+
+<h3>4.4 Carteira HD (Hierarchical Deterministic)</h3>
+<pre>
+seed (BIP39, 12/24 palavras)
+  → HKDF-SHA3-512
+    → sementes determinísticas por índice
+      → par de chaves (Ed25519 + Dilithium)</pre>
+<ul>
+  <li>Vetores de teste fixos garantem reprodutibilidade entre Rust, TS SDK e wallets</li>
+  <li>Mesma seed + mesmo índice = sempre as mesmas chaves</li>
+</ul>
+
+<h3>4.5 Migração Criptográfica Futura</h3>
+<p>Cada transação inclui o campo <code>sig_scheme_version</code>. Novos esquemas podem ser adicionados via hard fork governado pelo conjunto de validadores, sem invalidar transações antigas.</p>
+</section>
+
+<!-- ═══════ 5. CONSENSO PoA ═══════ -->
+<section>
+<h2>5. Consenso — Proof of Authority (PoA)</h2>
+
+<h3>5.1 Arquitetura Geral</h3>
+<table>
+  <tr><th>Parâmetro</th><th>Valor</th></tr>
+  <tr><td>Validadores iniciais (gênesis)</td><td><strong>4</strong></td></tr>
+  <tr><td>Teto de crescimento</td><td><strong>Sem limite</strong></td></tr>
+  <tr><td>Quórum</td><td><strong>2/3 + 1</strong></td></tr>
+  <tr><td>Seleção de líder</td><td>Round-robin determinístico</td></tr>
+  <tr><td>Timeout de líder</td><td><strong>120s</strong> (2 × BLOCK_TIME_SECONDS)</td></tr>
+  <tr><td>Finalidade</td><td>Bloco marcado como <code>Finalized</code> ao atingir quórum</td></tr>
+</table>
+
+<h3>5.2 Governança de Validadores</h3>
+<table>
+  <tr><th>Operação</th><th>Descrição</th></tr>
+  <tr><td><code>add</code></td><td>Adiciona validador com <code>activation_height</code> futuro obrigatório</td></tr>
+  <tr><td><code>remove</code></td><td>Remove validador com <code>deactivation_height</code> futuro obrigatório</td></tr>
+  <tr><td><code>activate</code></td><td>Reativa validador removido/inativo</td></tr>
+  <tr><td><code>deactivate</code></td><td>Desativa validador sem removê-lo</td></tr>
+</table>
+
+<h3>5.3 Seleção de Líder</h3>
+<pre>leader_for_height(h) = active_validators[h % active_validators.len()]</pre>
+<p>Rotação round-robin estritamente determinística. Qualquer nó pode computar o líder para qualquer altura.</p>
+
+<h3>5.4 Máquina de Estados da Rodada</h3>
+<div class="flow">
+  <div class="flow-step active">Propose</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">Verify</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">Sign</div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step active">Commit (Finalized)</div>
+</div>
+<table>
+  <tr><th>Fase</th><th>Descrição</th></tr>
+  <tr><td><strong>Propose</strong></td><td>Líder monta bloco com tx do mempool e propõe à rede</td></tr>
+  <tr><td><strong>Verify</strong></td><td>Validadores verificam assinaturas, saldos, op_sequence, estado</td></tr>
+  <tr><td><strong>Sign</strong></td><td>Validadores assinam o bloco com sua HybridSignature</td></tr>
+  <tr><td><strong>Commit</strong></td><td>Bloco é aplicado atomicamente e marcado como Finalized</td></tr>
+</table>
+
+<h3>5.5 Equivocation (Falta Dupla)</h3>
+<p>Se um mesmo validador assinar dois blocos diferentes na mesma altura:</p>
+<ol>
+  <li><strong>Prova on-chain:</strong> EquivocationProof com as duas assinaturas conflitantes</li>
+  <li><strong>Consequência:</strong> Validador marcado como slashable, removível pelo administrador</li>
+  <li><strong>Detecção:</strong> Automática e ativa — monitoramento em tempo real</li>
+</ol>
+
+<h3>5.6 Tolerância a Falhas</h3>
+<table>
+  <tr><th>Cenário</th><th>Resultado</th></tr>
+  <tr><td>4 validadores, 3 online</td><td style="color:var(--green)">Rede continua finalizando (quórum 3/4)</td></tr>
+  <tr><td>4 validadores, 2 online</td><td style="color:var(--red)">Rede para de finalizar (falha segura)</td></tr>
+  <tr><td>Partição de rede (2 vs 2)</td><td style="color:var(--red)">Nenhum lado atinge quórum; recuperação automática ao resolver partição</td></tr>
+</table>
+</section>
+
+<!-- ═══════ 6. REDE P2P ═══════ -->
+<section>
+<h2>6. Rede P2P e Comunicação</h2>
+
+<h3>6.1 Transporte</h3>
+<table>
+  <tr><td>Biblioteca</td><td><strong>libp2p</strong> (Rust)</td></tr>
+  <tr><td>Criptografia de canal</td><td><strong>Noise Protocol</strong> obrigatório — peer sem Noise é rejeitado</td></tr>
+  <tr><td>Descoberta de peers</td><td>Lista estática de bootnodes</td></tr>
+</table>
+
+<h3>6.2 Propagação</h3>
+<ul>
+  <li>Transações e blocos via <strong>gossipsub</strong></li>
+  <li>Canais de consenso restritos a <strong>validadores reconhecidos</strong></li>
+  <li>Peers não validadores recebem apenas dados públicos via RPC</li>
+</ul>
+
+<h3>6.3 Sincronização Inicial (Fast Sync)</h3>
+<ol>
+  <li>Download do checkpoint mais recente (snapshot de estado)</li>
+  <li>Replay dos blocos restantes até a altura atual</li>
+</ol>
+
+<h3>6.4 Proteção contra DoS</h3>
+<ul>
+  <li>Rate limiting por peer</li>
+  <li>Banimento temporário configurável</li>
+  <li>Expiração automática do ban</li>
+</ul>
+</section>
+
+<!-- ═══════ 7. TIPOS DE TRANSAÇÃO ═══════ -->
+<section>
+<h2>7. Tipos de Transação</h2>
+<table>
+  <tr><th>Tipo</th><th>Descrição</th></tr>
+  <tr><td><strong>Transfer</strong></td><td>Transferência de AUGE entre contas</td></tr>
+  <tr><td><strong>ChangeKey</strong></td><td>Altera o par de chaves públicas da conta</td></tr>
+  <tr><td><strong>ClaimAccount</strong></td><td>(Reservado — não implementado no MVP)</td></tr>
+  <tr><td><strong>SetAccountName</strong></td><td>Define nome público da conta</td></tr>
+  <tr><td><strong>AttachData</strong></td><td>Anexa dados arbitrários (metadata)</td></tr>
+  <tr><td><strong>ValidatorAdmin</strong></td><td>Operações administrativas do conjunto de validadores</td></tr>
+</table>
+
+<h3>Validação de Transação (Mempool)</h3>
+<ol>
+  <li><strong>Assinatura híbrida</strong> — ambas (Ed25519 + Dilithium) devem verificar</li>
+  <li><strong>op_sequence</strong> — deve ser exatamente <code>current_sequence + 1</code> (anti-replay)</li>
+  <li><strong>Saldo suficiente</strong> — <code>balance &gt;= amount + fee</code></li>
+  <li><strong>Taxa mínima</strong> — <code>fee &gt;= MIN_FEE</code></li>
+</ol>
+</section>
+
+<!-- ═══════ 8. ESTRUTURA DO BLOCO ═══════ -->
+<section>
+<h2>8. Estrutura do Bloco</h2>
+
+<h3>BlockHeader</h3>
+<table>
+  <tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr>
+  <tr><td><code>height</code></td><td><code>u64</code></td><td>Altura do bloco</td></tr>
+  <tr><td><code>prev_hash</code></td><td><code>[u8; 64]</code></td><td>Hash BLAKE3-512 do bloco anterior</td></tr>
+  <tr><td><code>state_root</code></td><td><code>[u8; 64]</code></td><td>Raiz da Merkle tree do estado de contas</td></tr>
+  <tr><td><code>tx_merkle_root</code></td><td><code>[u8; 64]</code></td><td>Raiz da Merkle tree das transações</td></tr>
+  <tr><td><code>timestamp</code></td><td><code>u64</code></td><td>Timestamp UNIX</td></tr>
+  <tr><td><code>leader_id</code></td><td><code>u64</code></td><td>Número da conta do validador líder</td></tr>
+  <tr><td><code>round_reward</code></td><td><code>u64</code></td><td>Recompensa total (emissão + taxas)</td></tr>
+  <tr><td><code>new_account_number</code></td><td><code>u64</code></td><td>Número da nova conta criada</td></tr>
+</table>
+
+<h3>Block</h3>
+<table>
+  <tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr>
+  <tr><td><code>header</code></td><td><code>BlockHeader</code></td><td>Cabeçalho do bloco</td></tr>
+  <tr><td><code>transactions</code></td><td><code>Vec&lt;Transaction&gt;</code></td><td>Transações incluídas</td></tr>
+  <tr><td><code>leader_signature</code></td><td><code>HybridSignature</code></td><td>Assinatura do líder</td></tr>
+  <tr><td><code>quorum_signatures</code></td><td><code>Vec&lt;HybridSignature&gt;</code></td><td>Assinaturas de quórum</td></tr>
+</table>
+<p>Serialização canônica determinística byte-a-byte.</p>
+</section>
+
+<!-- ═══════ 9. ARMAZENAMENTO ═══════ -->
+<section>
+<h2>9. Armazenamento e Estado</h2>
+
+<h3>9.1 Backend</h3>
+<ul>
+  <li><strong>Banco de dados:</strong> RocksDB</li>
+  <li><strong>Column Families:</strong> <code>accounts</code>, <code>blocks</code>, <code>tx_index</code>, <code>validator_set</code>, <code>equivocation_proofs</code></li>
+</ul>
+
+<h3>9.2 State Root</h3>
+<ul>
+  <li><strong>Estrutura:</strong> Merkle Tree sobre todas as contas</li>
+  <li><strong>Propriedade:</strong> Determinístico</li>
+  <li>Recalculado a cada bloco</li>
+</ul>
+
+<h3>9.3 Atomicidade</h3>
+<p><code>execute_block()</code> executa tudo em uma única transação atômica de banco de dados. Se qualquer etapa falhar, <strong>nada é persistido</strong>.</p>
+
+<h3>9.4 Checkpoints</h3>
+<ul>
+  <li>Snapshots a cada N blocos (parametrizável)</li>
+  <li>Fast sync e recuperação de corrupção</li>
+  <li>Rollback suportado (reorg)</li>
+</ul>
+</section>
+
+<!-- ═══════ 10. INTERFACE RPC ═══════ -->
+<section>
+<h2>10. Interface RPC</h2>
+
+<h3>10.1 Protocolos</h3>
+<table>
+  <tr><th>Protocolo</th><th>Descrição</th></tr>
+  <tr><td><strong>JSON-RPC 2.0</strong></td><td>Endpoints públicos de consulta e envio de transações</td></tr>
+  <tr><td><strong>gRPC</strong></td><td>Interface tipada, codegen automático para SDK</td></tr>
+</table>
+<p>Ambos obrigatoriamente sobre <strong>TLS</strong> — conexões HTTP puras são rejeitadas.</p>
+
+<h3>10.2 Endpoints</h3>
+<table>
+  <tr><th>Endpoint</th><th>Descrição</th></tr>
+  <tr><td><code>getAccount</code></td><td>Consulta conta por número</td></tr>
+  <tr><td><code>getBlock</code></td><td>Consulta bloco por hash</td></tr>
+  <tr><td><code>getBlockByHeight</code></td><td>Consulta bloco por altura</td></tr>
+  <tr><td><code>sendTransaction</code></td><td>Envia transação ao mempool</td></tr>
+  <tr><td><code>getMempool</code></td><td>Lista transações pendentes</td></tr>
+  <tr><td><code>getValidatorSet</code></td><td>Lista validadores ativos</td></tr>
+  <tr><td><code>getNetworkStatus</code></td><td>Status da rede</td></tr>
+  <tr><td><code>getValidatorEarnings</code></td><td>Ganhos acumulados por validador</td></tr>
+</table>
+
+<h3>10.3 Segurança</h3>
+<ul>
+  <li>Endpoints administrativos exigem API key/autenticação</li>
+  <li>Rate limiting por IP/API key</li>
+  <li>Endpoints públicos de leitura sem autenticação</li>
+</ul>
+</section>
+
+<!-- ═══════ 11. FERRAMENTAS ═══════ -->
+<section>
+<h2>11. Superfícies Externas e Ferramentas</h2>
+
+<h3>11.1 SDK TypeScript (<code>@augecoin/sdk</code>)</h3>
+<ul>
+  <li>Compilação de augecoin-crypto para <strong>WASM</strong></li>
+  <li>Carteira HD com BIP39</li>
+  <li>Assinatura de transação (Ed25519 + Dilithium via WASM)</li>
+  <li>Chamadas RPC tipadas via codegen gRPC</li>
+  <li>Utilitários: <code>augesat ↔ AUGE</code></li>
+</ul>
+
+<h3>11.2 Wallets</h3>
+<table>
+  <tr><th>Plataforma</th><th>Stack</th><th>Armazenamento</th></tr>
+  <tr><td><strong>Web</strong></td><td>React + TypeScript + WASM</td><td>IndexedDB + Argon2id + AES-256-GCM</td></tr>
+  <tr><td><strong>Desktop</strong></td><td>Tauri + Rust nativo</td><td>Keystore do SO</td></tr>
+  <tr><td><strong>Mobile</strong></td><td>React Native + módulo nativo</td><td>Secure Enclave / Keystore nativo</td></tr>
+</table>
+<p><strong>Princípio fundamental:</strong> chave privada e seed <strong>nunca</strong> saem do dispositivo.</p>
+
+<h3>11.3 CLI Administrativo</h3>
+<table>
+  <tr><th>Comando</th><th>Descrição</th></tr>
+  <tr><td><code>validator add/remove/activate/deactivate/list</code></td><td>Gestão de validadores</td></tr>
+  <tr><td><code>status</code></td><td>Altura, peers, sincronização, saúde do quórum</td></tr>
+  <tr><td><code>validator earnings</code></td><td>Ganhos por validador (ranking com --all)</td></tr>
+  <tr><td><code>security equivocations</code></td><td>Provas de equivocation registradas</td></tr>
+  <tr><td><code>security banned-peers</code></td><td>Peers banidos</td></tr>
+  <tr><td><code>security alerts --tail</code></td><td>Stream de alertas em tempo real</td></tr>
+</table>
+</section>
+
+<!-- ═══════ 12. OBSERVABILIDADE ═══════ -->
+<section>
+<h2>12. Observabilidade e Monitoramento</h2>
+
+<h3>12.1 Métricas Prometheus</h3>
+<table>
+  <tr><th>Métrica</th><th>Descrição</th></tr>
+  <tr><td><code>augecoin_block_height</code></td><td>Altura atual do bloco</td></tr>
+  <tr><td><code>augecoin_block_time_avg</code></td><td>Tempo médio entre blocos</td></tr>
+  <tr><td><code>augecoin_peers_connected</code></td><td>Peers conectados</td></tr>
+  <tr><td><code>augecoin_mempool_size</code></td><td>Tamanho do mempool</td></tr>
+  <tr><td><code>augecoin_equivocation_rate</code></td><td>Taxa de equivocation</td></tr>
+  <tr><td><code>augecoin_block_propagation_latency</code></td><td>Latência de propagação</td></tr>
+</table>
+
+<h3>12.2 Detecção Ativa de Ameaças</h3>
+<ul>
+  <li><strong>Equivocation</strong> — validador assinou dois blocos na mesma altura</li>
+  <li><strong>Peer malicioso repetido</strong> — auto-ban</li>
+  <li><strong>Validador ausente</strong> — além do timeout</li>
+  <li><strong>Tentativa de replay</strong> — op_sequence reutilizado</li>
+</ul>
+<p>Integração opcional com webhooks (Telegram, Slack, Discord).</p>
+</section>
+
+<!-- ═══════ 13. ARQUITETURA ═══════ -->
+<section>
+<h2>13. Arquitetura de Software</h2>
+
+<h3>13.1 Crates (Rust Workspace)</h3>
+<pre>
+augecoin-crypto      → assinatura híbrida, hashing, hdkeys, endereços
+augecoin-core        → AugeAccount, Transaction, Block, BlockHeader, block_reward()
+augecoin-storage     → RocksDB, state_root, checkpoints
+augecoin-consensus   → ValidatorSet, seleção de líder, PoA, equivocation
+augecoin-network     → libp2p, Noise, gossipsub, sync, rate limiting
+augecoin-rpc         → JSON-RPC 2.0 + gRPC sobre TLS
+augecoin-cli         → CLI administrativo (clap)
+augecoin-node        → binário principal, mempool, execute_block()</pre>
+
+<h3>13.2 Pacotes e Aplicações</h3>
+<pre>
+packages/
+ ├── wasm-crypto/    → @augecoin/wasm-crypto (augecoin-crypto → WASM)
+ └── sdk-ts/         → @augecoin/sdk
+
+apps/
+ ├── wallet-web/     → React + TypeScript + WASM
+ ├── wallet-desktop/ → Tauri + Rust nativo
+ └── wallet-mobile/  → React Native + módulo nativo</pre>
+</section>
+
+<!-- ═══════ 14. DEPLOY ═══════ -->
+<section>
+<h2>14. Deploy e Infraestrutura</h2>
+
+<h3>14.1 Testnet Padrão</h3>
+<p><code>docker-compose</code> com:</p>
+<ul>
+  <li>4 nós validadores com identidades criptográficas próprias</li>
+  <li>1 nó observador (sem poder de consenso)</li>
+  <li>Prometheus + Grafana</li>
+</ul>
+
+<h3>14.2 Script de Gênesis</h3>
+<p>Geração determinística do bloco 0: define os 4 validadores iniciais, timestamp, e parâmetros de emissão. Bloco gênesis idêntico em qualquer máquina com os mesmos parâmetros.</p>
+</section>
+
+<!-- ═══════ 15. SEGURANÇA ═══════ -->
+<section>
+<h2>15. Segurança e Auditoria</h2>
+
+<h3>15.1 Checklist de Hardening</h3>
+<table>
+  <tr><th>Item</th><th>Descrição</th></tr>
+  <tr><td>Auditoria de dependências</td><td><code>cargo audit</code> — zero vulnerabilidades conhecidas</td></tr>
+  <tr><td>Fuzzing</td><td>Desserialização de transações e blocos</td></tr>
+  <tr><td>Gestão de chaves</td><td>Chaves nunca em arquivo versionado</td></tr>
+  <tr><td>Teste de carga</td><td>Taxa máxima sem degradar 60s de bloco</td></tr>
+  <tr><td>Teste de partição</td><td>2 vs 2: recuperação automática</td></tr>
+</table>
+
+<h3>15.2 Plano de Resposta a Incidentes</h3>
+<p>Cobre: validador comprometido, bug de consenso, rollback e recuperação.</p>
+</section>
+
+<!-- ═══════ 16. REFERÊNCIA ═══════ -->
+<section>
+<h2>16. Referência Conceitual</h2>
+<p>
+  A arquitetura de contas numeradas permanentes, o conceito de checkpoint de estado e o modelo PoA com quórum 2/3 utilizam o <strong>PascalCoin</strong> como referência conceitual de protocolo. <strong>Nenhum código Object Pascal é reaproveitado</strong> — a implementação é um design original em Rust/TypeScript, construído do zero.
+</p>
+</section>
+
+<!-- ═══════ 17. CONCLUSÃO ═══════ -->
+<section>
+<h2>17. Conclusão</h2>
+<p>
+  AUGECOIN é uma blockchain projetada para durar <strong>50 anos</strong> com segurança de longo prazo e previsibilidade econômica absoluta. Suas características distintivas — assinatura híbrida pós-quântica desde o gênesis, emissão determinística sem pré-mineração, PoA com quórum de 2/3+1, e ecossistema completo de ferramentas — a posicionam como uma solução robusta para redes institucionais que exigem confiabilidade, simplicidade operacional e resistência a ameaças quânticas futuras.
+</p>
+</section>
+
+</div>
+
+<footer>
+  <p>AUGECOIN Whitepaper v1.0 · Agosto 2026 · <a href="https://github.com" style="color:var(--gold2);text-decoration:none">github.com/augecoin</a></p>
+  <p style="margin-top:4px;opacity:0.5">Este documento é a fonte da verdade do protocolo. Alterações devem ser registradas como ADR.</p>
+</footer>
+
+</body>
+</html>

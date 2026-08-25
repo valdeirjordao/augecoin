@@ -1,0 +1,28 @@
+# Public testnet Genesis template.
+# Keep private keys outside the repository and reference them through files.
+[genesis]
+chain_id = 2
+treasury_balance = 50000000000000000
+faucet_balance = 1000000000000000
+validator_balance = 100000000000000
+admin_balance = 0
+
+[[accounts]]
+role = "treasury"
+account_number = 0
+private_key_file = "/run/secrets/augecoin-treasury.key"
+
+[[accounts]]
+role = "faucet"
+account_number = 1
+private_key_file = "/run/secrets/augecoin-faucet.key"
+
+[[accounts]]
+role = "validator_treasury"
+account_number = 2
+private_key_file = "/run/secrets/augecoin-validator-treasury.key"
+
+[[accounts]]
+role = "admin"
+account_number = 3
+private_key_file = "/run/secrets/augecoin-admin.key"

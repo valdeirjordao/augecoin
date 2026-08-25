@@ -1,0 +1,12 @@
+[package]
+name = "augecoin-consensus"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+augecoin-core = { path = "../augecoin-core" }
+augecoin-crypto = { path = "../augecoin-crypto" }
+ed25519-dalek = "2"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

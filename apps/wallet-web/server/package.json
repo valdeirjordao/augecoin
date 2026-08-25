@@ -1,0 +1,19 @@
+{
+  "name": "@augecoin/wallet-web-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Wallet Web platform backend — platform identity + wallet registry (bridge to the AUGECOIN blockchain). Never holds keys or balances.",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

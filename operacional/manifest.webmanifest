@@ -1,0 +1,18 @@
+{
+  "name": "AUGECOIN Operacional",
+  "short_name": "Operacional",
+  "description": "Painel operacional AUGECOIN — administração de validadores.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#F97316",
+  "icons": [
+    {
+      "src": "assets/images/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
