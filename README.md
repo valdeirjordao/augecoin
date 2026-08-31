@@ -71,7 +71,11 @@ credita o total ao líder do bloco.
 > econômicos diferentes dos valores presentes na implementação atual. Esta
 > documentação não altera nem resolve essa divergência.
 
-## AUGE20 E Contratos WASM
+## Contratos WASM E Token AUGE20
+
+Contratos WASM são a plataforma genérica de execução contratual. AUGE20 é o
+contrato fungível embutido que usa essa plataforma e está associado ao `code ID
+1`; outros contratos WASM podem ser armazenados e executados com outros IDs.
 
 ```text
 Contrato de criação assinado
