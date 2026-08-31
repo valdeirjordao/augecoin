@@ -3,6 +3,7 @@
 import { getBlockOperations, getBlockCount } from '../api/client.js';
 import { skeleton, opBadge, copyButton, bindCopyButtons } from '../components.js';
 import { esc, shortHash, auge, fmtNum, fmtTime, timeAgo, qs, accountStateInfo } from '../utils.js';
+import { decodeContractOperation } from '../contracts.js?v=20260831-1';
 
 export async function render() {
   const root = document.getElementById('page-root');
@@ -91,6 +92,10 @@ function opRow(op, i, blockNum) {
     if (p.fee) detail += ` · fee ${auge(p.fee)} AUGE`;
   } else if (p.account !== undefined) {
     detail = `Account <a class="link mono" href="account.html?id=${esc(p.account)}">${esc(p.account)}</a>`;
+    const contract = decodeContractOperation(p);
+    if (contract?.token) {
+      detail = `Create AUGE20 <a class="link" href="contract.html?id=${esc(contract.contractId)}">${esc(contract.token.name)} (${esc(contract.token.symbol)})</a> · supply ${esc(contract.token.initialSupply)} ${esc(contract.token.symbol)} · fee ${auge(p.fee, { symbol: true })}`;
+    }
   } else if (p.type === 'ValidatorAdmin') {
     detail = 'ValidatorSet change';
   }

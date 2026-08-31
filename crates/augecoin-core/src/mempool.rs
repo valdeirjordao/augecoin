@@ -37,6 +37,10 @@ pub enum MempoolError {
     FeeTooLow { fee: u64, minimum: u64 },
     #[error("duplicate operation (same sender {sender} and n_operation {n_operation})")]
     DuplicateOperation { sender: u64, n_operation: u64 },
+    #[error("duplicate operation (same op hash)")]
+    DuplicateOpHash,
+    #[error("account {account} in invalid state for this operation: {reason}")]
+    InvalidAccountState { account: u64, reason: String },
     #[error("storage error: {0}")]
     Storage(String),
     #[error("mempool full")]
@@ -47,6 +51,10 @@ pub enum MempoolError {
     Expired,
     #[error("admin public key not configured; cannot validate admin operations")]
     AdminKeyNotConfigured,
+    #[error("transfer value is not conserved: senders provide {sent}, receivers claim {received}")]
+    UnbalancedTransfer { sent: u64, received: u64 },
+    #[error("transfer value total overflow")]
+    TransferValueOverflow,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +71,12 @@ pub struct MempoolConfig {
     /// Time-to-live in seconds for a pending operation before it is evicted.
     /// Use `0` to disable expiration.
     pub ttl_seconds: u64,
+    /// Maximum native reserve (augesat) a Contract operation may demand from
+    /// its sender: `fee + gas_reserve` must be covered by the sender's balance
+    /// (mirrors the execution-time check `fee + DEFAULT_GAS_LIMIT *
+    /// GAS_PRICE_AUGESAT`). The node wires this from
+    /// `augecoin_contracts::gas`; the default matches the built-in values.
+    pub contract_gas_reserve: u64,
 }
 
 impl Default for MempoolConfig {
@@ -72,6 +86,7 @@ impl Default for MempoolConfig {
             max_operations: 20_000,
             chain_id: crate::constants::CT_CHAIN_ID_MAINNET,
             ttl_seconds: 3_600,
+            contract_gas_reserve: 100_000,
         }
     }
 }
@@ -144,6 +159,14 @@ impl Mempool {
             });
         }
 
+        // Dedupe by operation hash FIRST: byte-identical resubmissions (client
+        // retries, peer re-gossip) must never occupy more than one slot — the
+        // (sender, n_operation) index alone misses payloads without senders.
+        let op_hash = op_hash(&op);
+        if self.by_hash.contains_key(&op_hash) {
+            return Err(MempoolError::DuplicateOpHash);
+        }
+
         self.validate_signatures(&op, lookup)?;
 
         // Duplicate check before n_operation validation
@@ -163,7 +186,7 @@ impl Mempool {
         let idx = self.operations.len();
         self.operations.push(op.clone());
         self.admitted_at.push(now);
-        self.by_hash.insert(op_hash(&op), Arc::new(op.clone()));
+        self.by_hash.insert(op_hash, Arc::new(op.clone()));
 
         for sender in payload_senders(&op.payload) {
             let key = (sender.account, sender.n_operation);
@@ -382,6 +405,84 @@ impl Mempool {
         self.rebuild_index();
     }
 
+    /// Re-run every admission-time check for an operation that is already
+    /// resident, against *current* chain state. The block builder calls this
+    /// before including a pending op in a proposal: an op admitted earlier may
+    /// have become invalid (state changed, balance moved, nonce consumed).
+    /// Mirrors the commit-time execution checks so a stale pending op can no
+    /// longer poison block production.
+    pub fn precheck_for_block(
+        &self,
+        op: &Operation,
+        lookup: &dyn AccountLookup,
+    ) -> Result<(), MempoolError> {
+        self.validate_signatures(op, lookup)?;
+        self.validate_block_n_operations(op, lookup)?;
+        self.validate_balance_and_fee(op, lookup)
+    }
+
+    /// Nonce check for the block builder, mirroring execution exactly: the
+    /// op's nonce must equal the account's *current on-chain* n_operation.
+    /// (Deliberately NOT the mempool chaining used at admission — the op is
+    /// already resident here, so counting its own nonce would shift the
+    /// expectation and reject every pending operation.)
+    fn validate_block_n_operations(
+        &self,
+        op: &Operation,
+        lookup: &dyn AccountLookup,
+    ) -> Result<(), MempoolError> {
+        for (account, n_operation) in self.op_nonce_pairs(op) {
+            let on_chain = lookup
+                .get_account(account)
+                .map_err(MempoolError::Storage)?
+                .map(|a| a.n_operation)
+                .unwrap_or(0);
+            if n_operation != on_chain {
+                return Err(MempoolError::InvalidNOperation {
+                    sender: account,
+                    expected: on_chain,
+                    actual: n_operation,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Quarantine: evict every pending operation of `sender`. When execution
+    /// rejects one op of a sender's nonce chain, every later nonce of that
+    /// sender is orphaned anyway (same cascade rule as TTL expiry).
+    /// Returns the number of operations evicted.
+    pub fn evict_all_for_sender(&mut self, sender: u64) -> usize {
+        let mut to_remove: HashSet<usize> = HashSet::new();
+        for (idx, op) in self.operations.iter().enumerate() {
+            for (account, _) in self.op_nonce_pairs(op) {
+                if account == sender {
+                    to_remove.insert(idx);
+                    break;
+                }
+            }
+        }
+        let mut evicted = 0;
+        let mut sorted: Vec<usize> = to_remove.into_iter().collect();
+        sorted.sort_unstable();
+        for &idx in sorted.iter().rev() {
+            let op = &self.operations[idx];
+            let h = op_hash(op);
+            eprintln!(
+                "[mempool] quarantining operation of sender={sender} (failed block validation) hash={:x?}",
+                &h[..8]
+            );
+            self.by_hash.remove(&op_hash(op));
+            self.operations.remove(idx);
+            self.admitted_at.remove(idx);
+            evicted += 1;
+        }
+        if evicted > 0 {
+            self.rebuild_index();
+        }
+        evicted
+    }
+
     fn rebuild_index(&mut self) {
         self.op_index.clear();
         self.sender_n_ops.clear();
@@ -408,6 +509,7 @@ impl Mempool {
             OperationPayload::BuyAccount { buyer_account, .. } => Some(*buyer_account),
             OperationPayload::ChangeAccountInfo { account, .. } => Some(*account),
             OperationPayload::Data { account, .. } => Some(*account),
+            OperationPayload::Contract { account, .. } => Some(*account),
             _ => None,
         }
     }
@@ -423,6 +525,7 @@ impl Mempool {
             OperationPayload::Data { n_operation, .. } => Some(*n_operation),
             OperationPayload::GiftAccount { n_operation, .. } => Some(*n_operation),
             OperationPayload::AcceptGift { n_operation, .. } => Some(*n_operation),
+            OperationPayload::Contract { n_operation, .. } => Some(*n_operation),
             _ => None,
         }
     }
@@ -480,6 +583,7 @@ impl Mempool {
             OperationPayload::CreateAccount { .. } => 0,
             OperationPayload::GiftAccount { fee, .. } => *fee,
             OperationPayload::AcceptGift { fee, .. } => *fee,
+            OperationPayload::Contract { fee, .. } => *fee,
         }
     }
 
@@ -651,6 +755,28 @@ impl Mempool {
         op: &Operation,
         lookup: &dyn AccountLookup,
     ) -> Result<(), MempoolError> {
+        use crate::account::AccountState;
+
+        // ── CreateAccount: mirrors execution — the target AUGEID must exist
+        //    and be in `Reserved` state (a Normal/Owned id can never be
+        //    "created"). Without this check an admitted op fails at every
+        //    commit attempt and stalls block production until TTL.
+        if let OperationPayload::CreateAccount { account_number, .. } = &op.payload {
+            let account = lookup
+                .get_account(*account_number)
+                .map_err(MempoolError::Storage)?
+                .ok_or(MempoolError::SenderNotFound(*account_number))?;
+            if account.account_info.state != AccountState::Reserved {
+                return Err(MempoolError::InvalidAccountState {
+                    account: *account_number,
+                    reason: format!(
+                        "createaccount requires a Reserved AUGEID, got {:?}",
+                        account.account_info.state
+                    ),
+                });
+            }
+        }
+
         // These operations are authorized by the node admin key rather than
         // debited from an account, so they intentionally carry no fee.
         if matches!(
@@ -660,36 +786,169 @@ impl Mempool {
             return Ok(());
         }
 
-        // Reserved inventory has no balance. A zero-fee gift is valid only for
-        // that state; gifts from funded accounts still pay the minimum fee.
+        // ── GiftAccount: mirrors execution — a GiftPending AUGEID already has
+        //    a pending gift, and any fee > 0 must be covered by the gift owner
+        //    (Reserved accounts hold no balance, so only fee 0 passes there).
         if let OperationPayload::GiftAccount { account, fee, .. } = &op.payload {
-            if *fee == 0
-                && lookup
-                    .get_account(*account)
-                    .map_err(MempoolError::Storage)?
-                    .is_some_and(|a| a.account_info.state == crate::account::AccountState::Reserved)
-            {
+            let account_data = lookup
+                .get_account(*account)
+                .map_err(MempoolError::Storage)?
+                .ok_or(MempoolError::SenderNotFound(*account))?;
+            if account_data.account_info.state == AccountState::GiftPending {
+                return Err(MempoolError::InvalidAccountState {
+                    account: *account,
+                    reason: "AUGEID already has a pending gift".into(),
+                });
+            }
+            if *fee > 0 && account_data.balance < *fee {
+                return Err(MempoolError::InsufficientBalance {
+                    account: *account,
+                    balance: account_data.balance,
+                    required: *fee,
+                });
+            }
+            if *fee == 0 && account_data.account_info.state == AccountState::Reserved {
                 return Ok(());
             }
         }
 
-        // A GiftPending AUGEID also has no balance (it was emitted Reserved), so
-        // the recipient cannot pay the minimum fee to accept it. Zero-fee accept
-        // is valid only for that state, mirroring the gift special case above.
+        // ── AcceptGift: mirrors execution — only GiftPending AUGEIDs can be
+        //    accepted, and any fee > 0 must be covered (a GiftPending account
+        //    holds no balance, so zero-fee is the only valid form there).
         if let OperationPayload::AcceptGift { account, fee, .. } = &op.payload {
-            if *fee == 0
-                && lookup
-                    .get_account(*account)
-                    .map_err(MempoolError::Storage)?
-                    .is_some_and(|a| {
-                        a.account_info.state == crate::account::AccountState::GiftPending
-                    })
-            {
+            let account_data = lookup
+                .get_account(*account)
+                .map_err(MempoolError::Storage)?
+                .ok_or(MempoolError::SenderNotFound(*account))?;
+            if account_data.account_info.state != AccountState::GiftPending {
+                return Err(MempoolError::InvalidAccountState {
+                    account: *account,
+                    reason: "AUGEID is not awaiting a gift accept".into(),
+                });
+            }
+            if *fee > 0 && account_data.balance < *fee {
+                return Err(MempoolError::InsufficientBalance {
+                    account: *account,
+                    balance: account_data.balance,
+                    required: *fee,
+                });
+            }
+            if *fee == 0 {
+                // GiftPending accounts hold no balance: zero-fee accept is the
+                // documented special case (mirrors execution).
                 return Ok(());
+            }
+            // fee > 0: falls through to the min-fee floor below.
+        }
+
+        // ── Contract: mirrors execution — the sender's native balance must
+        //    reserve `fee + gas_reserve` up front.
+        if let OperationPayload::Contract { account, fee, .. } = &op.payload {
+            let account_data = lookup
+                .get_account(*account)
+                .map_err(MempoolError::Storage)?
+                .ok_or(MempoolError::SenderNotFound(*account))?;
+            if account_data.account_info.state == AccountState::Reserved
+                || account_data.account_info.state == AccountState::GiftPending
+            {
+                return Err(MempoolError::InvalidAccountState {
+                    account: *account,
+                    reason: "Reserved/GiftPending accounts cannot execute contracts".into(),
+                });
+            }
+            let reserved = fee.saturating_add(self.config.contract_gas_reserve);
+            if reserved > 0 && account_data.balance < reserved {
+                return Err(MempoolError::InsufficientBalance {
+                    account: *account,
+                    balance: account_data.balance,
+                    required: reserved,
+                });
+            }
+            // falls through to the min-fee floor below (no bypass)
+        }
+
+        // ── Transaction / MultiOperation: mirrors execution — Reserved and
+        //    GiftPending accounts can neither send nor (by account number)
+        //    receive AUGE. (AddressTransaction receivers are exempt: their
+        //    address-based path handles first-receive activation itself.)
+        let restrict_senders = |payload: &OperationPayload| -> bool {
+            matches!(
+                payload,
+                OperationPayload::Transaction { .. } | OperationPayload::MultiOperation { .. }
+            )
+        };
+        if restrict_senders(&op.payload) {
+            if let OperationPayload::Transaction {
+                senders, receivers, ..
+            }
+            | OperationPayload::MultiOperation {
+                senders, receivers, ..
+            } = &op.payload
+            {
+                for sender in senders {
+                    let account = lookup
+                        .get_account(sender.account)
+                        .map_err(MempoolError::Storage)?
+                        .ok_or(MempoolError::SenderNotFound(sender.account))?;
+                    if account.account_info.state == AccountState::Reserved
+                        || account.account_info.state == AccountState::GiftPending
+                    {
+                        return Err(MempoolError::InvalidAccountState {
+                            account: sender.account,
+                            reason: format!(
+                                "account is {:?} and cannot send AUGE",
+                                account.account_info.state
+                            ),
+                        });
+                    }
+                }
+                for receiver in receivers {
+                    if let Some(acc) = lookup
+                        .get_account(receiver.account)
+                        .map_err(MempoolError::Storage)?
+                    {
+                        if acc.account_info.state == AccountState::Reserved
+                            || acc.account_info.state == AccountState::GiftPending
+                        {
+                            return Err(MempoolError::InvalidAccountState {
+                                account: receiver.account,
+                                reason: format!(
+                                    "account is {:?} and cannot receive AUGE",
+                                    acc.account_info.state
+                                ),
+                            });
+                        }
+                    }
+                }
             }
         }
 
         let fee = self.payload_fee(&op.payload);
+
+        match &op.payload {
+            OperationPayload::Transaction {
+                senders, receivers, ..
+            }
+            | OperationPayload::MultiOperation {
+                senders, receivers, ..
+            } => validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?,
+            OperationPayload::AddressTransaction {
+                senders, receivers, ..
+            } => validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?,
+            OperationPayload::Data {
+                senders, receivers, ..
+            } => validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?,
+            _ => {}
+        }
 
         if fee < self.config.min_fee {
             return Err(MempoolError::FeeTooLow {
@@ -741,6 +1000,20 @@ impl Mempool {
         }
 
         Ok(())
+    }
+}
+
+fn validate_transfer_conservation(
+    mut sender_amounts: impl Iterator<Item = u64>,
+    mut receiver_amounts: impl Iterator<Item = u64>,
+) -> Result<(), MempoolError> {
+    let sent = sender_amounts.try_fold(0u64, |total, amount| total.checked_add(amount));
+    let received = receiver_amounts.try_fold(0u64, |total, amount| total.checked_add(amount));
+
+    match (sent, received) {
+        (Some(sent), Some(received)) if sent == received => Ok(()),
+        (Some(sent), Some(received)) => Err(MempoolError::UnbalancedTransfer { sent, received }),
+        _ => Err(MempoolError::TransferValueOverflow),
     }
 }
 
@@ -858,6 +1131,7 @@ mod mempool_tests {
             max_operations: 10_000,
             chain_id: 1,
             ttl_seconds: 3600,
+            contract_gas_reserve: 100_000,
         }
     }
 
@@ -876,11 +1150,38 @@ mod mempool_tests {
             &keypair,
             1,
             vec![transfer(1, 5, 1000)],
-            vec![receiver(2, 900)],
+            vec![receiver(2, 1000)],
             100,
         );
         assert!(mempool.validate_and_admit(op, &lookup, 1000).is_ok());
         assert_eq!(mempool.len(), 1);
+    }
+
+    #[test]
+    fn unbalanced_transfer_is_rejected() {
+        let keypair = create_keypair(42);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup
+            .accounts
+            .insert(1, create_account(1, &keypair, 10_000, 0));
+
+        let op = sign_transaction(
+            &keypair,
+            1,
+            vec![transfer(1, 0, 100)],
+            vec![receiver(2, 101)],
+            1,
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(op, &lookup, 1000),
+            Err(MempoolError::UnbalancedTransfer {
+                sent: 100,
+                received: 101,
+            })
+        ));
     }
 
     #[test]
@@ -898,7 +1199,7 @@ mod mempool_tests {
             &keypair,
             2,
             vec![transfer(1, 0, 100)],
-            vec![receiver(2, 90)],
+            vec![receiver(2, 100)],
             10,
         );
         assert!(matches!(
@@ -926,7 +1227,7 @@ mod mempool_tests {
             &wrong_kp,
             1,
             vec![transfer(1, 0, 1000)],
-            vec![receiver(2, 900)],
+            vec![receiver(2, 1000)],
             10,
         );
         assert!(matches!(
@@ -950,7 +1251,7 @@ mod mempool_tests {
             &keypair,
             1,
             vec![transfer(1, 3, 1000)],
-            vec![receiver(2, 900)],
+            vec![receiver(2, 1000)],
             10,
         );
         assert!(matches!(
@@ -998,14 +1299,14 @@ mod mempool_tests {
             &keypair,
             1,
             vec![transfer(1, 5, 1000)],
-            vec![receiver(2, 900)],
+            vec![receiver(2, 1000)],
             10,
         );
         let op2 = sign_transaction(
             &keypair,
             1,
             vec![transfer(1, 5, 500)],
-            vec![receiver(3, 400)],
+            vec![receiver(3, 500)],
             5,
         );
         mempool.validate_and_admit(op1, &lookup, 1000).unwrap();
@@ -1030,6 +1331,7 @@ mod mempool_tests {
             max_operations: 2,
             chain_id: 1,
             ttl_seconds: 3600,
+            contract_gas_reserve: 100_000,
         };
         let mut mempool = Mempool::new(config);
 
@@ -1090,6 +1392,7 @@ mod mempool_tests {
             max_operations: 100,
             chain_id: 1,
             ttl_seconds: 60,
+            contract_gas_reserve: 100_000,
         };
         let mut mempool = Mempool::new(config);
 
@@ -1129,6 +1432,7 @@ mod mempool_tests {
             max_operations: 100,
             chain_id: 1,
             ttl_seconds: 60,
+            contract_gas_reserve: 100_000,
         };
         let mut mempool = Mempool::new(config);
 
@@ -1254,5 +1558,359 @@ mod mempool_tests {
     fn hash_index_is_absent_for_unknown_hash() {
         let mempool = Mempool::new(default_config());
         assert!(mempool.get_by_hash(&[0xAAu8; 64]).is_none());
+    }
+
+    // ── Hardening: admissão espelha execução + dedupe + quarentena ────────
+
+    use crate::account::AccountState;
+
+    fn sign_payload_op(
+        keypair: &HybridKeyPair,
+        op_type: OperationType,
+        payload: OperationPayload,
+        chain_id: u64,
+    ) -> Operation {
+        let op = Operation {
+            chain_id,
+            op_type,
+            payload,
+            signatures: vec![],
+        };
+        let message = op.to_bytes_stripped();
+        let signature = keypair.sign(&message);
+        Operation {
+            chain_id,
+            op_type,
+            payload: op.payload,
+            signatures: vec![signature],
+        }
+    }
+
+    fn account_in_state(
+        num: u64,
+        keypair: &HybridKeyPair,
+        balance: u64,
+        n_operation: u64,
+        state: AccountState,
+    ) -> Account {
+        let mut acc = create_account(num, keypair, balance, n_operation);
+        acc.account_info.state = state;
+        acc
+    }
+
+    fn accept_gift_op(
+        keypair: &HybridKeyPair,
+        account: u64,
+        n_operation: u64,
+        fee: u64,
+    ) -> Operation {
+        sign_payload_op(
+            keypair,
+            OperationType::AcceptGift,
+            OperationPayload::AcceptGift {
+                account,
+                n_operation,
+                fee,
+            },
+            1,
+        )
+    }
+
+    fn contract_op(keypair: &HybridKeyPair, account: u64, n_operation: u64, fee: u64) -> Operation {
+        sign_payload_op(
+            keypair,
+            OperationType::Contract,
+            OperationPayload::Contract {
+                account,
+                n_operation,
+                fee,
+                op_type: 2,
+                data: vec![],
+            },
+            1,
+        )
+    }
+
+    fn createaccount_op(
+        admin: &HybridKeyPair,
+        account_number: u64,
+        owner: &HybridKeyPair,
+    ) -> Operation {
+        let mut pubkey = [0u8; 32];
+        pubkey.copy_from_slice(&owner.verifying_key().to_bytes());
+        sign_payload_op(
+            admin,
+            OperationType::CreateAccount,
+            OperationPayload::CreateAccount {
+                account_number,
+                pubkey,
+                initial_metadata: vec![],
+            },
+            1,
+        )
+    }
+
+    #[test]
+    fn duplicate_op_hash_is_rejected() {
+        // Ops sem senders (AcceptGift/GiftAccount/Contract/…) escapavam do
+        // dedupe por (sender, nonce) — agora o dedupe por hash pega tudo.
+        let leader = create_keypair(80);
+        let member = create_keypair(81);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &leader, 0, 1, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        let op = accept_gift_op(&member, 15839, 1, 0);
+        mempool
+            .validate_and_admit(op.clone(), &lookup, 1000)
+            .unwrap();
+        assert!(matches!(
+            mempool.validate_and_admit(op, &lookup, 1000),
+            Err(MempoolError::DuplicateOpHash)
+        ));
+    }
+
+    #[test]
+    fn accept_gift_fee_zero_on_gift_pending_is_admitted() {
+        let leader = create_keypair(80);
+        let member = create_keypair(81);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &leader, 0, 1, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(mempool
+            .validate_and_admit(accept_gift_op(&member, 15839, 1, 0), &lookup, 1000)
+            .is_ok());
+    }
+
+    #[test]
+    fn accept_gift_with_fee_on_zero_balance_is_rejected() {
+        let leader = create_keypair(80);
+        let member = create_keypair(81);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &leader, 0, 1, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(accept_gift_op(&member, 15839, 1, 1000), &lookup, 1000),
+            Err(MempoolError::InsufficientBalance { .. })
+        ));
+    }
+
+    #[test]
+    fn accept_gift_on_non_gift_pending_is_rejected() {
+        let member = create_keypair(81);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &member, 1000, 1, AccountState::Owned),
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(accept_gift_op(&member, 15839, 1, 0), &lookup, 1000),
+            Err(MempoolError::InvalidAccountState { .. })
+        ));
+    }
+
+    #[test]
+    fn contract_without_fee_and_gas_reserve_is_rejected() {
+        let kp = create_keypair(90);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        // Saldo 50k < reserve padrão 100k → a execução rejeitaria; a admissão também.
+        lookup
+            .accounts
+            .insert(1, account_in_state(1, &kp, 50_000, 0, AccountState::Owned));
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(contract_op(&kp, 1, 0, 0), &lookup, 1000),
+            Err(MempoolError::InsufficientBalance {
+                required: 100_000,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn contract_with_full_reserve_is_admitted() {
+        let kp = create_keypair(90);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup
+            .accounts
+            .insert(1, account_in_state(1, &kp, 200_000, 0, AccountState::Owned));
+        let mut mempool = Mempool::new(default_config());
+        assert!(mempool
+            .validate_and_admit(contract_op(&kp, 1, 0, 0), &lookup, 1000)
+            .is_ok());
+    }
+
+    #[test]
+    fn contract_on_gift_pending_sender_is_rejected() {
+        let leader = create_keypair(80);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &leader, 1_000_000, 1, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(contract_op(&leader, 15839, 1, 0), &lookup, 1000),
+            Err(MempoolError::InvalidAccountState { .. })
+        ));
+    }
+
+    #[test]
+    fn createaccount_on_non_reserved_is_rejected() {
+        let admin = create_keypair(50);
+        let owner = create_keypair(51);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        // Account::new cria em estado Normal — exatamente o caso do incidente.
+        lookup.accounts.insert(25, create_account(25, &admin, 0, 0));
+        let mut mempool = Mempool::new(default_config());
+        mempool.set_admin_pubkey(admin.verifying_key().to_bytes());
+        assert!(matches!(
+            mempool.validate_and_admit(createaccount_op(&admin, 25, &owner), &lookup, 1000),
+            Err(MempoolError::InvalidAccountState { .. })
+        ));
+        // Em Reserved a admissão passa.
+        lookup.accounts.get_mut(&25).unwrap().account_info.state = AccountState::Reserved;
+        assert!(mempool
+            .validate_and_admit(createaccount_op(&admin, 25, &owner), &lookup, 1000)
+            .is_ok());
+    }
+
+    #[test]
+    fn transaction_to_gift_pending_receiver_is_rejected() {
+        let sender_kp = create_keypair(60);
+        let receiver_kp = create_keypair(61);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            1,
+            account_in_state(1, &sender_kp, 100_000, 0, AccountState::Owned),
+        );
+        lookup.accounts.insert(
+            9,
+            account_in_state(9, &receiver_kp, 0, 0, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        assert!(matches!(
+            mempool.validate_and_admit(
+                sign_transaction(
+                    &sender_kp,
+                    1,
+                    vec![transfer(1, 0, 1000)],
+                    vec![receiver(9, 1000)],
+                    100
+                ),
+                &lookup,
+                1000
+            ),
+            Err(MempoolError::InvalidAccountState { .. })
+        ));
+    }
+
+    #[test]
+    fn precheck_for_block_rejects_op_whose_state_changed_after_admission() {
+        let leader = create_keypair(80);
+        let member = create_keypair(81);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            15839,
+            account_in_state(15839, &leader, 0, 1, AccountState::GiftPending),
+        );
+        let mut mempool = Mempool::new(default_config());
+        let op = accept_gift_op(&member, 15839, 1, 0);
+        mempool
+            .validate_and_admit(op.clone(), &lookup, 1000)
+            .unwrap();
+
+        // Simula outro validador commitando o aceite: a conta vira Owned.
+        lookup.accounts.get_mut(&15839).unwrap().account_info.state = AccountState::Owned;
+        assert!(mempool.precheck_for_block(&op, &lookup).is_err());
+    }
+
+    #[test]
+    fn evict_all_for_sender_removes_whole_chain() {
+        let kp1 = create_keypair(70);
+        let kp2 = create_keypair(71);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup.accounts.insert(
+            1,
+            account_in_state(1, &kp1, 100_000, 0, AccountState::Owned),
+        );
+        lookup.accounts.insert(
+            2,
+            account_in_state(2, &kp2, 100_000, 0, AccountState::Owned),
+        );
+        let mut mempool = Mempool::new(default_config());
+        mempool
+            .validate_and_admit(
+                sign_transaction(
+                    &kp1,
+                    1,
+                    vec![transfer(1, 0, 100)],
+                    vec![receiver(2, 100)],
+                    0,
+                ),
+                &lookup,
+                1000,
+            )
+            .unwrap();
+        mempool
+            .validate_and_admit(
+                sign_transaction(
+                    &kp1,
+                    1,
+                    vec![transfer(1, 1, 100)],
+                    vec![receiver(2, 100)],
+                    0,
+                ),
+                &lookup,
+                1000,
+            )
+            .unwrap();
+        mempool
+            .validate_and_admit(
+                sign_transaction(
+                    &kp2,
+                    1,
+                    vec![transfer(2, 0, 100)],
+                    vec![receiver(1, 100)],
+                    0,
+                ),
+                &lookup,
+                1000,
+            )
+            .unwrap();
+        assert_eq!(mempool.len(), 3);
+        assert_eq!(mempool.evict_all_for_sender(1), 2);
+        assert_eq!(mempool.len(), 1);
     }
 }

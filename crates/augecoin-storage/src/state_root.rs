@@ -1,9 +1,61 @@
+use crate::{
+    CF_ACCOUNTS, CF_CONTRACTS, CF_CONTRACT_BALANCES, CF_CONTRACT_CODES, CF_CONTRACT_CODE_HASH,
+    CF_CONTRACT_METADATA, CF_VALIDATOR_SET,
+};
 use augecoin_core::account::Account;
 use augecoin_core::hash::blake3_512 as hash;
 use rocksdb::{IteratorMode, DB};
 use std::collections::BTreeMap;
 
 const EMPTY_STATE_ROOT: [u8; 64] = [0u8; 64];
+
+const CONSENSUS_COLUMN_FAMILIES: &[&str] = &[
+    CF_ACCOUNTS,
+    CF_VALIDATOR_SET,
+    CF_CONTRACTS,
+    CF_CONTRACT_METADATA,
+    CF_CONTRACT_BALANCES,
+    CF_CONTRACT_CODES,
+    CF_CONTRACT_CODE_HASH,
+];
+
+/// Hash all consensus-relevant key/value pairs in deterministic RocksDB order.
+/// Column-family names and length prefixes provide domain separation so records
+/// cannot be reinterpreted across state namespaces.
+pub fn compute_consensus_state_root(db: &DB) -> [u8; 64] {
+    let mut encoded = b"AUGECOIN_CONSENSUS_STATE_V1".to_vec();
+    let mut has_state = false;
+
+    for cf_name in CONSENSUS_COLUMN_FAMILIES {
+        let cf = db
+            .cf_handle(cf_name)
+            .expect("consensus column family must exist");
+        let mut records = Vec::new();
+        for item in db.iterator_cf(&cf, IteratorMode::Start) {
+            let (key, value) = item.expect("rocksdb iteration error");
+            records.push((key.to_vec(), value.to_vec()));
+        }
+        if records.is_empty() {
+            continue;
+        }
+        has_state = true;
+        encoded.extend_from_slice(&(cf_name.len() as u32).to_be_bytes());
+        encoded.extend_from_slice(cf_name.as_bytes());
+        encoded.extend_from_slice(&(records.len() as u64).to_be_bytes());
+        for (key, value) in records {
+            encoded.extend_from_slice(&(key.len() as u32).to_be_bytes());
+            encoded.extend_from_slice(&key);
+            encoded.extend_from_slice(&(value.len() as u64).to_be_bytes());
+            encoded.extend_from_slice(&value);
+        }
+    }
+
+    if has_state {
+        hash(&encoded)
+    } else {
+        EMPTY_STATE_ROOT
+    }
+}
 
 pub fn compute_state_root(db: &DB, cf_accounts: &rocksdb::ColumnFamilyRef) -> [u8; 64] {
     let mut accounts: BTreeMap<u64, Account> = BTreeMap::new();
@@ -123,6 +175,21 @@ mod tests {
         let cf = storage.db.cf_handle(CF_ACCOUNTS).unwrap();
         let root = compute_state_root(&storage.db, &cf);
         assert_ne!(root, EMPTY_STATE_ROOT);
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    #[test]
+    fn consensus_root_changes_when_contract_state_changes() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(0, 50)).unwrap();
+        let root_before = storage.consensus_state_root().unwrap();
+        storage
+            .contract_put(b"state-contract-key", b"value")
+            .unwrap();
+        let root_after = storage.consensus_state_root().unwrap();
+
+        assert_ne!(root_before, root_after);
         std::fs::remove_dir_all(&path).ok();
     }
 }

@@ -47,18 +47,22 @@ impl ApiKeyStore {
 struct ClientBucket {
     tokens: u32,
     last_refill: Instant,
+    last_seen: Instant,
 }
 
 impl ClientBucket {
     fn new(max_tokens: u32) -> Self {
+        let now = Instant::now();
         ClientBucket {
             tokens: max_tokens,
-            last_refill: Instant::now(),
+            last_refill: now,
+            last_seen: now,
         }
     }
 
     fn try_consume(&mut self, max_tokens: u32, refill_rate: Duration) -> bool {
         let now = Instant::now();
+        self.last_seen = now;
         let elapsed = now.duration_since(self.last_refill);
 
         let refill_count = (elapsed.as_nanos() / refill_rate.as_nanos()) as u32;
@@ -83,8 +87,12 @@ pub struct RateLimiter {
     refill_rate: Duration,
 }
 
+const MAX_CLIENT_BUCKETS: usize = 10_000;
+const CLIENT_BUCKET_IDLE_TTL: Duration = Duration::from_secs(15 * 60);
+
 impl RateLimiter {
     pub fn new(max_requests: u32, per_interval: Duration) -> Self {
+        let max_requests = max_requests.max(1);
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_tokens: max_requests,
@@ -94,6 +102,11 @@ impl RateLimiter {
 
     pub fn check(&self, client_id: &str) -> bool {
         let mut clients = self.clients.lock().unwrap();
+        let now = Instant::now();
+        clients.retain(|_, bucket| now.duration_since(bucket.last_seen) < CLIENT_BUCKET_IDLE_TTL);
+        if !clients.contains_key(client_id) && clients.len() >= MAX_CLIENT_BUCKETS {
+            return false;
+        }
         let bucket = clients
             .entry(client_id.to_string())
             .or_insert_with(|| ClientBucket::new(self.max_tokens));
@@ -127,6 +140,9 @@ pub const ADMIN_METHODS: &[&str] = &[
     "validatorremove",
     "validatoractivate",
     "validatordeactivate",
+    "contract_store_code",
+    "contract_create",
+    "contract_execute",
 ];
 
 pub fn is_admin_method(method: &str) -> bool {
@@ -205,5 +221,21 @@ mod auth_tests {
 
         assert!(limiter.check("client-b"));
         assert!(limiter.check("client-b"));
+    }
+
+    #[test]
+    fn rate_limiter_removes_idle_buckets() {
+        let limiter = RateLimiter::new(1, Duration::from_secs(60));
+        assert!(limiter.check("idle-client"));
+        {
+            let mut clients = limiter.clients.lock().unwrap();
+            clients.get_mut("idle-client").unwrap().last_seen =
+                Instant::now() - CLIENT_BUCKET_IDLE_TTL - Duration::from_secs(1);
+        }
+
+        assert!(limiter.check("active-client"));
+        let clients = limiter.clients.lock().unwrap();
+        assert!(!clients.contains_key("idle-client"));
+        assert!(clients.contains_key("active-client"));
     }
 }

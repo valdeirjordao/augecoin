@@ -4,16 +4,54 @@ import { CONFIG } from './config.js';
 
 let _id = 1;
 
+// The node enforces a per-client rate limit. Under load (e.g. the dashboard's
+// history backfill bursts hundreds of getBlockOperations calls) individual
+// read queries — like contractBalance, which feeds the token list — can be
+// throttled. Retry those transient rejections with a short backoff so a
+// single throttled response never silently drops a balance/token lookup.
+const RPC_MAX_RETRIES = 4;
+const RPC_TIMEOUT_MS = 15_000;
+const isRateLimit = (body) =>
+  body && body.error && (body.error.code === -32001 || /rate limit/i.test(body.error.message || ''));
+
 export async function rpc(method, params = {}) {
-  const res = await fetch(CONFIG.RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: _id++, method, params }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const body = await res.json();
-  if (body && body.error) throw new Error(body.error.message || `RPC error ${body.error.code}`);
+  let lastErr;
+  for (let attempt = 0; attempt <= RPC_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(CONFIG.RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: _id++, method, params }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      lastErr = new Error(err.name === 'AbortError' ? `RPC timeout after ${RPC_TIMEOUT_MS / 1000}s` : err.message);
+      if (attempt === RPC_MAX_RETRIES) throw lastErr;
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!res.ok) {
+      lastErr = new Error(`HTTP ${res.status}`);
+      if (res.status === 429 || attempt === RPC_MAX_RETRIES) throw lastErr;
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      continue;
+    }
+    const body = await res.json();
+    if (isRateLimit(body)) {
+      lastErr = new Error(body.error.message || 'rate limit exceeded');
+      if (attempt === RPC_MAX_RETRIES) throw lastErr;
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      continue;
+    }
+    if (body && body.error) throw new Error(body.error.message || `RPC error ${body.error.code}`);
   return body && 'result' in body ? body.result : body;
+  }
+  throw lastErr || new Error('RPC failed');
 }
 
 // ── Queries ────────────────────────────────────────────────────────────
@@ -34,9 +72,36 @@ export const listAccountsForSale = () => rpc('listaccountsforsale', {});
 export const listValidatorInventory = (validatorPublicKeyHex) => rpc('listvalidatorinventory', { validator_public_key_hex: validatorPublicKeyHex });
 export const listPendingGifts = (recipientPublicKeyHex) => rpc('listpendinggifts', { recipient_public_key_hex: recipientPublicKeyHex });
 
+/** Read-only: list every account whose owner key equals the given Ed25519
+ *  public key (hex). Used to auto-discover accounts received via direct
+ *  ChangeKey transfers (which never enter GiftPending). */
+export const listAccountsByKey = (ed25519PublicKeyHex) => rpc('listaccountsbykey', { ed25519_public_key_hex: ed25519PublicKeyHex });
+
 // ── Lifecycle operations (signed) ─────────────────────────────────────
 
 export const sendOperation = (hex) => rpc('sendoperation', { hex });
+
+// ── Smart contracts (consultas públicas) ───────────────────────────────
+
+export const contractGet = (idHex) => rpc('contract_get', { contract_id_hex: idHex });
+export const contractBalance = (idHex, addrHex) =>
+  rpc('contract_balance', { contract_id_hex: idHex, address_hex: addrHex });
+export const contractTokenInfo = (idHex) => rpc('contract_token_info', { contract_id_hex: idHex });
+export async function contractTokenDetails(idHex) {
+  const [contract, tokenInfo] = await Promise.all([
+    contractGet(idHex),
+    contractTokenInfo(idHex),
+  ]);
+  return { contract, token: tokenInfo?.token, error: tokenInfo?.error };
+}
+export const listAuge20 = (start = 0, limit = 100) =>
+  rpc('contract_list_auge20', { start: Number(start), limit: Number(limit) });
+export const contractEvents = (idHex, fromHeight = 0, maxEvents = 100) =>
+  rpc('contract_events', {
+    contract_id_hex: idHex,
+    from_height: Number(fromHeight),
+    max_events: Number(maxEvents),
+  });
 export const buyAccount = (p) => rpc('buyaccount', p);
 export const sellAccount = (p) => rpc('sellaccount', p);
 export const giftAccount = (p) => rpc('giftaccount', p);
@@ -62,7 +127,12 @@ export async function resolveDestination(input) {
   if (/^AUGE-?\d+$/i.test(trimmed) || /^\d+$/.test(trimmed)) {
     return getAccountByNumber(trimmed.replace(/^AUGE-/i, ''));
   }
-  return resolveAddress(trimmed);
+  const resolved = await resolveAddress(trimmed);
+  // `resolve_address` returns `account`, whereas account lookups return
+  // `account_number`. Keep a single shape for every wallet send screen.
+  return resolved?.exists && Number.isInteger(resolved.account)
+    ? { ...resolved, account_number: resolved.account }
+    : resolved;
 }
 
 /** True when no on-chain account currently holds `name` (case-insensitive). */

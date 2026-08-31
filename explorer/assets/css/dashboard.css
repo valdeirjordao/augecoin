@@ -30,3 +30,47 @@
 .live-indicator { display: inline-flex; align-items: center; gap: 6px; color: var(--color-success); font-size: 0.75rem; font-weight: 600; }
 .live-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); animation: blink 1.6s infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* ── Smart contract pages (AUGE20) ───────────────────────────────────── */
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+.detail-card h3 { font-size: 1rem; margin: 0 0 14px; color: var(--text); }
+
+.contract-title {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 8px;
+}
+.contract-title h2 { font-size: 1.6rem; margin: 0; display: flex; align-items: center; gap: 10px; }
+.token-symbol {
+  font-size: 0.8rem; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: rgba(249, 115, 22, 0.15); color: var(--color-primary);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+}
+.contract-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.input {
+  flex: 1 1 240px; padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--text); font-family: var(--font); font-size: 0.9rem;
+}
+.input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.25); }
+.small { font-size: 0.8rem; }
+.balance-result {
+  font-size: 1.3rem; font-weight: 700; margin-top: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-flat { background: transparent; border: none; }
+.table-flat th, .table-flat td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.table-flat th { text-align: left; color: var(--text-muted); font-weight: 600; width: 40%; }
+.table-flat tr:last-child th, .table-flat tr:last-child td { border-bottom: none; }
+
+@media (max-width: 860px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}

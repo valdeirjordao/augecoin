@@ -94,6 +94,7 @@ fn leader_and_validator_reconstruct_identical_block() {
         max_operations: 20_000,
         chain_id: 1,
         ttl_seconds: 0,
+        contract_gas_reserve: 100_000,
     })));
 
     // Admit a chain of transfers from a single sender.
@@ -168,6 +169,7 @@ fn tampered_merkle_root_is_rejected() {
         max_operations: 20_000,
         chain_id: 1,
         ttl_seconds: 0,
+        contract_gas_reserve: 100_000,
     })));
     let op = sign_op(&sender_kp, &make_transfer_op(100, 0, 200, 1, 0));
     mempool
@@ -201,7 +203,7 @@ fn proposal_message_serialization_roundtrip() {
     let mut header = augecoin_core::block::OperationBlockHeader {
         block_number: 1,
         account_key: [0u8; 32],
-        reward: 725_000_000,
+        reward: 250_000_000,
         fee: 0,
         protocol_version: 5,
         protocol_available: 6,

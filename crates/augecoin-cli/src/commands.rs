@@ -1,3 +1,4 @@
+use augecoin_contracts::{TokenCall, TokenInit};
 use augecoin_core::constants::{CT_CHAIN_ID_MAINNET, MIN_FEE_AUGESAT};
 use augecoin_core::operation::{
     AddressReceiverInfo, Operation, OperationPayload, OperationType, ReceiverInfo, SenderInfo,
@@ -372,6 +373,73 @@ pub async fn handle_get_account(
     Ok(())
 }
 
+/// SafeBox inventory (Reserved / ForSale / Owned AUGEIDs) held by a validator
+/// key. Falls back to an insecure TLS client when the endpoint presents a
+/// self-signed certificate (common for self-hosted nodes).
+pub async fn handle_validator_inventory(
+    cli: &Cli,
+    public_key: &str,
+    json: bool,
+) -> Result<(), CommandError> {
+    let params = serde_json::json!({ "validator_public_key_hex": public_key });
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = match client.call("listvalidatorinventory", params.clone()).await {
+        Ok(value) => value,
+        Err(crate::rpc::RpcError::Http(_)) => {
+            // Self-signed or private CA on self-hosted nodes: retry without
+            // certificate verification.
+            let insecure = RpcClient::new_insecure(cli.endpoint.clone())?;
+            insecure.call("listvalidatorinventory", params).await?
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    if json {
+        crate::output::print_output(&result, true);
+        return Ok(());
+    }
+
+    let counts = |key: &str| {
+        result
+            .get(key)
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0)
+    };
+    let first_last = |key: &str| {
+        result.get(key).and_then(|v| v.as_array()).and_then(|a| {
+            let first = a.first()?.as_u64()?;
+            let last = a.last()?.as_u64()?;
+            Some((first, last))
+        })
+    };
+    let (rf, rl) = first_last("reserved").unwrap_or((0, 0));
+    println!("SafeBox inventory for {public_key}");
+    println!(
+        "  reserved: {} ids{}{}",
+        counts("reserved"),
+        if counts("reserved") > 0 {
+            " (range "
+        } else {
+            ""
+        },
+        if counts("reserved") > 0 {
+            format!("{rf}..{rl})")
+        } else {
+            String::new()
+        }
+    );
+    println!("  for_sale: {}", counts("for_sale"));
+    println!("  owned:    {}", counts("owned"));
+    if let Some(owned) = result.get("owned").and_then(|v| v.as_array()) {
+        if !owned.is_empty() {
+            let list: Vec<String> = owned.iter().map(|v| v.to_string()).collect();
+            println!("  owned ids: {}", list.join(", "));
+        }
+    }
+    Ok(())
+}
+
 pub async fn handle_get_block(
     cli: &Cli,
     block_number: u64,
@@ -491,6 +559,15 @@ fn build_signed_transfer(
     Ok(op)
 }
 
+pub struct GiftAccountArgs {
+    pub account: u64,
+    pub recipient_public_key: String,
+    pub fee: Option<u64>,
+    pub n_operation: Option<u64>,
+    pub chain_id: Option<u64>,
+    pub key_hex_file: String,
+}
+
 pub async fn handle_send_transfer(cli: &Cli, args: TransferArgs) -> Result<(), CommandError> {
     let key_content = std::fs::read_to_string(&args.key_hex_file).map_err(CommandError::KeyFile)?;
     let keypair = parse_raw_key_hex(&key_content)?;
@@ -524,6 +601,57 @@ pub async fn handle_send_transfer(cli: &Cli, args: TransferArgs) -> Result<(), C
     Ok(())
 }
 
+/// Build and sign a GiftAccount operation: hands a Reserved AUGEID over to a
+/// recipient Ed25519 public key. The signer must be the AUGEID's current owner
+/// key (the leader key that emitted it). Reserved accounts hold no balance, so
+/// the fee defaults to zero (the mempool explicitly allows zero-fee gifts for
+/// Reserved ids); the recipient activates the id by signing an AcceptGift.
+pub async fn handle_gift_account(cli: &Cli, args: GiftAccountArgs) -> Result<(), CommandError> {
+    let key_content = std::fs::read_to_string(&args.key_hex_file).map_err(CommandError::KeyFile)?;
+    let keypair = parse_raw_key_hex(&key_content)?;
+
+    let client = RpcClient::new(cli.endpoint.clone())?;
+
+    let n_operation = match args.n_operation {
+        Some(n) => n,
+        None => client
+            .get_account(args.account)
+            .await?
+            .get("n_operation")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| CommandError::MissingField("n_operation".into()))?,
+    };
+
+    let recipient_bytes = hex::decode(&args.recipient_public_key)
+        .map_err(|e| CommandError::InvalidHex(e.to_string()))?;
+    if recipient_bytes.len() != ED25519_PK_LEN {
+        return Err(CommandError::InvalidKeyLength {
+            expected: ED25519_PK_LEN,
+            got: recipient_bytes.len(),
+        });
+    }
+    let mut recipient_public_key = [0u8; ED25519_PK_LEN];
+    recipient_public_key.copy_from_slice(&recipient_bytes);
+
+    let mut op = Operation {
+        op_type: OperationType::GiftAccount,
+        payload: OperationPayload::GiftAccount {
+            account: args.account,
+            n_operation,
+            recipient_public_key,
+            fee: args.fee.unwrap_or(0),
+        },
+        chain_id: args.chain_id.unwrap_or(CT_CHAIN_ID_MAINNET),
+        signatures: vec![dummy_signature()],
+    };
+
+    let message = op.to_bytes_stripped();
+    op.signatures = vec![keypair.sign(&message)];
+    let result = client.send_operation(&hex::encode(op.to_bytes())).await?;
+    crate::output::print_output(&result, false);
+    Ok(())
+}
+
 pub async fn handle_get_pendings(cli: &Cli, json: bool) -> Result<(), CommandError> {
     let client = RpcClient::new(cli.endpoint.clone())?;
     let result = client.get_pendings().await?;
@@ -542,6 +670,173 @@ pub async fn handle_find_accounts(
     let client = RpcClient::new(cli.endpoint.clone())?;
     let result = client
         .find_accounts(name.as_deref(), account_type, min_balance, max_balance)
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+// ── Smart contract commands (Fase 15) ─────────────────────────────────────
+
+fn address_to_hex(addr: u64) -> String {
+    hex::encode(addr.to_be_bytes())
+}
+
+fn code_id_to_hex(code_id: u64) -> String {
+    hex::encode(code_id.to_be_bytes())
+}
+
+pub async fn handle_contract_store(
+    cli: &Cli,
+    wasm_hex: String,
+    api_key: String,
+    gas_limit_hex: Option<String>,
+    json: bool,
+) -> Result<(), CommandError> {
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_store_code(&wasm_hex, &api_key, gas_limit_hex.as_deref())
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn handle_contract_create(
+    cli: &Cli,
+    code_id: u64,
+    name: String,
+    symbol: String,
+    decimals: u8,
+    initial_supply: u64,
+    max_supply: u64,
+    mint_enabled: bool,
+    burn_enabled: bool,
+    api_key: String,
+    gas_limit_hex: Option<String>,
+    json: bool,
+) -> Result<(), CommandError> {
+    let init = TokenInit {
+        name,
+        symbol,
+        decimals,
+        initial_supply,
+        max_supply,
+        mint_enabled,
+        burn_enabled,
+    };
+    let instantiate_hex = hex::encode(init.to_bytes());
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_create(
+            &code_id_to_hex(code_id),
+            &instantiate_hex,
+            &api_key,
+            gas_limit_hex.as_deref(),
+        )
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_contract_info(
+    cli: &Cli,
+    contract_id_hex: String,
+    json: bool,
+) -> Result<(), CommandError> {
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client.contract_get(&contract_id_hex).await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_contract_balance(
+    cli: &Cli,
+    contract_id_hex: String,
+    address: u64,
+    json: bool,
+) -> Result<(), CommandError> {
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_balance(&contract_id_hex, &address_to_hex(address))
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_token_info(
+    cli: &Cli,
+    contract_id_hex: String,
+    json: bool,
+) -> Result<(), CommandError> {
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client.contract_token_info(&contract_id_hex).await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_token_send(
+    cli: &Cli,
+    contract_id_hex: String,
+    to: u64,
+    amount: u64,
+    api_key: String,
+    gas_limit_hex: Option<String>,
+    json: bool,
+) -> Result<(), CommandError> {
+    let call_hex = hex::encode(TokenCall::Transfer { to, amount }.to_bytes());
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_execute(
+            &contract_id_hex,
+            &call_hex,
+            &api_key,
+            gas_limit_hex.as_deref(),
+        )
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_token_mint(
+    cli: &Cli,
+    contract_id_hex: String,
+    to: u64,
+    amount: u64,
+    api_key: String,
+    gas_limit_hex: Option<String>,
+    json: bool,
+) -> Result<(), CommandError> {
+    let call_hex = hex::encode(TokenCall::Mint { to, amount }.to_bytes());
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_execute(
+            &contract_id_hex,
+            &call_hex,
+            &api_key,
+            gas_limit_hex.as_deref(),
+        )
+        .await?;
+    crate::output::print_output(&result, json);
+    Ok(())
+}
+
+pub async fn handle_token_burn(
+    cli: &Cli,
+    contract_id_hex: String,
+    amount: u64,
+    api_key: String,
+    gas_limit_hex: Option<String>,
+    json: bool,
+) -> Result<(), CommandError> {
+    let call_hex = hex::encode(TokenCall::Burn { amount }.to_bytes());
+    let client = RpcClient::new(cli.endpoint.clone())?;
+    let result = client
+        .contract_execute(
+            &contract_id_hex,
+            &call_hex,
+            &api_key,
+            gas_limit_hex.as_deref(),
+        )
         .await?;
     crate::output::print_output(&result, json);
     Ok(())

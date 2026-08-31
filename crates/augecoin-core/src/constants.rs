@@ -22,25 +22,26 @@ pub const CT_MAX_MULTI_OPERATION_RECEIVERS: usize = 1000;
 pub const CT_MAX_MULTI_OPERATION_CHANGERS: usize = 100;
 
 // ── AUGECOIN Monetary Policy ────────────────────────────────────────────
-// Block interval:       15 seconds
-// Block reward:         7.25 AUGE
+// Block interval:       5 seconds
+// Block reward:         2.50 AUGE
 // Emission model:       Linear (no halving)
 // Premine:              None
 // Developer reward:     0%
 // Validator reward:     100%
 // Fee distribution:     100% validator
-// Economic period:      50 years (block-count based at 15s interval)
-// Blocks per year:      2 102 400 (at 15s)
-// Total blocks:         105 120 000
-// Maximum emission:     762 120 000 AUGE
+// Economic period:      block-count based at 5s interval
+// Blocks per year:      6 307 200 (at 5s)
+// Total blocks:         315 576 000
+// Maximum emission:     788 940 000 AUGE
+// Formula:              2.50 AUGE × 315 576 000 blocks = 788 940 000 AUGE
 // ────────────────────────────────────────────────────────────────────────
 
 /// Block reward in augesat (authoritative value used by consensus).
-/// 7.25 AUGE = 725 000 000 augesat.
-pub const CT_BLOCK_REWARD_AUGESAT: u64 = 725_000_000; // 7.25 AUGE in augesat
-pub const TOTAL_SUPPLY_AUGE: u64 = 762_120_000;
-pub const TOTAL_SUPPLY_AUGESAT: u64 = 76_212_000_000_000_000;
-pub const TOTAL_EMISSION_BLOCKS: u64 = 105_120_000;
+/// 2.50 AUGE = 250 000 000 augesat.
+pub const CT_BLOCK_REWARD_AUGESAT: u64 = 250_000_000; // 2.50 AUGE in augesat
+pub const TOTAL_SUPPLY_AUGE: u64 = 788_940_000;
+pub const TOTAL_SUPPLY_AUGESAT: u64 = 78_894_000_000_000_000;
+pub const TOTAL_EMISSION_BLOCKS: u64 = 315_576_000;
 
 // Legacy constants — retained for protocol compatibility but unused in emission logic
 pub const CT_FIRST_REWARD_AUGESAT: u64 = 100_000_000;
@@ -66,7 +67,7 @@ pub const CT_DEFAULT_P2P_PORT: u16 = 4004;
 pub const CT_DEFAULT_JSON_RPC_PORT: u16 = 4003;
 pub const CT_DEFAULT_MINER_RPC_PORT: u16 = 4009;
 
-pub const CT_BLOCK_TIME_SECONDS: u64 = 15;
+pub const CT_BLOCK_TIME_SECONDS: u64 = 5;
 pub const CT_MAX_FUTURE_BLOCK_TIMESTAMP_SECONDS: u64 = 30;
 pub const CT_NEW_LINE_SECONDS_AVG: u64 = 15;
 

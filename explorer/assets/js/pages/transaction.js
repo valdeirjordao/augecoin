@@ -3,6 +3,7 @@
 import { getBlockOperations, getBlockCount } from '../api/client.js';
 import { skeleton, opBadge, copyButton, bindCopyButtons } from '../components.js';
 import { esc, shortHash, auge, fmtNum, fmtTime, timeAgo, qs } from '../utils.js';
+import { decodeContractOperation } from '../contracts.js?v=20260831-1';
 
 export async function render() {
   const root = document.getElementById('page-root');
@@ -73,8 +74,23 @@ function opPayloadCard(op) {
     if (senders[0]) { body += kv('Amount', auge(senders[0].amount, { symbol: true })); body += kv('Nonce (n_operation)', fmtNum(senders[0].n_operation)); }
     if (p.fee !== undefined) body += kv('Fee', auge(p.fee, { symbol: true }));
   } else if (p.account !== undefined) {
-    body += '<h3 class="card-title">Account operation</h3>';
-    body += kv('Account', `<a class="link mono" href="account.html?id=${esc(p.account)}">${esc(p.account)}</a>`);
+    const contract = decodeContractOperation(p);
+    if (contract?.token) {
+      const token = contract.token;
+      body += '<h3 class="card-title">Create AUGE20 token</h3>';
+      body += kv('Contract', `<a class="link mono" href="contract.html?id=${esc(contract.contractId)}">${shortHash(contract.contractId, 16)}</a> ${copyButton(contract.contractId)}`);
+      body += kv('Creator', `<a class="link mono" href="account.html?id=${esc(p.account)}">${esc(p.account)}</a>`);
+      body += kv('Name', esc(token.name));
+      body += kv('Symbol', esc(token.symbol));
+      body += kv('Decimals', fmtNum(token.decimals));
+      body += kv('Initial supply', `${esc(token.initialSupply)} ${esc(token.symbol)}`);
+      body += kv('Max supply', `${esc(token.maxSupply)} ${esc(token.symbol)}`);
+      body += kv('Mint', token.mintEnabled ? 'Enabled' : 'Disabled');
+      body += kv('Burn', token.burnEnabled ? 'Enabled' : 'Disabled');
+    } else {
+      body += '<h3 class="card-title">Account operation</h3>';
+      body += kv('Account', `<a class="link mono" href="account.html?id=${esc(p.account)}">${esc(p.account)}</a>`);
+    }
     if (p.fee !== undefined) body += kv('Fee', auge(p.fee, { symbol: true }));
   } else if (p.type === 'ValidatorAdmin') {
     body += '<h3 class="card-title">ValidatorAdmin</h3><p class="muted">ValidatorSet governance operation.</p>';

@@ -21,6 +21,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const ED25519_SIG_LEN: usize = 64;
 const BLOCK_HASH_LEN: usize = 64;
+// A quorum can never need more signatures than this within the 2 MiB consensus
+// envelope. Keep the bound independent from attacker-controlled packet length.
+const MAX_QUORUM_SIGNATURES: usize = 32_768;
 
 #[derive(Debug, Clone)]
 pub enum ConsensusEvent {
@@ -298,14 +301,20 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
     }
     let msg_type = data[0];
     let mut pos = 1;
-    let _payload_len = read_u32_be(data, &mut pos)?;
+    let payload_len = read_u32_be(data, &mut pos)? as usize;
+    if payload_len != data.len().saturating_sub(pos) {
+        return Err("consensus payload length mismatch".to_string());
+    }
 
     match msg_type {
         0 => {
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             let block_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + block_len > data.len() {
+            if pos
+                .checked_add(block_len)
+                .is_none_or(|end| end > data.len())
+            {
                 return Err("block data too short".to_string());
             }
             let block_bytes = data[pos..pos + block_len].to_vec();
@@ -319,7 +328,7 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             let p_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + p_len > data.len() {
+            if pos.checked_add(p_len).is_none_or(|end| end > data.len()) {
                 return Err("proposal data too short".to_string());
             }
             let proposal = Box::new(ProposalMessage::from_bytes(&data[pos..pos + p_len])?);
@@ -333,7 +342,7 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let height = read_u64_be(data, &mut pos)?;
             let requester_id = read_u64_be(data, &mut pos)?;
             let r_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + r_len > data.len() {
+            if pos.checked_add(r_len).is_none_or(|end| end > data.len()) {
                 return Err("get-transactions data too short".to_string());
             }
             let request = Box::new(GetTransactions::from_bytes(&data[pos..pos + r_len])?);
@@ -347,7 +356,7 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             let r_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + r_len > data.len() {
+            if pos.checked_add(r_len).is_none_or(|end| end > data.len()) {
                 return Err("transactions-response data too short".to_string());
             }
             let response = Box::new(TransactionsResponse::from_bytes(&data[pos..pos + r_len])?);
@@ -382,9 +391,18 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             let qs_count = read_u32_be(data, &mut pos)? as usize;
+            if qs_count > MAX_QUORUM_SIGNATURES {
+                return Err("quorum signature count exceeds protocol maximum".to_string());
+            }
+            if qs_count > (data.len().saturating_sub(pos) / ED25519_SIG_LEN) {
+                return Err("quorum signature count exceeds remaining payload".to_string());
+            }
             let mut quorum_sigs = Vec::with_capacity(qs_count);
             for _ in 0..qs_count {
-                if pos + ED25519_SIG_LEN > data.len() {
+                if pos
+                    .checked_add(ED25519_SIG_LEN)
+                    .is_none_or(|end| end > data.len())
+                {
                     return Err("too short for quorum sig".to_string());
                 }
                 let mut sig_bytes = [0u8; ED25519_SIG_LEN];
@@ -393,7 +411,10 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
                 quorum_sigs.push(Ed25519Signature { bytes: sig_bytes });
             }
             let block_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + block_len > data.len() {
+            if pos
+                .checked_add(block_len)
+                .is_none_or(|end| end > data.len())
+            {
                 return Err("block data too short for commit".to_string());
             }
             let block_bytes = data[pos..pos + block_len].to_vec();
@@ -416,9 +437,18 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             let qs_count = read_u32_be(data, &mut pos)? as usize;
+            if qs_count > MAX_QUORUM_SIGNATURES {
+                return Err("quorum signature count exceeds protocol maximum".to_string());
+            }
+            if qs_count > (data.len().saturating_sub(pos) / ED25519_SIG_LEN) {
+                return Err("quorum signature count exceeds remaining payload".to_string());
+            }
             let mut quorum_sigs = Vec::with_capacity(qs_count);
             for _ in 0..qs_count {
-                if pos + ED25519_SIG_LEN > data.len() {
+                if pos
+                    .checked_add(ED25519_SIG_LEN)
+                    .is_none_or(|end| end > data.len())
+                {
                     return Err("too short for quorum sig".to_string());
                 }
                 let mut sig_bytes = [0u8; ED25519_SIG_LEN];
@@ -427,7 +457,10 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
                 quorum_sigs.push(Ed25519Signature { bytes: sig_bytes });
             }
             let block_len = read_u32_be(data, &mut pos)? as usize;
-            if pos + block_len > data.len() {
+            if pos
+                .checked_add(block_len)
+                .is_none_or(|end| end > data.len())
+            {
                 return Err("block data too short for response".to_string());
             }
             let block_bytes = data[pos..pos + block_len].to_vec();
@@ -464,6 +497,43 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             Ok(ConsensusEvent::StatusResponse { height, from_id })
         }
         _ => Err(format!("unknown message type: {msg_type}")),
+    }
+}
+
+#[cfg(test)]
+mod deserialization_tests {
+    use super::*;
+
+    #[test]
+    fn quorum_count_must_fit_remaining_payload() {
+        let mut data = vec![2u8];
+        // height + from_id + quorum count, with no signature bytes following.
+        let payload_len = 8 + 8 + 4;
+        data.extend_from_slice(&(payload_len as u32).to_be_bytes());
+        data.extend_from_slice(&0u64.to_be_bytes());
+        data.extend_from_slice(&0u64.to_be_bytes());
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+
+        assert!(deserialize_consensus_msg(&data).is_err());
+    }
+
+    #[test]
+    fn quorum_count_must_not_exceed_protocol_limit() {
+        let mut data = vec![2u8];
+        let payload_len = 8 + 8 + 4;
+        data.extend_from_slice(&(payload_len as u32).to_be_bytes());
+        data.extend_from_slice(&0u64.to_be_bytes());
+        data.extend_from_slice(&0u64.to_be_bytes());
+        data.extend_from_slice(&((MAX_QUORUM_SIGNATURES + 1) as u32).to_be_bytes());
+
+        assert!(deserialize_consensus_msg(&data)
+            .unwrap_err()
+            .contains("protocol maximum"));
+    }
+
+    #[test]
+    fn envelope_payload_length_must_match() {
+        assert!(deserialize_consensus_msg(&[6, 0, 0, 0, 8]).is_err());
     }
 }
 
@@ -742,16 +812,31 @@ impl ConsensusEngine {
         let quorum_sig_count = self.validator_set.active_validators().len();
 
         let (ops, serialized_size) = {
-            let mp = self.mempool.lock().unwrap();
+            let mut mp = self.mempool.lock().unwrap();
             let pending = mp.pending_cloned();
+            // Quarantine pass: re-validate every pending op against current
+            // state. Anything that would fail at commit time is evicted here
+            // instead of being proposed — a single stale/invalid op can never
+            // stall block production again.
+            let mut valid: Vec<augecoin_core::operation::Operation> =
+                Vec::with_capacity(pending.len());
+            for op in pending {
+                match mp.precheck_for_block(&op, self.storage.as_ref()) {
+                    Ok(()) => valid.push(op),
+                    Err(e) => {
+                        eprintln!("[mempool] quarantining invalid pending operation: {e}");
+                        mp.remove_committed(std::slice::from_ref(&op));
+                    }
+                }
+            }
             eprintln!(
-                "[debug-build_block] block={block_number} pending={} mempool_len={}",
-                pending.len(),
+                "[debug-build_block] block={block_number} valid={} mempool_len={}",
+                valid.len(),
                 mp.len()
             );
             augecoin_core::block::select_block_operations(
                 &header,
-                &pending,
+                &valid,
                 quorum_sig_count,
                 max_size,
             )

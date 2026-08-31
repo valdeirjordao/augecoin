@@ -157,3 +157,29 @@ export function getBlockByHash(hashHex, maxBlocks) {
 export function getOperationByHash(hashHex, maxBlocks) {
   return rpc('getoperationbyhash', { hash_hex: hashHex, max_blocks: maxBlocks });
 }
+
+// ── Smart contracts (AUGE20) ─────────────────────────────────────────────
+
+/** List deployed AUGE20 token contracts (paginated). */
+export function listAuge20Contracts(params = {}) {
+  const p = { start: Number(params.start) || 0, limit: Number(params.limit) || 100 };
+  return rpc('contract_list_auge20', p);
+}
+
+/** Contract metadata by 32-byte id hex. */
+export function getContract(contractIdHex) {
+  return rpc('contract_get', { contract_id_hex: contractIdHex });
+}
+
+/** AUGE20 token info (name, symbol, supplies, mint/burn) by id. */
+export function getContractTokenInfo(contractIdHex) {
+  return rpc('contract_token_info', { contract_id_hex: contractIdHex });
+}
+
+/** AUGE20 balance of `addressHex` (8-byte address) for a token contract. */
+export function getContractBalance(contractIdHex, addressHex) {
+  return rpc('contract_balance', {
+    contract_id_hex: contractIdHex,
+    address_hex: addressHex,
+  });
+}

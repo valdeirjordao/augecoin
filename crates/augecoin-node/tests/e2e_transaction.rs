@@ -96,6 +96,7 @@ fn full_transaction_lifecycle_via_rpc_mempool_consensus() {
         max_operations: 10_000,
         chain_id,
         ttl_seconds: 3600,
+        contract_gas_reserve: 100_000,
     })));
 
     let node_status = Arc::new(NodeStatus {
@@ -139,6 +140,24 @@ fn full_transaction_lifecycle_via_rpc_mempool_consensus() {
 
     // ── 1. Wallet signs a transfer of 10 AUGE (A -> B) ───────────────────
     let amount = 10 * AUGE;
+
+    // A signed operation cannot create value by claiming more for its receiver
+    // than its sender provides.
+    let mut inflation = signed_transfer(&kp_a, chain_id, 100, 0, 200, amount, 0);
+    if let OperationPayload::Transaction { receivers, .. } = &mut inflation.payload {
+        receivers[0].amount = amount + 1;
+    }
+    inflation.signatures = vec![kp_a.sign(&inflation.to_bytes_stripped())];
+    let inflation_result = handle_send_operation(
+        SendOperationParams {
+            hex: hex::encode(inflation.to_bytes()),
+        },
+        &state,
+    )
+    .unwrap();
+    assert!(!inflation_result.accepted);
+    assert!(inflation_result.error.unwrap().contains("not conserved"));
+
     let op = signed_transfer(&kp_a, chain_id, 100, 0, 200, amount, 0);
     let op_hex = hex::encode(op.to_bytes());
 
@@ -192,6 +211,10 @@ fn full_transaction_lifecycle_via_rpc_mempool_consensus() {
 
     let valid = verify_block_quorum(&full_block, &validator_set).expect("quorum must verify");
     assert_eq!(valid, 4);
+
+    let mut repeated_signature_block = block.clone();
+    repeated_signature_block.quorum_signatures = vec![quorum_sigs[0].clone(); 3];
+    assert!(verify_block_quorum(&repeated_signature_block, &validator_set).is_err());
 
     // ── 6. Execute block and commit state ────────────────────────────────
     execute_block(&full_block, &storage).expect("block must execute");
@@ -254,6 +277,7 @@ fn mempool_rejects_duplicate_and_bad_nonce_via_rpc() {
         max_operations: 10_000,
         chain_id,
         ttl_seconds: 3600,
+        contract_gas_reserve: 100_000,
     })));
     let node_status = Arc::new(NodeStatus {
         chain_id: AtomicU64::new(chain_id),

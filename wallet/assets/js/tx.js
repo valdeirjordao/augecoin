@@ -11,6 +11,7 @@ const OP_TAG = {
   multi_operation: 0x09,
   gift_account: 0x0d,
   accept_gift: 0x0e,
+  contract: 0x10,
 };
 
 class Writer {
@@ -113,6 +114,16 @@ function writePayload(w, payload) {
       w.u64(payload.n_operation);
       w.u64(payload.fee);
       break;
+    case 'contract':
+      // Espelha OperationPayload::Contract (crates/augecoin-core/src/operation.rs):
+      // account, n_operation, fee, op_type (u8), data (u16-len prefixed).
+      w.u8(OP_TAG.contract);
+      w.u64(payload.account);
+      w.u64(payload.n_operation);
+      w.u64(payload.fee);
+      w.u8(payload.opType);
+      w.bytes(payload.data);
+      break;
     default:
       throw new Error('unsupported payload type: ' + payload.type);
   }
@@ -203,4 +214,12 @@ export function createGiftAccount(chainId, account, nOperation, recipientPublicK
 
 export function createAcceptGift(chainId, account, nOperation, fee) {
   return { chainId, payload: { type: 'accept_gift', account, n_operation: nOperation, fee } };
+}
+
+/** Contract operation assinada pelo usuário (ExecuteContract = opType 2). */
+export function createContractOp(chainId, account, nOperation, fee, opType, data) {
+  return {
+    chainId,
+    payload: { type: 'contract', account, n_operation: nOperation, fee, opType, data },
+  };
 }

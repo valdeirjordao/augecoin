@@ -44,6 +44,7 @@
   .hero-actions .btn { width: 100%; max-width: 280px; }
 
   .quick-actions { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .contract-quick-actions { grid-template-columns: repeat(2, 1fr); }
 
   .landing-hero { min-height: 480px; padding: 64px 0 48px; }
   .landing-section { padding-top: 48px; }
@@ -81,6 +82,7 @@
   .hero h1 { font-size: 1.7rem; }
   .hero-features { grid-template-columns: 1fr; }
   .quick-actions { grid-template-columns: 1fr 1fr; }
+  .contract-quick-actions { grid-template-columns: 1fr; }
   .quick-action { padding: 14px 10px; }
   .quick-action-icon { width: 36px; height: 36px; font-size: 1.1rem; }
   .balance-value { font-size: 1.5rem; }

@@ -1,5 +1,6 @@
 use crate::validator::{ValidatorInfo, ValidatorSet};
 use augecoin_crypto::signature::HybridSignature;
+use std::collections::HashSet;
 
 pub fn quorum_threshold(validator_count: u64) -> u64 {
     if validator_count == 0 {
@@ -16,18 +17,18 @@ pub fn verify_quorum(
     let active = validator_set.active_validators();
     let threshold = quorum_threshold(active.len() as u64);
 
-    let mut valid_count: u64 = 0;
+    let mut valid_validators = HashSet::new();
 
     for sig in signatures {
         for validator in &active {
             if sig.verify_validator(validator, block_hash) {
-                valid_count += 1;
+                valid_validators.insert(validator.id);
                 break;
             }
         }
     }
 
-    valid_count >= threshold
+    valid_validators.len() as u64 >= threshold
 }
 
 trait SignatureExt {
@@ -100,6 +101,21 @@ mod tests {
             .collect();
 
         assert!(!verify_quorum(&sigs, &set, &block_hash));
+    }
+
+    #[test]
+    fn repeated_signature_does_not_form_quorum() {
+        let admin = HybridKeyPair::generate();
+        let validators: Vec<ValidatorInfo> = (0..4).map(make_test_validator).collect();
+        let set = ValidatorSet::new(admin.verifying_key(), validators);
+        let block_hash = [3u8; 64];
+        let signature = make_test_keypair(0).sign(&block_hash);
+
+        assert!(!verify_quorum(
+            &[signature.clone(), signature.clone(), signature],
+            &set,
+            &block_hash,
+        ));
     }
 
     fn make_test_keypair(index: u64) -> HybridKeyPair {

@@ -34,6 +34,8 @@ function svg(name) { return ICONS[name] || ''; }
 const SIDEBAR_ITEMS = [
   { hash: '#/', label: 'Dashboard', icon: 'home' },
   { hash: '#/receive', label: 'Receber', icon: 'receive' },
+  { hash: '#/contracts', label: 'Contratos', icon: 'cube' },
+  { hash: '#/send-token', label: 'Tokens', icon: 'coins' },
   { hash: '#/augeid', label: 'AUGEID', icon: 'hex' },
   { hash: '#/history', label: 'Histórico', icon: 'history' },
   { hash: '#/marketplace', label: 'Marketplace', icon: 'coins' },
@@ -102,6 +104,7 @@ export function renderLandingHeader() {
           <a class="nav-link" href="#sobre" data-scroll="#sobre">Sobre</a>
           <a class="nav-link" href="#seguranca" data-scroll="#seguranca">Segurança</a>
           <a class="nav-link" href="#faq" data-scroll="#faq">FAQ</a>
+          <a class="nav-link" href="#/contracts">Contratos</a>
         </nav>
         <div class="header-actions">
           <button class="btn" data-goto-auth="login">Entrar</button>
@@ -150,7 +153,8 @@ export function renderBottomNav(user) {
     { hash: '#/send', label: 'Enviar', icon: 'send' },
     { hash: '#/receive', label: 'Receber', icon: 'receive' },
     { hash: '#/history', label: 'Histórico', icon: 'history' },
-    { hash: '#/augeid', label: 'AUGEID', icon: 'hex' },
+  { hash: '#/augeid', label: 'AUGEID', icon: 'hex' },
+  { hash: '#/contracts', label: 'Contratos', icon: 'cube' },
   ];
 
   host.innerHTML = `<nav class="bottom-nav-inner">

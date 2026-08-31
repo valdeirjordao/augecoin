@@ -6,7 +6,7 @@
 
 import {
   getBlockCount, getAccountByNumber, getAccountByAddress, findAccountByName,
-  getBlockByHash, getOperationByHash,
+  getBlockByHash, getOperationByHash, getContract,
 } from './api/client.js';
 import { toast } from './components.js';
 
@@ -50,12 +50,16 @@ export async function routeQuery(raw) {
     return go('search.html', { q });
   }
 
-  // 64-char hex → block hash (proof-of-work) or an account public key
+  // 64-char hex → block hash (proof-of-work) or a contract id
   if (HEX64.test(q)) {
     try {
       const block = await getBlockByHash(q);
       if (block) return go('block.html', { block: block.block_number });
     } catch { /* not a block hash */ }
+    try {
+      const c = await getContract(q);
+      if (c && c.exists) return go('contract.html', { id: q });
+    } catch { /* not a contract */ }
     return go('search.html', { q });
   }
 

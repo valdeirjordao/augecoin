@@ -5,18 +5,20 @@
 //   Camada 2 — Carteira Blockchain (saldo/transferências/compra/venda)
 // A Wallet Registry (linked_wallets) é a ponte entre as duas.
 
-import { CONFIG } from './config.js';
-import { initTheme } from './theme.js';
-import { initHomepageBg } from './homepage-bg.js';
-import { esc, auge, fmtNum, fmtTime, shortHash, copy, hexToBytes, bytesToHex, augesatToAuge, deriveShortAddress, deriveAddress, deriveEmbeddedAddress, embeddedPublicKeyHex, isValidAugeAddress } from './utils.js';
-import { generateMnemonic, validateMnemonic } from './bip39.js';
-import { derivePublicKeyHex } from './crypto.js';
-import * as api from './api.js';
-import * as rpc from './rpc.js';
-import * as ops from './ops.js';
-import * as store from './store.js';
-import * as ui from './components.js';
-import { qrMatrix, qrToCanvas } from './qr.js';
+import { CONFIG } from './config.js?v=20260831-1';
+import { initTheme } from './theme.js?v=20260831-1';
+import { initHomepageBg } from './homepage-bg.js?v=20260831-1';
+import { esc, auge, fmtNum, fmtTime, shortHash, copy, hexToBytes, bytesToHex, augesatToAuge, deriveShortAddress, deriveAddress, deriveEmbeddedAddress, embeddedPublicKeyHex, isValidAugeAddress, parseTokenAmount, tokenAmount } from './utils.js?v=20260831-1';
+import { generateMnemonic, validateMnemonic } from './bip39.js?v=20260831-1';
+import { derivePublicKeyHex } from './crypto.js?v=20260831-1';
+import * as api from './api.js?v=20260831-1';
+import * as rpc from './rpc.js?v=20260831-1';
+import { encodeTokenInit, encodeTokenCall, u64ToBeHex, AUGE20_CODE_ID } from './contracts.js?v=20260831-1';
+import * as ops from './ops.js?v=20260831-1';
+import * as store from './store.js?v=20260831-1';
+import * as historyStore from './history-store.js?v=20260831-1';
+import * as ui from './components.js?v=20260831-1';
+import { qrMatrix, qrToCanvas } from './qr.js?v=20260831-1';
 
 const state = {
   user: null,
@@ -32,6 +34,7 @@ const state = {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 const root = document.getElementById('page-root');
+const CONTRACT_SECTIONS = new Set(['tokens', 'deploy', 'transfer', 'mint', 'burn', 'history']);
 
 function session() {
   if (!state.mnemonic || !state.user) return null;
@@ -52,6 +55,25 @@ function augesatFromAuge(v) {
 async function loadWallets() {
   if (!state.user) { state.wallets = []; return; }
   try {
+    // Auto-vínculo: contas em estado Owned/Normal cuja chave é a do usuário, mas
+    // que ainda não estão em linked_wallets (ex.: recebidas via ChangeKey direto,
+    // que nunca entram em GiftPending e por isso não aparecem como presente).
+    // Requer o RPC listaccountsbykey; falha silenciosa garante compatibilidade
+    // com nós que ainda não foram recompilados.
+    const pub = state.user?.public_key_hex || '';
+    if (/^[0-9a-f]{64}$/i.test(pub)) {
+      try {
+        const res = await rpc.listAccountsByKey(pub);
+        const linked = await api.listLinkedWallets();
+        const linkedSet = new Set(linked.map((w) => Number(w.account_number)));
+        for (const a of (res.accounts || [])) {
+          const num = Number(a.account_number);
+          if ((a.state === 'Owned' || a.state === 'Normal') && !linkedSet.has(num)) {
+            await api.linkWallet(num).catch(() => {});
+          }
+        }
+      } catch { /* RPC indisponível — segue o fluxo normal */ }
+    }
     const linked = await api.listLinkedWallets();
     state.wallets = await Promise.all(linked.map(async (w) => ({
       ...w,
@@ -67,11 +89,27 @@ async function afterWalletsChanged() {
   ui.renderHeader({ user: state.user, hasWallet: hasWallet() });
 }
 
+/** Re-busca o saldo on-chain das carteiras já vinculadas, atualizando
+ *  `state.wallets` in-place. Usado para refletir recebimentos que chegaram
+ *  após o render inicial do dashboard. */
+async function refreshWalletBalances() {
+  await Promise.all(state.wallets.map(async (w) => {
+    if (w.account_number != null) {
+      w.account = await rpc.getAccountByNumber(w.account_number).catch(() => w.account);
+    }
+  }));
+}
+
 // ── Boot / router ──────────────────────────────────────────────────────
 
 function currentRoute() {
   const h = location.hash || '#/';
-  return h.replace(/^#/, '') || '/';
+  const route = h.replace(/^#/, '') || '/';
+  if (route === '/token') {
+    location.replace('#/contracts');
+    return '/contracts';
+  }
+  return route;
 }
 
 async function boot() {
@@ -116,6 +154,7 @@ async function router() {
     if (route === '/login' || route === '/login/register') { renderAuth(route === '/login/register' ? 'register' : 'login'); return; }
     if (route === '/recover') { renderRecover(); return; }
     if (route === '/mnemonic-setup') { renderMnemonicSetup(); return; }
+    if (route === '/contracts/explorer') { renderContracts(); return; }
     renderVisitor();
     return;
   }
@@ -129,13 +168,22 @@ async function router() {
       case '/validator/license': await renderValidatorLicense(); break;
       case '/validator/dashboard': await renderValidatorDashboard(); break;
       case '/billing': await renderBilling(); break;
-      case '/augeid': await renderAugeId(); break;
+       case '/augeid': await renderAugeId(); break;
+       case '/contracts': state.tokenTab = 'tokens'; await renderToken(); break;
+       case '/contracts/explorer': await renderContracts(); break;
+       case '/send-token': await renderSendToken(); break;
       case '/my-wallets': await renderMyWallets(); break;
       case '/profile': await renderProfile(); break;
       case '/send': await renderSend(); break;
       case '/receive': await renderReceive(); break;
-      case '/history': await renderHistory(); break;
-      default: if (route.startsWith('/history/')) await renderTransactionDetail(route.slice('/history/'.length)); else await renderDashboard();
+       case '/history': await renderHistory(); break;
+       default:
+         if (route.startsWith('/contracts/')) {
+           const target = route.slice('/contracts/'.length);
+           if (CONTRACT_SECTIONS.has(target)) { state.tokenTab = target; await renderToken(); }
+           else await renderContractDetail(target);
+         } else if (route.startsWith('/history/')) await renderTransactionDetail(route.slice('/history/'.length));
+         else await renderDashboard();
     }
   } catch (err) {
     console.error('[wallet] route failed:', err);
@@ -148,7 +196,9 @@ function bindGlobalHandlers() {
     if (e.target.closest('[data-logout]')) {
       e.preventDefault();
       await api.logout().catch(() => {});
+      historyStore.clearHistory(state.user?.public_key_hex).catch(() => {});
       state.user = null; state.mnemonic = null; state.wallets = [];
+      state.transactions = null;
       // Replace the current (internal) history entry with the root so the
       // browser "back" never re-plays an internal route like #/augeid.
       history.replaceState(null, '', location.pathname + location.search);
@@ -361,6 +411,229 @@ function renderRecover(message = '') {
       await store.saveMnemonic(userIdentity() || f.email.value.trim(), phrase, f.password.value);
       state.user = { ...user, public_key_hex: pub }; state.mnemonic = phrase; location.hash = '#/'; await refreshSession();
     } catch (err) { renderRecover(err.message); }
+  });
+}
+
+async function renderToken() {
+  if (walletLocked()) { renderLockScreen(); return; }
+  ui.renderHeader({ user: state.user, hasWallet: hasWallet() });
+  ui.markActiveNav('#/contracts');
+  const owned = ownedWallets();
+  if (!owned.length) {
+    root.innerHTML = '<main class="container page"><div class="card login-card"><h1>Contratos AUGE20</h1><p class="muted">Crie ou vincule um AUGEID para criar e administrar contratos.</p></div></main>';
+    return;
+  }
+  const tab = state.tokenTab || 'tokens';
+  const transferToken = state.tokenTransfer || null;
+  const accounts = owned.map((w) => `<option value="${w.account_number}">AUGEID #${fmtNum(w.account_number)}</option>`).join('');
+  const setResult = (val) => {
+    const r = root.querySelector('[data-result]');
+    const e = root.querySelector('[data-err]');
+    if (e) e.style.display = 'none';
+    if (r) { r.style.display = 'block'; r.textContent = typeof val === 'string' ? val : JSON.stringify(val, null, 2); }
+  };
+  const setErr = (msg) => {
+    const r = root.querySelector('[data-result]');
+    const e = root.querySelector('[data-err]');
+    if (r) r.style.display = 'none';
+    if (e) { e.style.display = 'block'; e.textContent = msg; }
+  };
+  const adminHistoryKey = `auge_contract_admin_history:${state.user?.public_key_hex || ''}`;
+  const saveAdminOperation = (entry) => {
+    try {
+      const items = JSON.parse(localStorage.getItem(adminHistoryKey) || '[]');
+      localStorage.setItem(adminHistoryKey, JSON.stringify([entry, ...items.filter((item) => item.hash !== entry.hash)].slice(0, 200)));
+    } catch { /* local history is supplemental to contract events */ }
+  };
+  const showReceipt = (result, operation, value, symbol = '') => {
+    const hash = result.op_hash_hex;
+    saveAdminOperation({ hash, operation, value, symbol, timestamp: Date.now(), status: 'Enviada ao mempool' });
+    const explorer = `https://explorer.augeco.in/search.html?q=${encodeURIComponent(hash)}`;
+    const r = root.querySelector('[data-result]');
+    if (r) {
+      r.style.display = 'block';
+      r.innerHTML = `<strong>Operação realizada com sucesso</strong>\nTipo: ${esc(operation)}\nValor: ${esc(value)} ${esc(symbol)}\nHash: <a href="${explorer}" target="_blank" rel="noopener noreferrer">${esc(hash)}</a>`;
+    }
+  };
+  const busy = (on) => root.querySelectorAll('button[type=submit]').forEach((b) => (b.disabled = on));
+  const amount = (value) => {
+    const text = String(value || '').trim();
+    if (!/^\d+$/.test(text) || BigInt(text) === 0n) throw new Error('Informe uma quantidade inteira positiva em unidades mínimas.');
+    return BigInt(text);
+  };
+
+  root.innerHTML = `
+    <main class="container page contracts-page">
+      <div class="dashboard-greeting"><h1>Contratos <span class="greeting-name">AUGE20</span></h1><p class="muted">Crie, administre e acompanhe os contratos emitidos pelos seus AUGEIDs.</p></div>
+      <section class="balance-card contract-hero">
+        <div class="balance-label">Contratos com assinatura local</div>
+        <div class="contract-hero-title">Sua carteira, suas regras.</div>
+        <p class="muted">Criação, transferências, mint e burn são assinados no seu dispositivo. Nenhuma chave administrativa é usada.</p>
+        <div class="contract-quick-actions">
+          <button class="quick-action" type="button" data-token-tab="tokens"><span class="quick-action-icon history">${ui.svg('receipt')}</span><span class="quick-action-label">Meus contratos</span></button>
+          <button class="quick-action" type="button" data-token-tab="deploy"><span class="quick-action-icon augeid">${ui.svg('cube')}</span><span class="quick-action-label">Criar AUGE20</span></button>
+          <a class="quick-action" href="#/send-token"><span class="quick-action-icon send">${ui.svg('send')}</span><span class="quick-action-label">Enviar tokens</span></a>
+        </div>
+      </section>
+      <div class="card contract-workspace">
+       <div class="tabs contract-tabs">
+        ${['tokens', 'deploy', 'transfer', 'mint', 'burn', 'history'].map((t) => `<button class="btn ${t === tab ? 'btn-primary' : ''}" data-token-tab="${t}">${({ tokens: 'Meus contratos', deploy: 'Criar AUGE20', transfer: 'Transferir', mint: 'Mint', burn: 'Burn', history: 'Histórico' })[t]}</button>`).join(' ')}
+      </div>
+
+      <div data-panel="tokens" ${tab === 'tokens' ? '' : 'hidden'}><div id="token-holdings"><p class="muted">Carregando tokens...</p></div></div>
+      <div data-panel="deploy" ${tab === 'deploy' ? '' : 'hidden'}>
+        <form data-deploy>
+          <label class="field"><span class="field-label">Proprietário (AUGEID)</span><select name="account">${accounts}</select></label>
+          <label class="field"><span class="field-label">Name</span><input name="name" value="Auge Coin"></label>
+          <label class="field"><span class="field-label">Symbol</span><input name="symbol" value="AUG"></label>
+          <label class="field"><span class="field-label">Decimals</span><input name="decimals" value="8"></label>
+           <label class="field"><span class="field-label">Supply inicial</span><input name="initialSupply" value="1000000" inputmode="decimal"><span class="muted small">Use unidades do token; formatos 800.000.000,00 e 800,000,000.00 são aceitos.</span></label>
+           <label class="field"><span class="field-label">Max supply</span><input name="maxSupply" value="100000000" inputmode="decimal"><span class="muted small">Use unidades do token, não unidades mínimas.</span></label>
+          <label class="checkbox-field"><input type="checkbox" name="mintEnabled" checked> Mint enabled</label>
+          <label class="checkbox-field"><input type="checkbox" name="burnEnabled" checked> Burn enabled</label>
+          <button class="btn btn-primary" type="submit" style="width:100%">Criar token AUGE20</button>
+        </form>
+      </div>
+
+      <div data-panel="mint" ${tab === 'mint' ? '' : 'hidden'}>
+        <form data-mint>
+          <label class="field"><span class="field-label">Assinante (AUGEID proprietário)</span><select name="account">${accounts}</select></label>
+          <label class="field"><span class="field-label">Contract id (hex, 64 chars / 32 bytes)</span><input name="contractId" placeholder="0000000000000000000000000000000000000000000000000000000000000007"></label>
+          <label class="field"><span class="field-label">Destino (AUGEID ou endereço)</span><input name="to" placeholder="AUGE-1"></label>
+          <label class="field"><span class="field-label">Quantidade (unidades mínimas)</span><input name="amount" placeholder="1000"></label>
+          <button class="btn btn-primary" type="submit" style="width:100%">Mint</button>
+        </form>
+      </div>
+
+      <div data-panel="transfer" ${tab === 'transfer' ? '' : 'hidden'}>
+        <form data-transfer>
+          <label class="field"><span class="field-label">Assinante (AUGEID de origem)</span><select name="account">${owned.map((w) => `<option value="${w.account_number}" ${transferToken?.accountNumber === w.account_number ? 'selected' : ''}>AUGEID #${fmtNum(w.account_number)}</option>`).join('')}</select></label>
+          <label class="field"><span class="field-label">Contract id (hex, 64 chars / 32 bytes)</span><input name="contractId" value="${esc(transferToken?.contractId || '')}" placeholder="0000000000000000000000000000000000000000000000000000000000000007"></label>
+          <label class="field"><span class="field-label">Destino (AUGEID ou endereço)</span><input name="to" placeholder="AUGE-1"></label>
+          <label class="field"><span class="field-label">Quantidade (unidades mínimas)</span><input name="amount" placeholder="1000"></label>
+          <button class="btn btn-primary" type="submit" style="width:100%">Transfer</button>
+        </form>
+      </div>
+
+      <div data-panel="burn" ${tab === 'burn' ? '' : 'hidden'}><form data-burn>
+          <label class="field"><span class="field-label">Assinante (AUGEID de origem)</span><select name="account">${accounts}</select></label>
+          <label class="field"><span class="field-label">Contract id (hex, 64 chars / 32 bytes)</span><input name="contractId" required></label>
+          <label class="field"><span class="field-label">Quantidade (tokens)</span><input name="amount" placeholder="25.00 ou 1,000.00" required><span class="muted small">Use a quantidade exibida do token; a wallet converte para unidades mínimas.</span></label>
+          <button class="btn btn-primary" type="submit" style="width:100%">Burn</button></form></div>
+       <div data-panel="history" ${tab === 'history' ? '' : 'hidden'}><div id="contract-history">${ui.skeleton(4, 5)}</div></div>
+      <pre class="result" data-result style="display:none;margin-top:14px"></pre>
+      <p class="login-error" data-err style="display:none"></p>
+    </div></main>`;
+
+  root.querySelectorAll('[data-token-tab]').forEach((btn) => btn.addEventListener('click', () => {
+    const nextTab = btn.getAttribute('data-token-tab');
+    location.hash = `#/contracts/${nextTab}`;
+  }));
+  if (tab === 'history') {
+    try {
+      const items = JSON.parse(localStorage.getItem(adminHistoryKey) || '[]');
+      const history = root.querySelector('#contract-history');
+      if (history) history.innerHTML = items.length ? `<div class="section-head"><h2>Histórico administrativo</h2><span class="muted small">Operações assinadas por seus AUGEIDs</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Operação</th><th>Valor</th><th>Data / hora</th><th>Hash</th><th>Status</th></tr></thead><tbody>${items.map((item) => `<tr><td><span class="tx-marker tx-transfer"></span>${esc(item.operation)}</td><td class="price">${esc(item.value)} ${esc(item.symbol || '')}</td><td class="muted small">${esc(fmtTime(Math.floor(item.timestamp / 1000)))}</td><td><a class="contract-link mono" href="https://explorer.augeco.in/search.html?q=${encodeURIComponent(item.hash)}" target="_blank" rel="noopener noreferrer">${esc(shortHash(item.hash, 10))}</a></td><td>${ui.badge('success', esc(item.status))}</td></tr>`).join('')}</tbody></table></div>` : ui.emptyState('Nenhuma operação administrativa registrada.', 'Mint, burn e demais operações assinadas aparecerão aqui.');
+    } catch { /* no local administrative operations */ }
+  }
+  if (tab === 'tokens') renderCreatedTokenContracts(root.querySelector('#token-holdings'));
+  const signed = async (form, submit) => {
+    const s = await requireSession(); if (!s) return;
+    const account = Number(form.account.value);
+    const wallet = owned.find((w) => w.account_number === account);
+    if (!wallet?.account) throw new Error('AUGEID assinante indisponível.');
+    return submit(s, wallet);
+  };
+  const destination = async (input) => {
+    const resolved = await rpc.resolveDestination(input);
+    if (!resolved?.account_number) throw new Error('Destino AUGEID/endereço não encontrado.');
+    return resolved.account_number;
+  };
+  const bind = (selector, handler) => root.querySelector(selector)?.addEventListener('submit', async (e) => {
+    e.preventDefault(); busy(true); try { const result = await handler(e.target); if (!result?._walletReceiptShown) setResult(result); state.tokenHoldings = null; } catch (err) { setErr(err.message); } finally { busy(false); }
+  });
+   bind('[data-deploy]', (f) => signed(f, async (s, w) => {
+     const decimals = Number(f.decimals.value);
+     if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) throw new Error('Decimais deve estar entre 0 e 18.');
+     const initialSupply = parseTokenAmount(f.initialSupply.value, decimals);
+     const maxSupply = parseTokenAmount(f.maxSupply.value, decimals);
+     if (initialSupply > maxSupply) throw new Error('O supply inicial não pode superar o max supply.');
+      const result = await ops.submitContractCreate(s, {
+        account: w.account_number, nOperation: w.account.n_operation, codeId: AUGE20_CODE_ID,
+        instantiateData: encodeTokenInit({ name: f.name.value.trim(), symbol: f.symbol.value.trim(), decimals, initialSupply, maxSupply, mintEnabled: f.mintEnabled.checked, burnEnabled: f.burnEnabled.checked }), fee: Number(CONFIG.MIN_FEE_AUGESAT),
+      });
+      if (result.accepted) saveAdminOperation({ hash: result.op_hash_hex, operation: 'Criação de contrato AUGE20', value: f.initialSupply.value, symbol: f.symbol.value.trim(), timestamp: Date.now(), status: 'Enviada ao mempool' });
+      return result;
+    }));
+  bind('[data-transfer]', async (f) => signed(f, async (s, w) => ops.submitTokenTransfer(s, { account: w.account_number, nOperation: w.account.n_operation, contractIdHex: f.contractId.value.trim(), to: await destination(f.to.value), amount: amount(f.amount.value), fee: Number(CONFIG.MIN_FEE_AUGESAT) })));
+  bind('[data-mint]', async (f) => signed(f, async (s, w) => {
+    const result = await ops.submitTokenMint(s, { account: w.account_number, nOperation: w.account.n_operation, contractIdHex: f.contractId.value.trim(), to: await destination(f.to.value), amount: amount(f.amount.value), fee: Number(CONFIG.MIN_FEE_AUGESAT) });
+    if (result.accepted) saveAdminOperation({ hash: result.op_hash_hex, operation: 'Mint de token', value: f.amount.value, symbol: '', timestamp: Date.now(), status: 'Enviada ao mempool' });
+    return result;
+  }));
+  bind('[data-burn]', async (f) => signed(f, async (s, w) => {
+    const contractIdHex = f.contractId.value.trim();
+    const token = (await rpc.contractTokenInfo(contractIdHex))?.token;
+    if (!token) throw new Error('Contrato AUGE20 não encontrado.');
+    const tokenAmountValue = parseTokenAmount(f.amount.value, Number(token.decimals));
+    if (tokenAmountValue <= 0n) throw new Error('Informe uma quantidade positiva.');
+    const result = await ops.submitTokenBurn(s, { account: w.account_number, nOperation: w.account.n_operation, contractIdHex, amount: tokenAmountValue, fee: Number(CONFIG.MIN_FEE_AUGESAT) });
+    if (result.accepted) {
+      showReceipt(result, 'Burn de token', f.amount.value, token.symbol);
+      return { ...result, _walletReceiptShown: true };
+    }
+    return result;
+  }));
+}
+
+function renderContracts() {
+  ui.renderHeader({ user: state.user, hasWallet: hasWallet() });
+  ui.markActiveNav('#/contracts');
+  root.innerHTML = `<main class="container page"><div class="card"><h1>Explorar contratos WASM</h1>
+    <p class="muted">Consulta pública de metadados e estado. Esta área não envia nem assina operações.</p>
+    <form data-explorer>
+          <label class="field"><span class="field-label">Contract id (hex, 64 chars / 32 bytes)</span><input name="contractId" placeholder="0000000000000000000000000000000000000000000000000000000000000007"></label>
+          <label class="field"><span class="field-label">Chave de estado (hex, opcional)</span><input name="keyHex"></label>
+          <button class="btn btn-primary" type="submit">Consultar</button></form><pre class="result" data-result style="display:none;margin-top:14px"></pre><p class="login-error" data-err style="display:none"></p></div></main>`;
+  root.querySelector('[data-explorer]').addEventListener('submit', async (e) => {
+    e.preventDefault(); const f = e.target; const result = root.querySelector('[data-result]'); const error = root.querySelector('[data-err]');
+    try { const id = f.contractId.value.trim(); const out = { contract: await rpc.contractGet(id) }; if (f.keyHex.value.trim()) out.state = await rpc.rpc('contract_state', { contract_id_hex: id, key_hex: f.keyHex.value.trim() }); result.textContent = JSON.stringify(out, null, 2); result.style.display = 'block'; error.style.display = 'none'; }
+    catch (err) { error.textContent = err.message; error.style.display = 'block'; result.style.display = 'none'; }
+  });
+}
+
+async function renderContractDetail(contractId) {
+  const id = String(contractId || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(id)) throw new Error('Contract id inválido.');
+
+  const { contract, token, error } = await rpc.contractTokenDetails(id);
+  if (!contract?.exists) throw new Error('Contrato não encontrado.');
+  if (!contract.is_auge20 || !token) throw new Error(error || 'O contrato não é um token AUGE20.');
+
+  const ownerHex = String(contract.owner_hex || '');
+  const issuer = /^[0-9a-f]{16}$/i.test(ownerHex) ? BigInt(`0x${ownerHex}`).toString() : '—';
+  const decimals = Number(token.decimals);
+  const flags = [token.mint_enabled ? 'Mint habilitado' : 'Mint desabilitado', token.burn_enabled ? 'Burn habilitado' : 'Burn desabilitado'];
+
+  root.innerHTML = `<main class="container page">
+    <div class="toolbar"><a class="btn btn-ghost btn-sm" href="#/contracts">Voltar aos contratos</a></div>
+    <section class="card contract-detail">
+      <div class="page-head"><h1>${esc(token.name)} <span class="muted">${esc(token.symbol)}</span></h1><p class="muted">Detalhes do contrato AUGE20.</p></div>
+      <dl class="contract-detail-grid">
+        <div><dt>Supply total</dt><dd class="mono">${esc(tokenAmount(token.total_supply, decimals))} ${esc(token.symbol)}</dd></div>
+        <div><dt>Max supply</dt><dd class="mono">${esc(tokenAmount(token.max_supply, decimals))} ${esc(token.symbol)}</dd></div>
+        <div><dt>Holders</dt><dd>${fmtNum(token.holder_count)}</dd></div>
+        <div><dt>Emissor</dt><dd>AUGEID #${esc(issuer)}</dd></div>
+        <div><dt>Decimais</dt><dd>${fmtNum(decimals)}</dd></div>
+        <div><dt>Flags</dt><dd>${esc(flags.join(' · '))}</dd></div>
+        <div><dt>Bloco de criação</dt><dd>#${fmtNum(contract.created_height)}</dd></div>
+        <div class="contract-id"><dt>Contract id</dt><dd><code>${esc(id)}</code><button class="btn btn-ghost btn-sm" type="button" data-copy-contract-id>Copiar</button></dd></div>
+      </dl>
+    </section>
+  </main>`;
+  root.querySelector('[data-copy-contract-id]').addEventListener('click', async () => {
+    await copy(id);
+    ui.toast('Contract id copiado.', 'success');
   });
 }
 
@@ -754,7 +1027,12 @@ async function renderAugeId() {
     setStatus('sending', 'Enviando para a rede…');
     sendBtn.disabled = true;
     try {
-      const res = await ops.submitChangeKey(session(), { account: wallet.account_number, nOperation: wallet.account.n_operation, fee: Number(CONFIG.MIN_FEE_AUGESAT), newPublicKeyHex: key });
+      // Usa o fluxo de presente (gift) em vez de ChangeKey: assim a conta vai
+      // para GiftPending e o destinatário a vê em "Receber AUGEID", podendo
+      // aceitá-la — o que dispara api.linkWallet e cria o vínculo na plataforma.
+      // ChangeKey transferiria a posse diretamente (Owned) e a conta ficaria
+      // órfã, sem aparecer como presente pendente nem ser vinculada ao usuário.
+      const res = await ops.submitGift(session(), { account: wallet.account_number, nOperation: wallet.account.n_operation, fee: Number(CONFIG.MIN_FEE_AUGESAT), recipientPublicKeyHex: key });
       if (!res.accepted) { setStatus('error', res.error || 'Transferência rejeitada.'); return; }
       setStatus('waiting', 'Aguardando confirmação de bloco…');
       const confirmed = await confirmOperation(res.op_hash_hex);
@@ -832,6 +1110,11 @@ async function renderDashboard() {
         ${ui.statCard('Contas ativas', fmtNum(owned.length), 'wallet')}
       </section>
 
+      <div class="section">
+        <div class="section-head"><h2>Meus tokens</h2><span class="muted small">AUGE20 · receba no mesmo AUGEID</span></div>
+        <div class="card" id="tokens-box"><p class="muted" style="padding:16px">Carregando tokens…</p></div>
+      </div>
+
       ${!hasWallet() ? `<div class="section">${emptyWalletCard()}</div>` : ''}
 
       <div class="section">
@@ -845,21 +1128,166 @@ async function renderDashboard() {
       </div>
     </main>`;
 
+  // Token discovery must not wait for the historical scan. A slow or unavailable
+  // archive endpoint used by the history view previously left this card loading forever.
+  renderTokenHoldings(root.querySelector('#tokens-box'));
+
   const items = await loadHistoryItems();
-  renderChart(root.querySelector('#chart-box'), items, totalBalance);
+  // O saldo pode ter mudado desde o render inicial (recebimento recém-confirmado):
+  // re-busca os saldos on-chain e atualiza o card "Saldo total" na hora.
+  await refreshWalletBalances();
+  const totalBalanceNow = ownedWallets().reduce((s, w) => s + BigInt(w.account?.balance || 0), 0n);
+  const bv = root.querySelector('.balance-value');
+  if (bv) bv.innerHTML = `${auge(totalBalanceNow)}<span class="balance-unit">AUGE</span>`;
+  renderChart(root.querySelector('#chart-box'), items, totalBalanceNow);
   renderRecentTransactions(root.querySelector('#recent-tx'), items);
 }
 
-async function loadHistoryItems(force = false) {
-  if (!force && state.transactions) return state.transactions;
+/** Lista todos os AUGE20 e consulta o saldo de token de cada carteira do
+ *  membro (queries públicas — não usa admin key). */
+async function loadTokenHoldings() {
+  const owned = ownedWallets();
+  if (owned.length === 0) return [];
+  let contracts = [];
+  try {
+    const res = await rpc.listAuge20(0, 100);
+    contracts = res.contracts || [];
+  } catch { return []; }
+  const holdings = [];
+  for (const c of contracts) {
+    let info = null;
+    try { info = (await rpc.contractTokenInfo(c.contract_id_hex))?.token; } catch { continue; }
+    if (!info) continue;
+    for (const w of owned) {
+      try {
+        const b = await rpc.contractBalance(c.contract_id_hex, u64ToBeHex(w.account_number));
+        const bal = BigInt(b?.balance || 0);
+        if (bal > 0n) {
+          holdings.push({
+            contractId: c.contract_id_hex,
+            symbol: info.symbol, name: info.name, decimals: Number(info.decimals),
+            balance: bal, accountNumber: w.account_number,
+          });
+        }
+      } catch { /* token pode não ter registro para esta conta */ }
+    }
+  }
+  return holdings;
+}
+
+async function renderTokenHoldings(box) {
+  if (!box) return;
+  const owned = ownedWallets();
+  if (owned.length === 0) {
+    box.innerHTML = '<p class="muted" style="padding:16px">Crie um AUGEID para receber tokens.</p>';
+    return;
+  }
+  let holdings;
+  try { holdings = await loadTokenHoldings(); } catch (err) {
+    box.innerHTML = `<p class="muted" style="padding:16px">Não foi possível carregar: ${esc(err.message)}</p>`;
+    return;
+  }
+  state.tokenHoldings = holdings;
+  if (holdings.length === 0) {
+    box.innerHTML = '<p class="muted" style="padding:16px">Nenhum saldo de token ainda. Compartilhe seu AUGEID para receber — os tokens chegam na mesma conta.</p>';
+    return;
+  }
+  box.innerHTML = `<div class="table-wrap"><table class="table">
+    <thead><tr><th>Token</th><th class="num">Saldo</th><th>Carteira</th><th></th></tr></thead>
+    <tbody>
+      ${holdings.map((h, index) => `<tr>
+        <td><strong>${esc(h.symbol)}</strong> <span class="muted">${esc(h.name)}</span></td>
+        <td class="num mono">${esc(tokenAmount(h.balance, h.decimals))}</td>
+        <td class="muted">AUGEID #${fmtNum(h.accountNumber)}</td>
+        <td><button class="btn btn-ghost btn-sm" type="button" data-send-token="${index}">Enviar</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+  box.querySelectorAll('[data-send-token]').forEach((button) => button.addEventListener('click', () => {
+    state.sendTokenPrefill = holdings[Number(button.dataset.sendToken)];
+    location.hash = '#/send-token';
+  }));
+}
+
+/** Lista somente AUGE20 criados por AUGEIDs vinculados ao membro. */
+async function renderCreatedTokenContracts(box) {
+  if (!box) return;
+  const ownerHexes = new Set(ownedWallets().map((wallet) => u64ToBeHex(wallet.account_number).toLowerCase()));
+  try {
+    const result = await rpc.listAuge20(0, 100);
+    const contracts = (result.contracts || []).filter((contract) => ownerHexes.has(String(contract.owner_hex || '').toLowerCase()));
+    if (!contracts.length) {
+      box.innerHTML = '<p class="muted" style="padding:16px">Você ainda não criou nenhum contrato AUGE20.</p>';
+      return;
+    }
+    box.innerHTML = `<div class="table-wrap"><table class="table">
+      <thead><tr><th>Contrato</th><th>Supply total</th><th>Emissor</th><th>Bloco</th></tr></thead>
+      <tbody>${contracts.map((contract) => {
+        const issuer = /^[0-9a-f]{16}$/i.test(contract.owner_hex || '') ? BigInt(`0x${contract.owner_hex}`).toString() : '—';
+        return `<tr>
+        <td><a class="contract-link" href="#/contracts/${esc(contract.contract_id_hex)}"><strong>${esc(contract.symbol)}</strong> <span class="muted">${esc(contract.name)}</span></a></td>
+        <td class="num mono">${esc(tokenAmount(contract.total_supply, Number(contract.decimals)))}</td>
+        <td class="muted">AUGEID #${esc(issuer)}</td>
+        <td>#${fmtNum(contract.created_height)}</td>
+      </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch (err) {
+    box.innerHTML = `<p class="muted" style="padding:16px">Não foi possível carregar contratos: ${esc(err.message)}</p>`;
+  }
+}
+
+const HISTORY_MAX_BACKFILL = 300; // ~25 min de blocos na primeira varredura
+const HISTORY_BATCH_DELAY_MS = 400; // espaça a varredura (~2,5 req/s) para não esgotar o rate limit do nó e deixar folga para saldo/tokens
+
+// ── Paginação persistente do histórico ─────────────────────────────────────
+const HISTORY_PAGE_SIZE_KEY = 'auge_history_page_size';
+const HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50];
+function getHistoryPageSize() {
+  try {
+    const v = Number(localStorage.getItem(HISTORY_PAGE_SIZE_KEY));
+    if (HISTORY_PAGE_SIZE_OPTIONS.includes(v)) return v;
+  } catch {}
+  return 10;
+}
+function setHistoryPageSize(v) {
+  try { localStorage.setItem(HISTORY_PAGE_SIZE_KEY, String(v)); } catch {}
+}
+
+/** Histórico persistente: IndexedDB (por chave pública) + varredura
+ *  incremental dos blocos novos. Sem isso, operações antigas "desaparecem"
+ *  quando saem da janela de varredura da chain. */
+async function loadHistoryItems() {
   const myAccounts = new Set(state.wallets.map((w) => Number(w.account_number)));
   if (myAccounts.size === 0) return [];
+  const pubKey = state.user?.public_key_hex;
   let height = 0;
   try { height = Number((await rpc.getNodeStatus()).current_height); } catch { /* ignore */ }
   if (!height) return [];
-  const items = await fetchHistory(height, myAccounts);
+
+  const meta = pubKey ? await historyStore.getMeta(pubKey) : null;
+  const last = Number(meta?.lastScannedHeight || 0);
+  const from = last > 0 ? Math.min(last + 1, height) : Math.max(1, height - HISTORY_MAX_BACKFILL + 1);
+
+  const scanned = await fetchHistory(height, myAccounts, from);
+  const items = await mergeHistory(pubKey, scanned, height);
   state.transactions = items;
   return items;
+}
+
+/** Persiste o que foi escaneado e mescla com o cache local, deduplicando por
+ *  opHash e ordenando do mais recente para o mais antigo. */
+async function mergeHistory(pubKey, scanned, height) {
+  const byHash = new Map();
+  if (pubKey) {
+    try {
+      await historyStore.saveHistoryItems(pubKey, scanned);
+      await historyStore.setMeta(pubKey, { lastScannedHeight: height });
+      for (const it of await historyStore.loadCachedHistory(pubKey)) byHash.set(it.opHash, it);
+    } catch { /* IndexedDB indisponível: usa só o escaneado */ }
+  }
+  for (const it of scanned) byHash.set(it.opHash, it);
+  return [...byHash.values()].sort((a, b) => b.block - a.block);
 }
 
 /** Reconstruct a balance-over-time series from real operations, anchored at
@@ -943,6 +1371,14 @@ function drawBalanceChart(canvas, series) {
   ctx.stroke();
 }
 
+/** Rótulo/marcador por direção da operação no histórico. */
+function txDirInfo(tx) {
+  if (tx.direction === 'send') return { label: 'Enviado', marker: 'tx-send' };
+  if (tx.direction === 'receive') return { label: 'Recebido', marker: 'tx-receive' };
+  if (tx.kind === 'AcceptGift') return { label: 'Aceite de AUGEID', marker: 'tx-neutral' };
+  return { label: 'Operação', marker: 'tx-neutral' };
+}
+
 function renderRecentTransactions(host, items) {
   if (!host) return;
   if (!items || items.length === 0) {
@@ -951,8 +1387,7 @@ function renderRecentTransactions(host, items) {
   }
   const recent = items.slice(0, 5);
   host.innerHTML = `<div class="card" style="padding:0">${recent.map((tx) => {
-    const marker = tx.direction === 'send' ? 'tx-send' : 'tx-receive';
-    const label = tx.direction === 'send' ? 'Enviado' : 'Recebido';
+    const { label, marker } = txDirInfo(tx);
     const counterparty = tx.counterparty != null ? `#${fmtNum(tx.counterparty)}` : '—';
     const value = tx.amount != null ? `${auge(tx.amount)} AUGE` : '—';
     return `<a class="recent-tx" href="#/history/${encodeURIComponent(tx.opHash)}"><span class="tx-marker ${marker}"></span><span class="recent-tx-label">${label}</span><span class="recent-tx-counter mono">${counterparty}</span><span class="recent-tx-value price">${value}</span><span class="recent-tx-time muted small">${esc(fmtTime(tx.timestamp))}</span></a>`;
@@ -1166,7 +1601,7 @@ async function renderValidator() {
       </div>
 
       <section class="grid-stats">
-        ${ui.statCard('Recompensa por bloco', '7.25 AUGE', 'coins')}
+        ${ui.statCard('Recompensa por bloco', '2.50 AUGE', 'coins')}
         ${ui.statCard('AUGEIDs por bloco', '3', 'hex')}
         ${ui.statCard('Tempo online', '24/7', 'clock')}
       </section>
@@ -1703,6 +2138,128 @@ async function renderSend() {
   });
 }
 
+// ── Enviar tokens (AUGE20) ─────────────────────────────────────────────
+
+/** Página de envio de token assinada com a chave do próprio membro
+ *  (op Contract 0x10 / ExecuteContract — sem admin key). */
+async function renderSendToken() {
+  if (walletLocked()) { renderLockScreen(); return; }
+  const owned = ownedWallets();
+  if (owned.length === 0) {
+    root.innerHTML = `<main class="container page"><div class="page-head"><h1>Enviar Tokens</h1></div>
+      <div class="card login-card"><p class="muted">Nenhum AUGEID vinculado. Crie um AUGEID para enviar tokens.</p></div></main>`;
+    return;
+  }
+
+  root.innerHTML = `<main class="container page">
+      <div class="page-head"><h1>Enviar Tokens</h1>
+      <p class="muted">Tokens AUGE20 saem da sua carteira, assinados com a sua chave. Receber: compartilhe seu AUGEID na aba Receber.</p></div>
+      <div class="card login-card">
+        <p class="muted" style="padding:8px">Carregando seus tokens…</p>
+      </div>
+    </main>`;
+
+  let holdings = state.tokenHoldings;
+  if (!holdings) {
+    try { holdings = await loadTokenHoldings(); state.tokenHoldings = holdings; }
+    catch (err) { root.querySelector('.card').innerHTML = ui.errorState(err.message); return; }
+  }
+  const prefill = state.sendTokenPrefill || null;
+  state.sendTokenPrefill = null;
+
+  if (holdings.length === 0) {
+    root.querySelector('.card').innerHTML = '<p class="muted">Nenhum saldo de token disponível. Receba tokens no seu AUGEID primeiro.</p>';
+    return;
+  }
+
+  const options = holdings.map((h) => {
+    const sel = prefill && prefill.contractId === h.contractId && prefill.accountNumber === h.accountNumber ? ' selected' : '';
+    return `<option value="${esc(h.contractId)}|${h.accountNumber}"${sel}>${esc(h.symbol)} (${esc(h.name)}) — AUGEID #${fmtNum(h.accountNumber)} — saldo ${esc(tokenAmount(h.balance, h.decimals))}</option>`;
+  }).join('');
+
+  root.querySelector('.card').innerHTML = `
+    <form data-send-token>
+      <label class="field"><span class="field-label">Token e carteira de origem</span>
+        <select name="token" required>${options}</select></label>
+      <label class="field"><span class="field-label">Destino (AUGEID ou endereço)</span><input name="to" placeholder="AUGE-845621" required></label>
+      <div data-resolved class="muted small"></div>
+      <button class="btn" type="button" data-resolve>Resolver destino</button>
+       <label class="field"><span class="field-label">Quantidade (tokens)</span><input name="amount" placeholder="50,000.00" required></label>
+       <p class="muted small">Taxa de rede: ${auge(Number(CONFIG.MIN_FEE_AUGESAT) + 100000)} AUGE (fee + gás máximo do contrato).</p>
+       <div data-token-send-status class="muted small" role="status"></div>
+       <button class="btn btn-primary" type="submit">Enviar tokens</button>
+     </form>`;
+
+  const form = root.querySelector('form[data-send-token]');
+  const resolvedEl = root.querySelector('[data-resolved]');
+  const statusEl = root.querySelector('[data-token-send-status]');
+  const submitButton = form.querySelector('button[type="submit"]');
+  const setStatus = (message) => { statusEl.textContent = message; };
+  let resolved = null;
+
+  root.querySelector('[data-resolve]').addEventListener('click', async () => {
+    const to = form.to.value.trim();
+    if (!to) { resolvedEl.textContent = 'Informe um AUGEID ou endereço.'; return; }
+    try { resolved = await rpc.resolveDestination(to); } catch { resolved = null; }
+    resolvedEl.textContent = resolved?.account_number ? `Destino: AUGEID #${fmtNum(resolved.account_number)}` : 'Destino não encontrado.';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const s = await requireSession(); if (!s) return;
+    if (!resolved?.account_number) { ui.toast('Resolva o destino primeiro.', 'error'); return; }
+    const [contractId, fromStr] = form.token.value.split('|');
+    const holding = holdings.find((h) => h.contractId === contractId && h.accountNumber === Number(fromStr));
+    if (!holding) { ui.toast('Token/carteira inválidos.', 'error'); return; }
+    let amount;
+    try { amount = parseTokenAmount(form.amount.value, holding.decimals); }
+    catch (err) { ui.toast(err.message, 'error'); return; }
+    if (amount <= 0n) { ui.toast('Quantidade inválida.', 'error'); return; }
+    if (amount > holding.balance) { ui.toast(`Saldo insuficiente: ${tokenAmount(holding.balance, holding.decimals)} ${holding.symbol}.`, 'error'); return; }
+    const wallet = owned.find((w) => w.account_number === holding.accountNumber);
+    if (BigInt(wallet.account?.balance || 0) < BigInt(Number(CONFIG.MIN_FEE_AUGESAT) + 100000)) {
+      ui.toast('Saldo AUGE insuficiente para fee + gás do contrato.', 'error'); return;
+    }
+    let accepted = false;
+    try {
+      submitButton.disabled = true;
+      setStatus('Assinando e enviando a operação...');
+      const res = await ops.submitTokenTransfer(s, {
+        account: holding.accountNumber, nOperation: wallet.account.n_operation,
+        contractIdHex: holding.contractId, to: resolved.account_number,
+        amount, fee: Number(CONFIG.MIN_FEE_AUGESAT),
+      });
+      if (res.accepted) {
+        accepted = true;
+        const hash = res.op_hash_hex;
+        if (!hash) throw new Error('Nó aceitou a operação, mas não retornou o hash.');
+        setStatus(`Enviada ao mempool. Hash da operação: ${hash}. Aguardando confirmação...`);
+        ui.toast(`Operação enviada. Hash: ${shortHash(hash, 10)}.`, 'success');
+        confirmOperation(hash).then(async (confirmed) => {
+          if (!confirmed) {
+            setStatus(`Ainda não confirmada. Hash da operação: ${hash}`);
+            return;
+          }
+          setStatus(`Confirmada no bloco #${fmtNum(confirmed.block_number)}. Hash: ${hash}`);
+          state.tokenHoldings = null;
+          await afterWalletsChanged();
+        }).catch(() => {
+          setStatus(`Não foi possível consultar a confirmação. Hash da operação: ${hash}`);
+        });
+      } else {
+        const hash = res.op_hash_hex ? ` Hash da operação: ${res.op_hash_hex}` : '';
+        setStatus(`${res.error || 'Transação rejeitada.'}${hash}`);
+        ui.toast(res.error || 'Transação rejeitada.', 'error');
+      }
+    } catch (err) {
+      setStatus(`Falha ao enviar: ${err.message}`);
+      ui.toast(err.message, 'error');
+    } finally {
+      if (!accepted) submitButton.disabled = false;
+    }
+  });
+}
+
 // ── Receive ────────────────────────────────────────────────────────────
 
 async function renderReceive() {
@@ -1769,10 +2326,47 @@ async function renderReceiveFirstAugeid() {
         </div>
       </div>
       <div class="section">
+        <div class="section-head"><h2>Vincular AUGEID recebido</h2></div>
+        <div class="card login-card">
+          <p class="muted small">Se você recebeu um AUGEID por transferência direta (não aparece como presente pendente), informe o número para vinculá-lo à sua conta. A carteira confirma que a chave é sua antes de vincular.</p>
+          <form data-link-owned>
+            <label class="field"><span class="field-label">Número do AUGEID</span><input name="num" inputmode="numeric" placeholder="Ex.: 138" required></label>
+            <div data-link-status></div>
+            <button class="btn btn-primary" type="submit">Vincular</button>
+          </form>
+        </div>
+      </div>
+      <div class="section">
         <div class="section-head"><h2>AUGEIDs recebidos</h2></div>
         <div id="gift-body">${ui.skeleton()}</div>
       </div>
     </main>`;
+
+  // Vincular manualmente um AUGEID recebido por transferência direta (ChangeKey),
+  // útil antes do nó expor listaccountsbykey ou para contas já Owned pela chave.
+  const linkForm = root.querySelector('[data-link-owned]');
+  if (linkForm) {
+    const st = linkForm.querySelector('[data-link-status]');
+    linkForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const num = Number(linkForm.num.value);
+      if (!Number.isInteger(num) || num <= 0) { st.textContent = 'Número inválido.'; return; }
+      try {
+        const acc = await rpc.getAccountByNumber(num);
+        const key = (state.user?.public_key_hex || '').toLowerCase();
+        if (!acc || !acc.account_key_ed_hex || acc.account_key_ed_hex.toLowerCase() !== key) {
+          st.textContent = 'Este AUGEID não pertence à sua chave.'; return;
+        }
+        if (!(acc.state === 'Owned' || acc.state === 'Normal')) {
+          st.textContent = `Estado atual: ${acc.state}. Só é possível vincular AUGEIDs ativos (Owned/Normal).`; return;
+        }
+        await api.linkWallet(num);
+        await afterWalletsChanged();
+        ui.toast(`AUGEID #${fmtNum(num)} vinculado à sua conta!`, 'success');
+        router();
+      } catch (err) { st.textContent = err.message || 'Falha ao vincular.'; }
+    });
+  }
 
   ui.bindCopyButtons(root);
   const qr = root.querySelector('[data-qr-address]');
@@ -1813,12 +2407,26 @@ async function renderPendingGifts(host, publicKeyHex) {
       if (!s) return;
       try {
         const acc = await rpc.getAccountByNumber(num);
-        const res = await ops.submitAcceptGift(s, { account: num, nOperation: acc.n_operation, fee: Number(CONFIG.MIN_FEE_AUGESAT) });
+        // Contas GiftPending têm saldo zero: a aceitação precisa ser fee 0
+        // (o mempool aceita fee zero exclusivamente para esse estado).
+        const res = await ops.submitAcceptGift(s, { account: num, nOperation: acc.n_operation, fee: 0 });
         if (res.accepted) {
-          await api.linkWallet(num).catch(() => {});
-          await afterWalletsChanged();
-          ui.toast(`AUGEID #${fmtNum(num)} aceito. Carteira ativada!`, 'success');
-          router();
+          ui.toast('Aceito — confirmando na blockchain…', 'info');
+          // Espera o bloco comitar (a conta sai de GiftPending) antes de atualizar a UI.
+          for (let i = 0; i < 15; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            try {
+              const cur = await rpc.getAccountByNumber(num);
+              if (cur?.account && cur.account.state !== 'GiftPending') {
+                await api.linkWallet(num).catch(() => {});
+                await afterWalletsChanged();
+                ui.toast(`AUGEID #${fmtNum(num)} aceito. Carteira ativada!`, 'success');
+                router();
+                return;
+              }
+            } catch { /* ao virar Owned a conta pode sair da listagem do gift */ }
+          }
+          ui.toast('Aceite enviado, aguardando confirmação do bloco. Tente atualizar em alguns segundos.', 'info');
         } else {
           ui.toast(res.error || 'Aceite rejeitado.', 'error');
         }
@@ -1854,7 +2462,13 @@ function classifyOperation(op, block, myAccounts) {
     if (r) return { ...base, direction: 'receive', amount: r.amount, from: senders[0]?.account ?? null, to: r.account, counterparty: senders[0]?.account ?? null, counterpartyKey: null };
     return null;
   }
-  if (t === 'ChangeKey' || t === 'ChangeKeySigned' || t === 'ChangeAccountInfo' || t === 'ListAccountForSale' || t === 'DelistAccount' || t === 'GiftAccount' || t === 'AcceptGift') {
+  if (t === 'AcceptGift') {
+    // Aceite de AUGEID: não é envio nem recebimento de valor — é a ativação
+    // da conta pelo próprio dono. Marcado como operação neutra.
+    if (mine(p.account)) return { ...base, direction: 'neutral', kind: 'AcceptGift', amount: null, from: p.account, to: null, counterparty: null, counterpartyKey: null };
+    return null;
+  }
+  if (t === 'ChangeKey' || t === 'ChangeKeySigned' || t === 'ChangeAccountInfo' || t === 'ListAccountForSale' || t === 'DelistAccount' || t === 'GiftAccount') {
     if (mine(p.account)) return { ...base, direction: 'send', amount: null, from: p.account, to: null, counterparty: null, counterpartyKey: p.new_ed25519_public_key_hex || null };
     return null;
   }
@@ -1871,29 +2485,39 @@ function classifyOperation(op, block, myAccounts) {
 }
 
 /** Scan the last `windowBlocks` blocks for operations involving `myAccounts`. */
-async function fetchHistory(height, myAccounts, windowBlocks = 120) {
+async function fetchHistory(height, myAccounts, fromBlock) {
   const items = [];
-  const from = Math.max(1, height - windowBlocks + 1);
+  const from = Math.max(1, fromBlock);
   const batchSize = 20;
+  const isRateLimit = (e) => /rate limit/i.test(String(e?.message || e));
   for (let start = height; start >= from; start -= batchSize) {
     const batch = [];
     for (let b = start; b > start - batchSize && b >= from; b--) batch.push(b);
-    const results = await Promise.all(batch.map(async (b) => {
-      try { return await rpc.getBlockOperations(b); } catch { return null; }
-    }));
-    for (const res of results) {
-      if (!res || !Array.isArray(res.operations)) continue;
+    let results = null;
+    for (let attempt = 0; attempt < 3 && results === null; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      results = await Promise.all(batch.map(async (b) => {
+        try { return await rpc.getBlockOperations(b); } catch (e) {
+          if (isRateLimit(e)) return 'RATE';
+          return null;
+        }
+      }));
+      if (results.includes('RATE')) { results = null; continue; } // nó throttling: espera e refaz o lote
+    }
+    for (const res of results || []) {
+      if (!res || res === 'RATE' || !Array.isArray(res.operations)) continue;
       for (const op of res.operations) {
         const item = classifyOperation(op, res.block, myAccounts);
         if (item) items.push(item);
       }
     }
+    if (start - batchSize >= from) await new Promise((r) => setTimeout(r, HISTORY_BATCH_DELAY_MS));
   }
   return items;
 }
 
 async function renderHistory() {
-  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Histórico</h1><p class="muted">Operações on-chain confirmadas das suas carteiras.</p></div><div id="hist-body">${ui.skeleton()}</div></main>`;
+  root.innerHTML = `<main class="container page"><div class="page-head"><h1>Histórico</h1><p class="muted">Todas as operações on-chain confirmadas das suas carteiras (persistente).</p></div><div id="hist-body">${ui.skeleton()}</div></main>`;
   const host = root.querySelector('#hist-body');
   const myAccounts = new Set(state.wallets.map((w) => Number(w.account_number)));
   if (myAccounts.size === 0) { host.innerHTML = ui.emptyState('Nenhuma carteira vinculada.'); return; }
@@ -1903,32 +2527,85 @@ async function renderHistory() {
   const height = node ? Number(node.current_height) : 0;
   if (!height) { host.innerHTML = ui.errorState('Não foi possível consultar a rede.'); return; }
 
-  const items = await fetchHistory(height, myAccounts);
-  state.transactions = items;
+  const items = await loadHistoryItems();
 
   if (items.length === 0) {
     host.innerHTML = ui.emptyState('Nenhuma operação recente.', 'As operações aparecem aqui após serem confirmadas em bloco.');
     return;
   }
 
-  host.innerHTML = `
-    <div class="table-wrap"><table class="table">
-      <thead><tr><th>Tipo</th><th>Contraparte</th><th>Valor</th><th>Data / hora</th><th>Status</th></tr></thead>
-      <tbody>${items.map((tx) => {
-        const dir = tx.direction;
-        const marker = dir === 'send' ? 'tx-send' : 'tx-receive';
-        const label = dir === 'send' ? 'Enviado' : 'Recebido';
-        const counterparty = tx.counterparty != null ? `#${fmtNum(tx.counterparty)}` : '—';
-        const value = tx.amount != null ? `${auge(tx.amount)} AUGE` : '—';
-        return `<tr class="tx-row" data-tx="${esc(tx.opHash)}"><td><span class="tx-marker ${marker}"></span>${label}</td><td class="mono">${counterparty}</td><td class="price">${value}</td><td class="muted small">${esc(fmtTime(tx.timestamp))}</td><td>${ui.badge('success', `Confirmado · #${fmtNum(tx.block)}`)}</td></tr>`;
-      }).join('')}</tbody>
-    </table></div>
-    <p class="muted small">Altura atual: #${fmtNum(height)}</p>`;
+  // ── Paginação persistente: 10 / 25 / 50 por página ─────────────────────
+  let pageSize = getHistoryPageSize();
+  let currentPage = 1;
+  const total = items.length;
+  const totalPages = () => Math.max(1, Math.ceil(total / pageSize));
 
-  host.querySelectorAll('[data-tx]').forEach((row) => row.addEventListener('click', () => {
-    state.historyScrollY = window.scrollY;
-    location.hash = `#/history/${encodeURIComponent(row.dataset.tx)}`;
-  }));
+  function renderControls() {
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, total);
+    const tp = totalPages();
+    // Clamp página se pageSize mudou
+    if (currentPage > tp) currentPage = tp;
+    return `
+      <div class="history-controls">
+        <div class="history-controls-left">
+          <label class="field-label" style="margin:0">Itens por página</label>
+          <select data-page-size class="history-page-size">
+            ${HISTORY_PAGE_SIZE_OPTIONS.map((n) => `<option value="${n}" ${n === pageSize ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
+          <span class="muted small">Mostrando ${fmtNum(start)}–${fmtNum(end)} de ${fmtNum(total)} · Altura #${fmtNum(height)}</span>
+        </div>
+        <div class="history-pagination">
+          <button class="btn btn-ghost btn-sm" data-prev ${currentPage <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+          <span class="muted small mono">Página ${fmtNum(currentPage)} de ${fmtNum(tp)}</span>
+          <button class="btn btn-ghost btn-sm" data-next ${currentPage >= tp ? 'disabled' : ''}>Próxima ›</button>
+        </div>
+      </div>`;
+  }
+
+  function renderTable() {
+    const start = (currentPage - 1) * pageSize;
+    const pageItems = items.slice(start, start + pageSize);
+    return `
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Tipo</th><th>Contraparte</th><th>Valor</th><th>Data / hora</th><th>Status</th></tr></thead>
+        <tbody>${pageItems.map((tx) => {
+          const { label, marker } = txDirInfo(tx);
+          const counterparty = tx.counterparty != null ? `#${fmtNum(tx.counterparty)}` : '—';
+          const value = tx.amount != null ? `${auge(tx.amount)} AUGE` : '—';
+          return `<tr class="tx-row" data-tx="${esc(tx.opHash)}"><td><span class="tx-marker ${marker}"></span>${label}</td><td class="mono">${counterparty}</td><td class="price">${value}</td><td class="muted small">${esc(fmtTime(tx.timestamp))}</td><td>${ui.badge('success', `Confirmado · #${fmtNum(tx.block)}`)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+  }
+
+  function draw() {
+    host.innerHTML = renderControls() + renderTable() + renderControls();
+    // Bind seletor de tamanho (existem 2 instâncias — topo e rodapé)
+    host.querySelectorAll('[data-page-size]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const v = Number(sel.value);
+        if (HISTORY_PAGE_SIZE_OPTIONS.includes(v)) {
+          pageSize = v;
+          setHistoryPageSize(v);
+          currentPage = 1;
+          draw();
+          window.scrollTo(0, 0);
+        }
+      });
+    });
+    host.querySelectorAll('[data-prev]').forEach((b) => b.addEventListener('click', () => {
+      if (currentPage > 1) { currentPage--; draw(); window.scrollTo(0, 0); }
+    }));
+    host.querySelectorAll('[data-next]').forEach((b) => b.addEventListener('click', () => {
+      if (currentPage < totalPages()) { currentPage++; draw(); window.scrollTo(0, 0); }
+    }));
+    host.querySelectorAll('[data-tx]').forEach((row) => row.addEventListener('click', () => {
+      state.historyScrollY = window.scrollY;
+      location.hash = `#/history/${encodeURIComponent(row.dataset.tx)}`;
+    }));
+  }
+
+  draw();
 
   if (state.historyScrollY != null) {
     window.scrollTo(0, state.historyScrollY);
@@ -1962,8 +2639,7 @@ async function renderTransactionDetail(txid) {
   let height = 0;
   try { height = Number((await rpc.getNodeStatus()).current_height); } catch { /* ignore */ }
 
-  const dirLabel = tx.direction === 'send' ? 'Enviado' : 'Recebido';
-  const marker = tx.direction === 'send' ? 'tx-send' : 'tx-receive';
+  const { label: dirLabel, marker } = txDirInfo(tx);
   const amount = tx.amount != null ? `${auge(tx.amount)} AUGE` : '—';
   const confirmations = height && tx.block ? Math.max(0, height - tx.block + 1) : null;
 

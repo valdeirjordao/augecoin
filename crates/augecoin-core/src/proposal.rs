@@ -99,9 +99,13 @@ impl ProposalMessage {
     pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
         let mut pos = 0usize;
         let hlen = read_u32(data, &mut pos)? as usize;
+        let header_end = pos
+            .checked_add(hlen)
+            .filter(|end| *end <= data.len())
+            .ok_or_else(|| "header exceeds proposal payload".to_string())?;
         let header =
-            OperationBlockHeader::from_bytes(&data[pos..pos + hlen]).map_err(|e| e.to_string())?;
-        pos += hlen;
+            OperationBlockHeader::from_bytes(&data[pos..header_end]).map_err(|e| e.to_string())?;
+        pos = header_end;
         let merkle_root = read_fixed::<TX_HASH_LEN>(data, &mut pos)?;
         let count = read_u32(data, &mut pos)? as usize;
         if count > 25000 {
@@ -205,7 +209,11 @@ impl TransactionsResponse {
         let compressed = data.get(pos).copied().unwrap_or(0) != 0;
         pos += 1;
         let len = read_u32(data, &mut pos)? as usize;
-        let raw = &data[pos..pos + len];
+        let end = pos
+            .checked_add(len)
+            .filter(|end| *end <= data.len())
+            .ok_or_else(|| "transactions response exceeds payload".to_string())?;
+        let raw = &data[pos..end];
         let payload = if compressed {
             crate::proposal::decompress(raw)?
         } else {
@@ -296,8 +304,12 @@ fn decode_operations(data: &[u8]) -> Result<Vec<Operation>, String> {
     let mut ops = Vec::with_capacity(count);
     for _ in 0..count {
         let len = read_u32(data, &mut pos)? as usize;
-        let op = Operation::from_bytes(&data[pos..pos + len]).map_err(|e| e.to_string())?;
-        pos += len;
+        let end = pos
+            .checked_add(len)
+            .filter(|end| *end <= data.len())
+            .ok_or_else(|| "operation exceeds response payload".to_string())?;
+        let op = Operation::from_bytes(&data[pos..end]).map_err(|e| e.to_string())?;
+        pos = end;
         ops.push(op);
     }
     Ok(ops)
@@ -311,7 +323,7 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 
 /// Decompress a zstd payload. Returns `Err` on corrupt input (never panics).
 pub fn decompress(data: &[u8]) -> Result<Vec<u8>, String> {
-    zstd::bulk::decompress(data, 2 * 1024 * 1024 * 1024).map_err(|e| e.to_string())
+    zstd::bulk::decompress(data, crate::limits::max_transmit_size()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -347,7 +359,7 @@ mod tests {
         OperationBlockHeader {
             block_number: 42,
             account_key: [1u8; 32],
-            reward: 725_000_000,
+            reward: 250_000_000,
             fee: 0,
             protocol_version: 5,
             protocol_available: 6,
@@ -456,6 +468,15 @@ mod tests {
             TransactionsResponse::from_bytes(&msg.to_bytes()).unwrap(),
             msg
         );
+    }
+
+    #[test]
+    fn truncated_lengths_are_rejected_without_panicking() {
+        assert!(ProposalMessage::from_bytes(&[0, 0, 0, 16]).is_err());
+
+        let mut response = vec![0u8; 9]; // height + uncompressed flag
+        response.extend_from_slice(&16u32.to_be_bytes());
+        assert!(TransactionsResponse::from_bytes(&response).is_err());
     }
 
     #[test]

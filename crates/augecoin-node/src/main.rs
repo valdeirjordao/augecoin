@@ -279,7 +279,7 @@ fn update_node_status(
 }
 
 fn load_safe_box_hash(storage: &Storage) -> [u8; 64] {
-    storage.safebox_hash().unwrap_or([0u8; 64])
+    storage.consensus_state_root().unwrap_or([0u8; 64])
 }
 
 /// Update SafeBox / RocksDB persistence metrics after a block commit.
@@ -691,6 +691,9 @@ fn main() {
         max_operations: mempool_max_operations,
         chain_id,
         ttl_seconds: mempool_ttl_seconds,
+        // Espelha a checagem de execução: fee + gás máximo reservado.
+        contract_gas_reserve: augecoin_contracts::gas::DEFAULT_GAS_LIMIT
+            .saturating_mul(augecoin_contracts::gas::GAS_PRICE_AUGESAT),
     })));
     {
         let admin_pk = validator_set.admin_public_key().to_bytes();
@@ -1318,6 +1321,12 @@ fn main() {
                                 phase = NodePhase::Idle;
                                 continue;
                             }
+                            if let Err(e) = execution::verify_block_pre_state(&full_block, &storage)
+                            {
+                                eprintln!("[block {ev_height}] REJECTED: pre-state verification failed: {e}");
+                                phase = NodePhase::Idle;
+                                continue;
+                            }
 
                             match execution::execute_block(&full_block, &storage) {
                                 Ok(new_safe_box_hash) => {
@@ -1571,6 +1580,25 @@ fn main() {
 
             match engine.build_block(height + 1, prev_hash, prev_safe_box_hash) {
                 Ok(block) => {
+                    if let Err(e) = execution::validate_block_execution(&block, &storage) {
+                        eprintln!(
+                            "[mempool] refusing proposal height={}: execution failed: {e}",
+                            height + 1
+                        );
+                        if let execution::ExecutionError::OperationFailed { sender, .. } = e {
+                            let evicted = engine
+                                .mempool
+                                .lock()
+                                .map(|mut mp| mp.evict_all_for_sender(sender))
+                                .unwrap_or(0);
+                            if evicted > 0 {
+                                eprintln!(
+                                    "[mempool] quarantined {evicted} pending op(s) of sender {sender} after proposal validation"
+                                );
+                            }
+                        }
+                        continue;
+                    }
                     println!(
                         "[consensus] proposing block height={} (leader=v{validator_id}, round {round_number})",
                         height + 1
@@ -1665,6 +1693,18 @@ fn main() {
                         pending_proposal = None;
                         collected_sigs.clear();
                     } else {
+                        if let Err(e) =
+                            execution::verify_block_pre_state(&committed_block, &storage)
+                        {
+                            eprintln!(
+                                "[block {}] REJECTED: pre-state verification failed: {e}",
+                                height + 1
+                            );
+                            phase = NodePhase::Idle;
+                            pending_proposal = None;
+                            collected_sigs.clear();
+                            continue;
+                        }
                         match execution::execute_block(&committed_block, &storage) {
                             Ok(new_safe_box_hash) => {
                                 prev_safe_box_hash = new_safe_box_hash;
@@ -1776,6 +1816,29 @@ fn main() {
                             }
                             Err(e) => {
                                 eprintln!("[block {}] COMMIT FAILED: {e}", height + 1);
+                                // Quarantena: uma única operação que falha na
+                                // execução seria reproposta indefinidamente,
+                                // travando a chain até o TTL. Se o erro indica
+                                // o remetente, evicta toda a cadeia de nonces
+                                // pendente dele (os nonces seguintes estariam
+                                // órfãos de qualquer forma). O precheck no
+                                // build_block torna este caminho a última
+                                // linha de defesa.
+                                if let execution::ExecutionError::OperationFailed {
+                                    sender, ..
+                                } = &e
+                                {
+                                    let evicted = engine
+                                        .mempool
+                                        .lock()
+                                        .map(|mut mp| mp.evict_all_for_sender(*sender))
+                                        .unwrap_or(0);
+                                    if evicted > 0 {
+                                        eprintln!(
+                                            "[mempool] quarantined {evicted} pending op(s) of sender {sender} after commit failure"
+                                        );
+                                    }
+                                }
                                 if let Ok(mut guard) = node_status.last_consensus_error.lock() {
                                     *guard = Some(format!("execution failed: {e}"));
                                 }
@@ -1844,10 +1907,13 @@ fn decode_operation_batch(data: &[u8]) -> Result<Vec<Vec<u8>>, String> {
         Ok(value)
     };
     let count = read_u32(data, &mut pos)? as usize;
+    if count > data.len().saturating_sub(pos) / 4 {
+        return Err("operation batch count exceeds remaining payload".into());
+    }
     let mut operations = Vec::with_capacity(count);
     for _ in 0..count {
         let len = read_u32(data, &mut pos)? as usize;
-        if pos + len > data.len() {
+        if pos.checked_add(len).is_none_or(|end| end > data.len()) {
             return Err("operation batch is truncated".into());
         }
         operations.push(data[pos..pos + len].to_vec());
@@ -1909,6 +1975,30 @@ fn accept_proposal(
     }
     let leader_id = leader_for(height, *round_number, &engine.validator_set);
     if block.header.leader_id == leader_id && block.header.block_number == ev_height {
+        if let Err(e) = execution::verify_block_pre_state(&block, storage) {
+            eprintln!(
+                "[consensus] rejected proposal height={ev_height} from validator #{from_id}: invalid pre-state: {e}"
+            );
+            return;
+        }
+        if let Err(e) = execution::validate_block_execution(&block, storage) {
+            eprintln!(
+                "[consensus] rejected proposal height={ev_height} from validator #{from_id}: execution failed: {e}"
+            );
+            if let execution::ExecutionError::OperationFailed { sender, .. } = e {
+                let evicted = engine
+                    .mempool
+                    .lock()
+                    .map(|mut mp| mp.evict_all_for_sender(sender))
+                    .unwrap_or(0);
+                if evicted > 0 {
+                    eprintln!(
+                        "[mempool] quarantined {evicted} pending op(s) of sender {sender} after proposal rejection"
+                    );
+                }
+            }
+            return;
+        }
         for prior in prior_proposals.iter() {
             if prior.header.leader_id == block.header.leader_id
                 && prior.header.block_number == block.header.block_number
@@ -1976,6 +2066,7 @@ fn apply_catchup_block(
     full_block.quorum_signatures = quorum_sigs.to_vec();
 
     execution::verify_block_quorum(&full_block, validator_set).map_err(|e| e.to_string())?;
+    execution::verify_block_pre_state(&full_block, storage).map_err(|e| e.to_string())?;
 
     let new_sb_hash = execution::execute_block(&full_block, storage).map_err(|e| e.to_string())?;
 

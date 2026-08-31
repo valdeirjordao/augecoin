@@ -3,26 +3,25 @@ use crate::constants::{
 };
 
 // ── AUGECOIN Monetary Policy ────────────────────────────────────────────
-// Block interval:       15 seconds
-// Block reward:         7.25 AUGE
+// Block interval:       5 seconds
+// Block reward:         2.50 AUGE
 // Emission model:       Linear (no halving)
 // Premine:              None
 // Developer reward:     0%
 // Validator reward:     100%
 // Fee distribution:     100% validator
-// Economic period:      50 years
-// Blocks:               105 120 000
-// Maximum emission:     762 120 000 AUGE
+// Blocks:               315 576 000
+// Maximum emission:     788 940 000 AUGE
 //
-// 105 120 000 blocks × 7.25 AUGE = 762 120 000 AUGE
+// 315 576 000 blocks × 2.50 AUGE = 788 940 000 AUGE
 // ────────────────────────────────────────────────────────────────────────
 
 pub const TOTAL_EMISSION_BLOCKS_CONST: u64 = TOTAL_EMISSION_BLOCKS;
 
 /// Returns the block reward in augesat (smallest monetary unit).
 ///
-/// Every block in the emission period (blocks 0 through 105 119 999)
-/// receives exactly 7.25 AUGE = 725 000 000 augesat.
+/// Every block in the emission period (blocks 0 through 315 575 999)
+/// receives exactly 2.50 AUGE = 250 000 000 augesat.
 /// After the emission period, the reward is 0.
 ///
 /// No halving, no variable reward, no genesis special case.
@@ -88,8 +87,8 @@ mod tests {
     }
 
     #[test]
-    fn seven_point_twenty_five_auge_times_blocks() {
-        assert_eq!(105_120_000u64 * 725_000_000, 76_212_000_000_000_000);
+    fn two_point_fifty_auge_times_blocks() {
+        assert_eq!(315_576_000u64 * 250_000_000, 78_894_000_000_000_000);
     }
 
     #[test]

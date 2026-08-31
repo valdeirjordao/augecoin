@@ -17,6 +17,18 @@ fn valid_address(address: &str) -> bool {
     augecoin_crypto::address::validate_address(address)
 }
 
+fn validate_contract_envelope(op: &Operation) -> Result<(), String> {
+    let OperationPayload::Contract { op_type, data, .. } = &op.payload else {
+        return Ok(());
+    };
+    let contract_op = augecoin_contracts::ContractOp::from_bytes(data)
+        .map_err(|e| format!("invalid contract operation: {e}"))?;
+    if contract_op.op_type() != *op_type {
+        return Err("contract operation type does not match its payload".into());
+    }
+    Ok(())
+}
+
 /// Shared runtime status snapshot, updated by the node main loop and
 /// read by the RPC layer. All fields use interior mutability so that
 /// the node can update the snapshot without re-locking the AppState.
@@ -359,6 +371,12 @@ pub struct FindAccountsParams {
     pub start: u64,
     #[serde(default = "default_max")]
     pub max: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListAccountsByKeyParams {
+    /// Ed25519 public key (hex) whose owned accounts should be returned.
+    pub ed25519_public_key_hex: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -897,6 +915,7 @@ pub fn handle_send_operation(
     let op_bytes = hex::decode(&params.hex).map_err(|e| format!("invalid hex: {e}"))?;
 
     let op = Operation::from_bytes(&op_bytes).map_err(|e| format!("invalid operation: {e}"))?;
+    validate_contract_envelope(&op)?;
 
     let op_hash = crate::hash_operation(&op);
     let op_hash_hex = hex::encode(op_hash);
@@ -999,6 +1018,10 @@ pub fn handle_send_operations(
             ));
             continue;
         }
+        if let Err(e) = validate_contract_envelope(&op) {
+            errors.push(e);
+            continue;
+        }
         match mempool.validate_and_admit(op, state.storage.as_ref(), now) {
             Ok(()) => {
                 accepted += 1;
@@ -1088,6 +1111,37 @@ pub fn handle_find_accounts(
 
     Ok(FindAccountsResponse {
         accounts: page,
+        total,
+    })
+}
+
+/// Read-only: list every account whose owner key equals `ed25519_public_key_hex`.
+/// Used by wallets to auto-discover accounts received via direct `ChangeKey`
+/// transfers (which never enter `GiftPending` and so are invisible to the gift
+/// flow). Pure query — no consensus, no side effects.
+pub fn handle_list_accounts_by_key(
+    params: ListAccountsByKeyParams,
+    state: &AppState,
+) -> Result<FindAccountsResponse, String> {
+    let key: [u8; 32] = hex::decode(params.ed25519_public_key_hex.trim())
+        .map_err(|e| format!("invalid public key hex: {e}"))?
+        .try_into()
+        .map_err(|_| "public key must contain 32 bytes".to_string())?;
+
+    let accounts = state
+        .storage
+        .iter_accounts()
+        .map_err(|e| format!("storage error: {e}"))?;
+
+    let filtered: Vec<AccountInfoResponse> = accounts
+        .iter()
+        .filter(|acc| acc.account_info.account_key.ed25519_public_key == key)
+        .map(account_to_response)
+        .collect();
+
+    let total = filtered.len() as u64;
+    Ok(FindAccountsResponse {
+        accounts: filtered,
         total,
     })
 }
@@ -1558,6 +1612,7 @@ fn operation_type_name(op: &Operation) -> String {
         OperationPayload::CreateAccount { .. } => "CreateAccount".into(),
         OperationPayload::GiftAccount { .. } => "GiftAccount".into(),
         OperationPayload::AcceptGift { .. } => "AcceptGift".into(),
+        OperationPayload::Contract { .. } => "Contract".into(),
     }
 }
 
@@ -1754,6 +1809,21 @@ fn operation_payload_to_json(payload: &OperationPayload) -> serde_json::Value {
                 "account": account,
                 "n_operation": n_operation,
                 "fee": fee,
+            })
+        }
+        OperationPayload::Contract {
+            account,
+            n_operation,
+            fee,
+            op_type,
+            data,
+        } => {
+            serde_json::json!({
+                "account": account,
+                "n_operation": n_operation,
+                "fee": fee,
+                "op_type": op_type,
+                "data_hex": hex::encode(data),
             })
         }
     }
@@ -2238,6 +2308,7 @@ mod endpoint_tests {
         use std::sync::atomic::AtomicU32;
         static C: AtomicU32 = AtomicU32::new(9000);
         let path = format!("/tmp/augecoin-rpc-ep-{}", C.fetch_add(1, Ordering::SeqCst));
+        let _ = std::fs::remove_dir_all(&path);
         let storage = Storage::open(&path).unwrap();
         (storage, path)
     }
@@ -2253,6 +2324,7 @@ mod endpoint_tests {
             max_operations: 10_000,
             chain_id: 1,
             ttl_seconds: 3_600,
+            contract_gas_reserve: 100_000,
         });
         mempool.set_admin_pubkey(admin_kp.verifying_key().to_bytes());
         AppState {
@@ -2456,7 +2528,7 @@ mod endpoint_tests {
                 }],
                 receivers: vec![ReceiverInfo {
                     account: 2,
-                    amount: 90,
+                    amount: 100,
                     payload: vec![],
                 }],
                 changers: vec![],
@@ -2517,7 +2589,7 @@ mod endpoint_tests {
                 }],
                 receivers: vec![ReceiverInfo {
                     account: 2,
-                    amount: 90,
+                    amount: 100,
                     payload: vec![],
                 }],
                 changers: vec![],
@@ -2536,7 +2608,7 @@ mod endpoint_tests {
 
         let result = handle_send_operation(SendOperationParams { hex: op_hex }, &state);
         let resp = result.unwrap();
-        assert!(resp.accepted);
+        assert!(resp.accepted, "operation rejected: {:?}", resp.error);
 
         std::fs::remove_dir_all(&path).ok();
     }

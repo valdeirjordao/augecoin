@@ -27,6 +27,7 @@ const NAV = [
   { href: 'validators.html', label: 'Validators' },
   { href: 'supply.html', label: 'Supply' },
   { href: 'richlist.html', label: 'Rich List' },
+  { href: 'contracts.html', label: 'Contracts' },
 ];
 
 export function renderHeader(active) {

@@ -90,7 +90,7 @@ async fn reward_ledger_aggregates_into_period_buckets() {
                 validator_id: vid,
                 block_number: block,
                 leader_id: 42,
-                auge: 725_000_000 + fee,
+                auge: 250_000_000 + fee,
                 fees: fee,
                 augeids: 10,
                 block_ts: now,
@@ -100,7 +100,7 @@ async fn reward_ledger_aggregates_into_period_buckets() {
     }
 
     let summary = ctx.rewards.summarize(vid).await.unwrap();
-    assert_eq!(summary.total.auge, 2 * 725_000_000 + 3_000_000);
+    assert_eq!(summary.total.auge, 2 * 250_000_000 + 3_000_000);
     assert_eq!(summary.total.fees, 3_000_000);
     assert_eq!(summary.total.augeids, 20);
     assert_eq!(summary.total.blocks, 2);
@@ -118,7 +118,7 @@ async fn reward_insert_is_idempotent() {
         validator_id: vid,
         block_number: 1,
         leader_id: 42,
-        auge: 725_000_000,
+        auge: 250_000_000,
         fees: 0,
         augeids: 10,
         block_ts: Utc::now(),
@@ -129,7 +129,7 @@ async fn reward_insert_is_idempotent() {
     assert!(!ctx.rewards.insert(reward).await.unwrap());
 
     let summary = ctx.rewards.summarize(vid).await.unwrap();
-    assert_eq!(summary.total.auge, 725_000_000);
+    assert_eq!(summary.total.auge, 250_000_000);
     assert_eq!(summary.total.blocks, 1);
 }
 
@@ -143,7 +143,7 @@ async fn network_summary_aggregates_across_validators() {
                 validator_id: vid,
                 block_number: 1,
                 leader_id: 42,
-                auge: 725_000_000,
+                auge: 250_000_000,
                 fees: 0,
                 augeids: 10,
                 block_ts: Utc::now(),
@@ -153,13 +153,13 @@ async fn network_summary_aggregates_across_validators() {
     }
 
     let net = ctx.rewards.network_summary().await.unwrap();
-    assert_eq!(net.total.auge, 2 * 725_000_000);
+    assert_eq!(net.total.auge, 2 * 250_000_000);
     assert_eq!(net.total.blocks, 2);
     assert_eq!(net.total.augeids, 20);
 
     let totals = ctx.rewards.totals().await.unwrap();
     assert_eq!(totals.len(), 2);
-    assert!(totals.values().all(|v| *v == 725_000_000));
+    assert!(totals.values().all(|v| *v == 250_000_000));
 }
 
 #[tokio::test]

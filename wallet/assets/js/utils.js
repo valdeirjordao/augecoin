@@ -80,6 +80,58 @@ export function hexToBytes(hex) {
   return out;
 }
 
+/**
+ * Valor humano de token ("50.000,00", "50,000.00", "1000000") → unidades
+ * brutas (bigint) dado `decimals` do token. Tolera separadores pt-BR/en-US.
+ * Lança erro amigável em entrada inválida, excesso de casas ou overflow u64.
+ */
+export function parseTokenAmount(raw, decimals) {
+  const s = String(raw ?? '').trim().replace(/[\s_]/g, '');
+  if (!s) throw new Error('Informe um valor.');
+  if (!/^[0-9.,]+$/.test(s)) throw new Error(`Valor inválido: "${raw}".`);
+  const hasDot = s.includes('.');
+  const hasComma = s.includes(',');
+  let intPart;
+  let fracPart = '';
+  if (hasDot && hasComma) {
+    const decSep = s.lastIndexOf('.') > s.lastIndexOf(',') ? '.' : ',';
+    const thouSep = decSep === '.' ? ',' : '.';
+    const clean = s.split(thouSep).join('');
+    const idx = clean.indexOf(decSep);
+    intPart = clean.slice(0, idx);
+    fracPart = clean.slice(idx + 1);
+  } else if (hasDot || hasComma) {
+    const sep = hasDot ? '.' : ',';
+    const parts = s.split(sep);
+    if (parts.length > 2) intPart = parts.join('');
+    else if (parts[1].length === 3 && parts[0] !== '') intPart = parts.join('');
+    else { intPart = parts[0]; fracPart = parts[1]; }
+  } else {
+    intPart = s;
+  }
+  if (!/^\d*$/.test(intPart) || !/^\d*$/.test(fracPart)) {
+    throw new Error(`Valor inválido: "${raw}".`);
+  }
+  if (intPart === '') intPart = '0';
+  if (/^0+$/.test(fracPart)) fracPart = '';
+  if (fracPart.length > decimals) {
+    throw new Error(`"${raw}" tem ${fracPart.length} casas decimais; o token usa ${decimals}.`);
+  }
+  const per = 10n ** BigInt(decimals);
+  const rawUnits = BigInt(intPart) * per + BigInt((fracPart + '0'.repeat(decimals)).slice(0, decimals));
+  if (rawUnits > 2n ** 64n - 1n) throw new Error('Valor excede o limite u64.');
+  return rawUnits;
+}
+
+/** Unidades brutas → string humana com separadores e 2 casas ("50,000.00"). */
+export function tokenAmount(rawUnits, decimals) {
+  const v = BigInt(rawUnits);
+  const per = 10n ** BigInt(decimals);
+  const intStr = Number(v / per).toLocaleString('en-US');
+  const frac = (v % per).toString().padStart(decimals, '0');
+  return `${intStr}.${frac}`;
+}
+
 export function bytesToHex(bytes) {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }

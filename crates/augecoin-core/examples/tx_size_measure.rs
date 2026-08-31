@@ -47,7 +47,7 @@ fn main() {
     let header = OperationBlockHeader {
         block_number: 1,
         account_key: [0u8; 32],
-        reward: 725_000_000,
+        reward: 250_000_000,
         fee: 0,
         protocol_version: 5,
         protocol_available: 6,

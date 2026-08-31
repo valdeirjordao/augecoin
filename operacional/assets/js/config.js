@@ -12,12 +12,12 @@ export const CONFIG = Object.freeze({
     return qs || ls || '/api';
   },
 
-  NETWORK: 'Testnet',
+  NETWORK: 'Mainnet',
   DECIMALS: 8,
   AUGESAT_PER_AUGE: 100_000_000,
-  BLOCK_REWARD_AUGE: 7.25,
-  BLOCK_TIME_SECONDS: 15,
-  POLL_INTERVAL_MS: 15000,
+  BLOCK_REWARD_AUGE: 2.50,
+  BLOCK_TIME_SECONDS: 5,
+  POLL_INTERVAL_MS: 5000,
   HEARTBEAT_WINDOW_SECS: 120,
 
   // Backend financeiro (faturas + configuração de pagamento), servido pelo

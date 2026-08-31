@@ -27,6 +27,7 @@ pub enum OperationType {
     CreateAccount = 0x0C,
     GiftAccount = 0x0D,
     AcceptGift = 0x0E,
+    Contract = 0x10,
 }
 
 impl OperationType {
@@ -47,6 +48,7 @@ impl OperationType {
             0x0C => Some(OperationType::CreateAccount),
             0x0D => Some(OperationType::GiftAccount),
             0x0E => Some(OperationType::AcceptGift),
+            0x10 => Some(OperationType::Contract),
             _ => None,
         }
     }
@@ -210,6 +212,16 @@ pub enum OperationPayload {
         account: u64,
         n_operation: u64,
         fee: u64,
+    },
+    /// Smart-contract operation (V1). The signed sender is `account`; the
+    /// contract-specific payload is `data` (a serialized `ContractOp` from the
+    /// `augecoin-contracts` crate), and `op_type` discriminates its kind.
+    Contract {
+        account: u64,
+        n_operation: u64,
+        fee: u64,
+        op_type: u8,
+        data: Vec<u8>,
     },
 }
 
@@ -544,6 +556,7 @@ impl OperationPayload {
             OperationPayload::CreateAccount { .. } => OperationType::CreateAccount,
             OperationPayload::GiftAccount { .. } => OperationType::GiftAccount,
             OperationPayload::AcceptGift { .. } => OperationType::AcceptGift,
+            OperationPayload::Contract { .. } => OperationType::Contract,
         }
     }
 
@@ -759,6 +772,19 @@ impl OperationPayload {
                 write_u64(&mut buf, *account);
                 write_u64(&mut buf, *n_operation);
                 write_u64(&mut buf, *fee);
+            }
+            OperationPayload::Contract {
+                account,
+                n_operation,
+                fee,
+                op_type,
+                data,
+            } => {
+                write_u64(&mut buf, *account);
+                write_u64(&mut buf, *n_operation);
+                write_u64(&mut buf, *fee);
+                write_u8(&mut buf, *op_type);
+                write_bytes_with_len(&mut buf, data);
             }
         }
         buf
@@ -1009,6 +1035,20 @@ impl OperationPayload {
                     account,
                     n_operation,
                     fee,
+                })
+            }
+            0x10 => {
+                let account = read_u64(data, pos)?;
+                let n_operation = read_u64(data, pos)?;
+                let fee = read_u64(data, pos)?;
+                let op_type = read_u8(data, pos)?;
+                let data = read_bytes_with_len(data, pos)?;
+                Ok(OperationPayload::Contract {
+                    account,
+                    n_operation,
+                    fee,
+                    op_type,
+                    data,
                 })
             }
             _ => Err(OperationError::UnknownOperationType(op_tag)),

@@ -55,17 +55,17 @@ fn total_emission_matches_hard_cap() {
 }
 
 #[test]
-fn arithmetic_verification_7_25_auge_times_blocks() {
-    assert_eq!(105_120_000u64 * 725_000_000, 76_212_000_000_000_000);
+fn arithmetic_verification_2_50_auge_times_blocks() {
+    assert_eq!(315_576_000u64 * 250_000_000, 78_894_000_000_000_000);
 }
 
 #[test]
 fn one_auge_equals_100_million_augesat() {
     assert_eq!(ONE_AUGE, 100_000_000);
-    assert_eq!(CT_BLOCK_REWARD_AUGESAT, 7 * ONE_AUGE + 25_000_000);
+    assert_eq!(CT_BLOCK_REWARD_AUGESAT, 2 * ONE_AUGE + 50_000_000);
 }
 
 #[test]
 fn hard_cap_in_auge_matches_declared_value() {
-    assert_eq!(HARD_CAP_AUGESAT / ONE_AUGE, 762_120_000);
+    assert_eq!(HARD_CAP_AUGESAT / ONE_AUGE, 788_940_000);
 }

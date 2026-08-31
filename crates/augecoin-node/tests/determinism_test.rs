@@ -111,6 +111,7 @@ fn independent_nodes_produce_same_state_root() {
             max_operations: 1000,
             chain_id: 1,
             ttl_seconds: 3600,
+            contract_gas_reserve: 100_000,
         });
 
         let op = sign_op(&kp_alice, &make_transfer_op(100, alice_n_op, 200, 500, 10));

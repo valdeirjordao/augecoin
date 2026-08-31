@@ -1,11 +1,11 @@
 use augecoin_core::account::{Account, AccountInfo, AccountKey, AccountState};
 use augecoin_core::block::OperationBlock;
-use augecoin_core::constants::{CT_ACCOUNTS_PER_BLOCK, TOTAL_EMISSION_BLOCKS};
+use augecoin_core::constants::{CT_ACCOUNTS_PER_BLOCK, CT_MAX_ACCOUNT_DATA, TOTAL_EMISSION_BLOCKS};
 use augecoin_core::emission::{block_reward, HARD_CAP_AUGESAT};
 use augecoin_core::operation::{Operation, OperationPayload};
 use augecoin_storage::Storage;
 use rayon::prelude::*;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Error)]
@@ -80,7 +80,7 @@ pub fn verify_block_quorum(
 
     // Verify quorum signatures
     let threshold = quorum_threshold(active_vals.len() as u64) as usize;
-    let mut valid_sigs = 0usize;
+    let mut valid_validators = HashSet::new();
 
     for sig in &block.quorum_signatures {
         for vi in &active_vals {
@@ -89,15 +89,15 @@ pub fn verify_block_quorum(
                 Err(_) => continue,
             };
             if sig.verify(&pk, &block_hash) {
-                valid_sigs += 1;
+                valid_validators.insert(vi.id);
                 break;
             }
         }
     }
 
-    if valid_sigs < threshold {
+    if valid_validators.len() < threshold {
         return Err(ExecutionError::InsufficientQuorum {
-            got: valid_sigs,
+            got: valid_validators.len(),
             need: threshold,
         });
     }
@@ -111,12 +111,58 @@ pub fn verify_block_quorum(
         });
     }
 
-    Ok(valid_sigs)
+    Ok(valid_validators.len())
+}
+
+/// Reject a validly signed block built on a different persisted state before
+/// any operation is executed.
+pub fn verify_block_pre_state(
+    block: &OperationBlock,
+    storage: &Storage,
+) -> Result<(), ExecutionError> {
+    let local = storage
+        .consensus_state_root()
+        .map_err(|e| ExecutionError::Storage(e.to_string()))?;
+    if block.header.initial_safe_box_hash != local {
+        return Err(ExecutionError::OperationFailed {
+            sender: block.header.leader_id,
+            reason: "block initial state root does not match local state".into(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_account_data_len(account: u64, len: usize) -> Result<(), ExecutionError> {
+    if len > CT_MAX_ACCOUNT_DATA {
+        return Err(ExecutionError::OperationFailed {
+            sender: account,
+            reason: format!("account data too large: {len} bytes (max {CT_MAX_ACCOUNT_DATA})"),
+        });
+    }
+    Ok(())
 }
 
 pub fn execute_block(
     block: &OperationBlock,
     storage: &Storage,
+) -> Result<[u8; 64], ExecutionError> {
+    execute_block_inner(block, storage, true)
+}
+
+/// Validate the complete state transition without changing persistent state.
+/// Validators use this before signing a proposal so a block that would fail
+/// execution cannot collect a quorum.
+pub fn validate_block_execution(
+    block: &OperationBlock,
+    storage: &Storage,
+) -> Result<(), ExecutionError> {
+    execute_block_inner(block, storage, false).map(|_| ())
+}
+
+fn execute_block_inner(
+    block: &OperationBlock,
+    storage: &Storage,
+    commit: bool,
 ) -> Result<[u8; 64], ExecutionError> {
     let block_number = block.header.block_number;
     let leader_id = block.header.leader_id;
@@ -142,6 +188,10 @@ pub fn execute_block(
             sender: 0,
             reason: format!("invalid validator set: {e}"),
         })?;
+
+    // Per-block overlay of contract state (atomic, intra-block consistent).
+    let mut contract_overlay = augecoin_contracts::store::ContractOverlay::new(storage);
+    let mut contract_events: Vec<augecoin_contracts::ContractEvent> = Vec::new();
 
     let load_account = |number: u64,
                         modified: &mut HashMap<u64, Account>,
@@ -192,6 +242,8 @@ pub fn execute_block(
             &existing_name_index,
             &mut name_pending,
             &mut pending_validator_set,
+            &mut contract_overlay,
+            &mut contract_events,
         )?;
         *total_fee_ref = total_fee_ref.saturating_add(op_fee);
         // Update Account Seals for Layer-2 verifiability.
@@ -216,7 +268,7 @@ pub fn execute_block(
 
     // Hard cap enforcement: validate emission does not exceed total supply cap
     if reward > 0 {
-        // Theoretical max at this block: block_number * 7.25 AUGE per block
+        // Theoretical max at this block: block_number * 2.50 AUGE per block
         // Conservative check: even without fees, emission must not exceed cap
         let max_emitted_so_far = block_number
             .saturating_mul(augecoin_core::emission::HARD_CAP_AUGESAT / TOTAL_EMISSION_BLOCKS);
@@ -298,15 +350,39 @@ pub fn execute_block(
         modified.insert(new_num, new_account);
     }
 
+    // All state changes above are held in local overlays. Stop here when
+    // validating a proposal so signing never mutates the SafeBox.
+    if !commit {
+        return Ok([0u8; 64]);
+    }
+
     // ---- Phase 5+6: Commit all changes atomically ----
     // Accounts + block + height + validator_set are written in a single
     // rocksdb WriteBatch; the resident SafeBox is updated incrementally.
     let validator_set_bytes = pending_validator_set.as_ref().map(|vs| vs.to_bytes());
-    let safe_box_hash = storage
-        .commit_block_atomic(&modified, block, validator_set_bytes.as_deref(), false)
+    let mut contract_writes = contract_overlay.into_writes();
+    contract_writes.extend(contract_events.iter().enumerate().map(|(seq, ev)| {
+        (
+            augecoin_storage::CF_CONTRACTS.to_string(),
+            augecoin_contracts::store::key_event(block_number, seq as u64),
+            Some(ev.to_bytes()),
+        )
+    }));
+    storage
+        .commit_block_atomic_with_contracts(
+            &modified,
+            block,
+            validator_set_bytes.as_deref(),
+            &contract_writes,
+            false,
+        )
         .map_err(|e| ExecutionError::SafeBox(e.to_string()))?;
 
-    Ok(safe_box_hash)
+    // The persistence transaction is durable, so this includes the account,
+    // validator and contract effects of exactly this block.
+    storage
+        .consensus_state_root()
+        .map_err(|e| ExecutionError::Storage(e.to_string()))
 }
 
 fn verify_operation_signatures(
@@ -378,7 +454,8 @@ fn verify_operation_signatures(
         | OperationPayload::ListAccountForSale { account, .. }
         | OperationPayload::DelistAccount { account, .. }
         | OperationPayload::RecoverFounds { account }
-        | OperationPayload::GiftAccount { account, .. } => {
+        | OperationPayload::GiftAccount { account, .. }
+        | OperationPayload::Contract { account, .. } => {
             let acc = storage
                 .get_account(*account)
                 .map_err(|e| format!("storage error: {e}"))?
@@ -496,6 +573,28 @@ fn check_name_available(
     Ok(())
 }
 
+fn validate_transfer_conservation(
+    mut sender_amounts: impl Iterator<Item = u64>,
+    mut receiver_amounts: impl Iterator<Item = u64>,
+) -> Result<(), ExecutionError> {
+    let sent = sender_amounts.try_fold(0u64, |total, amount| total.checked_add(amount));
+    let received = receiver_amounts.try_fold(0u64, |total, amount| total.checked_add(amount));
+
+    match (sent, received) {
+        (Some(sent), Some(received)) if sent == received => Ok(()),
+        (Some(sent), Some(received)) => Err(ExecutionError::OperationFailed {
+            sender: 0,
+            reason: format!(
+                "transfer value is not conserved: senders provide {sent}, receivers claim {received}"
+            ),
+        }),
+        _ => Err(ExecutionError::OperationFailed {
+            sender: 0,
+            reason: "transfer value total overflow".into(),
+        }),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_operation(
     op: &Operation,
@@ -506,6 +605,8 @@ fn execute_operation(
     existing_name_index: &BTreeMap<String, u64>,
     name_pending: &mut HashMap<String, u64>,
     pending_validator_set: &mut Option<augecoin_consensus::validator::ValidatorSet>,
+    contract_state: &mut dyn augecoin_contracts::store::ContractStore,
+    contract_events: &mut Vec<augecoin_contracts::ContractEvent>,
 ) -> Result<u64, ExecutionError> {
     let load_account = |number: u64,
                         modified: &mut HashMap<u64, Account>,
@@ -530,6 +631,10 @@ fn execute_operation(
             changers,
             fee,
         } => {
+            validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?;
             // Process senders: deduct balance, validate n_operation
             for sender in senders {
                 let mut acc = load_account(sender.account, modified, original, storage)?;
@@ -623,6 +728,7 @@ fn execute_operation(
                 if changer.new_type != 0 {
                     acc.account_type = changer.new_type;
                 }
+                validate_account_data_len(changer.account, changer.new_account_data.len())?;
                 if !changer.new_account_data.is_empty() {
                     acc.account_data = changer.new_account_data.clone();
                 }
@@ -641,6 +747,10 @@ fn execute_operation(
             receivers,
             fee,
         } => {
+            validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?;
             for sender in senders {
                 let mut acc = load_account(sender.account, modified, original, storage)?;
                 if acc.account_info.state == AccountState::Reserved
@@ -753,6 +863,10 @@ fn execute_operation(
             changers,
             fee,
         } => {
+            validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?;
             for sender in senders {
                 let mut acc = load_account(sender.account, modified, original, storage)?;
                 if sender.n_operation != acc.n_operation {
@@ -819,6 +933,7 @@ fn execute_operation(
                 if changer.new_type != 0 {
                     acc.account_type = changer.new_type;
                 }
+                validate_account_data_len(changer.account, changer.new_account_data.len())?;
                 if !changer.new_account_data.is_empty() {
                     acc.account_data = changer.new_account_data.clone();
                 }
@@ -1018,28 +1133,6 @@ fn execute_operation(
             new_ed25519_public_key,
             seller_account,
         } => {
-            // Load and validate buyer
-            let mut buyer = load_account(*buyer_account, modified, original, storage)?;
-            if *n_operation != buyer.n_operation {
-                return Err(ExecutionError::OperationFailed {
-                    sender: *buyer_account,
-                    reason: format!(
-                        "invalid n_operation: expected {}, got {}",
-                        buyer.n_operation, n_operation
-                    ),
-                });
-            }
-
-            let total = amount.checked_add(*fee).unwrap_or(u64::MAX);
-            buyer
-                .subtract_balance(total)
-                .map_err(|e| ExecutionError::OperationFailed {
-                    sender: *buyer_account,
-                    reason: e.to_string(),
-                })?;
-            buyer.increment_n_operation();
-            modified.insert(*buyer_account, buyer);
-
             // Load and validate the account being purchased
             let mut target = load_account(*account_to_purchase, modified, original, storage)?;
             if target.account_info.state != AccountState::ForSale
@@ -1068,16 +1161,46 @@ fn execute_operation(
                     reason: "account is locked".into(),
                 });
             }
+            if target.account_info.account_to_pay != *seller_account {
+                return Err(ExecutionError::OperationFailed {
+                    sender: *buyer_account,
+                    reason: "seller account does not match the listing payment recipient".into(),
+                });
+            }
+
+            // Load and validate buyer only after the immutable listing fields
+            // have selected the payment recipient.
+            let mut buyer = load_account(*buyer_account, modified, original, storage)?;
+            if *n_operation != buyer.n_operation {
+                return Err(ExecutionError::OperationFailed {
+                    sender: *buyer_account,
+                    reason: format!(
+                        "invalid n_operation: expected {}, got {}",
+                        buyer.n_operation, n_operation
+                    ),
+                });
+            }
+
+            let total = amount.checked_add(*fee).unwrap_or(u64::MAX);
+            buyer
+                .subtract_balance(total)
+                .map_err(|e| ExecutionError::OperationFailed {
+                    sender: *buyer_account,
+                    reason: e.to_string(),
+                })?;
+            buyer.increment_n_operation();
+            modified.insert(*buyer_account, buyer);
 
             // Transfer purchase amount to seller
-            let mut seller = load_account(*seller_account, modified, original, storage)?;
+            let payment_recipient = target.account_info.account_to_pay;
+            let mut seller = load_account(payment_recipient, modified, original, storage)?;
             seller
                 .add_balance(*amount)
                 .map_err(|e| ExecutionError::OperationFailed {
-                    sender: *seller_account,
+                    sender: payment_recipient,
                     reason: e.to_string(),
                 })?;
-            modified.insert(*seller_account, seller);
+            modified.insert(payment_recipient, seller);
 
             // Transition the purchased AUGEID to Owned with the buyer's key.
             target.account_info.state = AccountState::Owned;
@@ -1116,6 +1239,7 @@ fn execute_operation(
                     ),
                 });
             }
+            validate_account_data_len(*account, new_account_data.len())?;
             if *fee > 0 {
                 acc.subtract_balance(*fee)
                     .map_err(|e| ExecutionError::OperationFailed {
@@ -1160,6 +1284,10 @@ fn execute_operation(
             receivers,
             changers,
         } => {
+            validate_transfer_conservation(
+                senders.iter().map(|sender| sender.amount),
+                receivers.iter().map(|receiver| receiver.amount),
+            )?;
             if data.len() > augecoin_core::constants::CT_MAX_BLOCK_PAYLOAD {
                 return Err(ExecutionError::OperationFailed {
                     sender: *account,
@@ -1180,6 +1308,15 @@ fn execute_operation(
                     ),
                 });
             }
+            let new_data_len = acc
+                .account_data
+                .len()
+                .checked_add(data.len())
+                .ok_or_else(|| ExecutionError::OperationFailed {
+                    sender: *account,
+                    reason: "account data length overflow".into(),
+                })?;
+            validate_account_data_len(*account, new_data_len)?;
             if *fee > 0 {
                 acc.subtract_balance(*fee)
                     .map_err(|e| ExecutionError::OperationFailed {
@@ -1262,6 +1399,7 @@ fn execute_operation(
                 if changer.new_type != 0 {
                     c.account_type = changer.new_type;
                 }
+                validate_account_data_len(changer.account, changer.new_account_data.len())?;
                 if !changer.new_account_data.is_empty() {
                     c.account_data = changer.new_account_data.clone();
                 }
@@ -1434,6 +1572,138 @@ fn execute_operation(
             modified.insert(*account, acc);
             Ok(*fee)
         }
+        OperationPayload::Contract {
+            account,
+            n_operation,
+            fee,
+            op_type: _op_type,
+            data,
+        } => {
+            let mut acc = load_account(*account, modified, original, storage)?;
+            if *n_operation != acc.n_operation {
+                return Err(ExecutionError::OperationFailed {
+                    sender: *account,
+                    reason: format!(
+                        "invalid n_operation: expected {}, got {}",
+                        acc.n_operation, n_operation
+                    ),
+                });
+            }
+            // Gas budget/price: the network charges the sender for the WASM work
+            // actually performed (`gas_used * GAS_PRICE_AUGESAT`, see
+            // `augecoin_contracts::gas`). Reserve the MAXIMUM possible gas cost up
+            // front (using the per-op DEFAULT_GAS_LIMIT budget) so a contract that
+            // executes successfully can never later fail to pay for its gas and
+            // reject the whole block. The flat network `fee` is charged on top of
+            // this (anti-spam, prompt §25).
+            let max_gas_cost = augecoin_contracts::gas::DEFAULT_GAS_LIMIT
+                .saturating_mul(augecoin_contracts::gas::GAS_PRICE_AUGESAT);
+            let reserved = (*fee).saturating_add(max_gas_cost);
+            if reserved > 0 && acc.balance < reserved {
+                return Err(ExecutionError::OperationFailed {
+                    sender: *account,
+                    reason: format!(
+                        "insufficient balance for contract fee+gas: have {}, need {}",
+                        acc.balance, reserved
+                    ),
+                });
+            }
+            if *fee > 0 {
+                acc.subtract_balance(*fee)
+                    .map_err(|e| ExecutionError::OperationFailed {
+                        sender: *account,
+                        reason: e.to_string(),
+                    })?;
+            }
+            acc.increment_n_operation();
+            modified.insert(*account, acc);
+
+            let op = augecoin_contracts::ContractOp::from_bytes(data).map_err(|e| {
+                ExecutionError::OperationFailed {
+                    sender: *account,
+                    reason: format!("invalid contract op: {e}"),
+                }
+            })?;
+            let engine = augecoin_contracts::ContractEngine::new(
+                augecoin_contracts::ContractLimits::default(),
+            );
+            let outcome = match op {
+                augecoin_contracts::ContractOp::StoreCode(s) => engine
+                    .store_code(
+                        contract_state,
+                        *account,
+                        &s.wasm_code,
+                        block_number,
+                        augecoin_contracts::gas::DEFAULT_GAS_LIMIT,
+                    )
+                    .map(|r| r.outcome),
+                augecoin_contracts::ContractOp::CreateContract(c) => engine
+                    .create_contract(
+                        contract_state,
+                        *account,
+                        c.code_id,
+                        &c.instantiate_data,
+                        block_number,
+                        augecoin_contracts::gas::DEFAULT_GAS_LIMIT,
+                    )
+                    .map(|r| r.outcome),
+                augecoin_contracts::ContractOp::ExecuteContract(c) => engine.execute(
+                    contract_state,
+                    *account,
+                    c.contract_id,
+                    &c.call_data,
+                    block_number,
+                    augecoin_contracts::gas::DEFAULT_GAS_LIMIT,
+                ),
+            }
+            .map_err(|e| ExecutionError::OperationFailed {
+                sender: *account,
+                reason: format!("contract execution failed: {e}"),
+            })?;
+
+            // Charge the gas actually consumed by this execution. The sender pays
+            // `gas_used * GAS_PRICE_AUGESAT` (see `augecoin_contracts::gas`). The
+            // maximum gas cost was already reserved up front, so this can never
+            // fail for lack of funds. The charged amount is returned at the end so
+            // it is aggregated into the block's total fees and credited to the
+            // leader (already combined with the flat `fee`).
+            let gas_cost = outcome
+                .gas_used
+                .saturating_mul(augecoin_contracts::gas::GAS_PRICE_AUGESAT);
+            if gas_cost > 0 {
+                let acc =
+                    modified
+                        .get_mut(account)
+                        .ok_or_else(|| ExecutionError::OperationFailed {
+                            sender: *account,
+                            reason: "account missing after contract execution".into(),
+                        })?;
+                acc.subtract_balance(gas_cost)
+                    .map_err(|e| ExecutionError::OperationFailed {
+                        sender: *account,
+                        reason: e.to_string(),
+                    })?;
+            }
+
+            for w in &outcome.writes {
+                match &w.1 {
+                    Some(v) => contract_state.put(&w.0, v).map_err(|e| {
+                        ExecutionError::OperationFailed {
+                            sender: *account,
+                            reason: format!("contract store error: {e}"),
+                        }
+                    })?,
+                    None => contract_state.delete(&w.0).map_err(|e| {
+                        ExecutionError::OperationFailed {
+                            sender: *account,
+                            reason: format!("contract store error: {e}"),
+                        }
+                    })?,
+                }
+            }
+            contract_events.extend(outcome.events);
+            Ok(*fee + gas_cost)
+        }
     }
 }
 
@@ -1509,7 +1779,7 @@ mod execution_tests {
                 }],
                 receivers: vec![ReceiverInfo {
                     account: to,
-                    amount: amount.checked_sub(fee).unwrap_or(amount),
+                    amount,
                     payload: vec![],
                 }],
                 changers: vec![],
@@ -1573,9 +1843,9 @@ mod execution_tests {
         assert_eq!(sender_after.balance, 5000 - 500 - 10);
         assert_eq!(sender_after.n_operation, 4);
 
-        // Verify receiver (received amount minus fee = 490)
+        // The receiver gets the transferred value; the fee is paid separately.
         let receiver_after = storage.get_account(20).unwrap().unwrap();
-        assert_eq!(receiver_after.balance, 100 + 490);
+        assert_eq!(receiver_after.balance, 100 + 500);
 
         // Verify leader got 100% reward + fees
         let leader_after = storage.get_account(0).unwrap().unwrap();
@@ -1596,6 +1866,143 @@ mod execution_tests {
             // In this isolated test, account 2 may not exist
         }
 
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    #[test]
+    fn execute_block_rejects_unbalanced_transfer() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        let sender_key = create_keypair(11);
+        let leader_key = create_keypair(12);
+        storage
+            .put_account(&make_account(10, &sender_key, 1_000, 0))
+            .unwrap();
+        storage
+            .put_account(&make_account(20, &create_keypair(13), 0, 0))
+            .unwrap();
+        storage
+            .put_account(&make_account(0, &leader_key, 0, 0))
+            .unwrap();
+
+        let mut op = make_transfer_op(10, 0, 20, 100, 1);
+        if let OperationPayload::Transaction { receivers, .. } = &mut op.payload {
+            receivers[0].amount = 101;
+        }
+        let op = sign_op(&sender_key, &op);
+
+        let err = execute_block(&make_block(42, 0, vec![op]), &storage).unwrap_err();
+        assert!(err.to_string().contains("not conserved"));
+        assert_eq!(storage.get_account(10).unwrap().unwrap().balance, 1_000);
+        assert_eq!(storage.get_account(20).unwrap().unwrap().balance, 0);
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    #[test]
+    fn execute_block_rejects_data_that_exceeds_account_limit() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        let owner_key = create_keypair(31);
+        let leader_key = create_keypair(32);
+        storage
+            .put_account(&make_account(10, &owner_key, 1_000, 0))
+            .unwrap();
+        storage
+            .put_account(&make_account(0, &leader_key, 0, 0))
+            .unwrap();
+
+        let op = Operation {
+            chain_id: 1,
+            op_type: OperationType::Data,
+            payload: OperationPayload::Data {
+                account: 10,
+                n_operation: 0,
+                fee: 0,
+                data: vec![7; CT_MAX_ACCOUNT_DATA + 1],
+                senders: vec![],
+                receivers: vec![],
+                changers: vec![],
+            },
+            signatures: vec![],
+        };
+
+        let err = execute_block(&make_block(42, 0, vec![sign_op(&owner_key, &op)]), &storage)
+            .unwrap_err();
+        assert!(err.to_string().contains("account data too large"));
+        let owner = storage.get_account(10).unwrap().unwrap();
+        assert!(owner.account_data.is_empty());
+        assert_eq!(owner.n_operation, 0);
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    #[test]
+    fn block_pre_state_must_match_persisted_consensus_root() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        let key = create_keypair(14);
+        storage
+            .put_account(&make_account(10, &key, 100, 0))
+            .unwrap();
+
+        let mut block = make_block(42, 0, vec![]);
+        block.header.initial_safe_box_hash = storage.consensus_state_root().unwrap();
+        assert!(verify_block_pre_state(&block, &storage).is_ok());
+
+        storage
+            .put_account(&make_account(10, &key, 101, 0))
+            .unwrap();
+        assert!(verify_block_pre_state(&block, &storage).is_err());
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    #[test]
+    fn buy_account_rejects_attacker_selected_payment_recipient() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        let buyer_key = create_keypair(21);
+        let seller_key = create_keypair(22);
+        let target_key = create_keypair(23);
+        let leader_key = create_keypair(24);
+
+        storage
+            .put_account(&make_account(10, &buyer_key, 1_000, 0))
+            .unwrap();
+        storage
+            .put_account(&make_account(11, &seller_key, 0, 0))
+            .unwrap();
+        let mut target = make_account(20, &target_key, 500, 0);
+        target.account_info.state = AccountState::ForSale;
+        target.account_info.price = 100;
+        target.account_info.account_to_pay = 11;
+        storage.put_account(&target).unwrap();
+        storage
+            .put_account(&make_account(0, &leader_key, 0, 0))
+            .unwrap();
+
+        let op = Operation {
+            chain_id: 1,
+            op_type: OperationType::BuyAccount,
+            payload: OperationPayload::BuyAccount {
+                buyer_account: 10,
+                n_operation: 0,
+                account_to_purchase: 20,
+                amount: 100,
+                fee: 1,
+                new_ed25519_public_key: buyer_key.verifying_key().to_bytes(),
+                seller_account: 10,
+            },
+            signatures: vec![],
+        };
+        let op = sign_op(&buyer_key, &op);
+
+        let err = execute_block(&make_block(42, 0, vec![op]), &storage).unwrap_err();
+        assert!(err.to_string().contains("payment recipient"));
+        assert_eq!(storage.get_account(10).unwrap().unwrap().balance, 1_000);
+        assert_eq!(storage.get_account(11).unwrap().unwrap().balance, 0);
+        assert_eq!(
+            storage.get_account(20).unwrap().unwrap().account_info.state,
+            AccountState::ForSale
+        );
         std::fs::remove_dir_all(&path).ok();
     }
 
@@ -1776,7 +2183,7 @@ mod execution_tests {
                 amount: 5000,
                 fee: 20,
                 new_ed25519_public_key: [0x33u8; 32],
-                seller_account: 5,
+                seller_account: 0,
             },
             signatures: vec![dummy_sig()],
         };
@@ -2132,7 +2539,7 @@ mod execution_tests {
                 amount: 5000,
                 fee: 20,
                 new_ed25519_public_key: [0x33u8; 32],
-                seller_account: 5,
+                seller_account: 0,
             },
             signatures: vec![dummy_sig()],
         };
@@ -2352,4 +2759,223 @@ mod execution_tests {
 
         std::fs::remove_dir_all(&path).ok();
     }
+
+    // =========================================================================
+    // FASE 18.1 — TESTES ECONÔMICOS END-TO-END DO GAS
+    // =========================================================================
+    //
+    // Estes testes provam matematicamente o fluxo econômico do gas entre o
+    // sender e o leader do bloco, usando a infraestrutura de testes existente
+    // (execute_block + Storage RocksDB + helpers make_account/sign_op/make_block).
+
+    /// TESTE 1 — Cobrança ao sender e crédito ao leader.
+    ///
+    /// Constrói um `OperationPayload::Contract` válido que executa o contrato
+    /// AUGE20 real (WASM) via `code_id = 1`, consome gas mensurável, e verifica
+    /// o estado final real (não apenas o valor de retorno):
+    ///   * o sender é debitado de `flat_fee + gas_used * GAS_PRICE_AUGESAT`;
+    ///   * o leader recebe exatamente esse mesmo valor via `total_fees`
+    ///     (isolando o block reward, que também vai para o leader);
+    ///   * o contrato realmente foi executado e seu estado persiste.
+    #[test]
+    fn contract_gas_charged_to_sender_and_credited_to_leader() {
+        use augecoin_contracts::store::{ContractStateStore, MemoryContractStore};
+        use augecoin_contracts::{
+            contract_id_of, gas, ContractEngine, ContractLimits, ContractOp, CreateContract,
+            TokenInit, AUGE20_CODE_ID,
+        };
+
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+
+        let kp_sender = create_keypair(1);
+        let kp_leader = create_keypair(99);
+
+        let sender_before_balance = 1_000_000u64;
+        let leader_before_balance = 200u64;
+
+        let sender = make_account(10, &kp_sender, sender_before_balance, 0);
+        storage.put_account(&sender).unwrap();
+        let leader = make_account(0, &kp_leader, leader_before_balance, 0);
+        storage.put_account(&leader).unwrap();
+
+        // Instanciação real do token AUGE20 através do code_id 1 (caminho WASM
+        // embutido). Executa WASM real e consome gas mensurável.
+        let token_init = TokenInit {
+            name: "Gas Test Token".into(),
+            symbol: "GTT".into(),
+            decimals: 8,
+            initial_supply: 1_000_000,
+            max_supply: 10_000_000,
+            mint_enabled: false,
+            burn_enabled: false,
+        };
+        let flat_fee: u64 = 1000;
+        let contract_op = ContractOp::CreateContract(CreateContract {
+            code_id: AUGE20_CODE_ID,
+            instantiate_data: token_init.to_bytes(),
+        });
+        let op = Operation {
+            chain_id: 1,
+            op_type: OperationType::Contract,
+            payload: OperationPayload::Contract {
+                account: 10,
+                n_operation: 0,
+                fee: flat_fee,
+                op_type: contract_op.op_type(),
+                data: contract_op.to_bytes(),
+            },
+            signatures: vec![dummy_sig()],
+        };
+        let op = sign_op(&kp_sender, &op);
+
+        // Calcula deterministicamente o gas que ESTA operação consome, usando o
+        // mesmo engine e o mesmo orçamento DEFAULT_GAS_LIMIT da state transition.
+        let engine = ContractEngine::new(ContractLimits::default());
+        let mut mem = MemoryContractStore::new();
+        let gas_used = engine
+            .create_contract(
+                &mut mem,
+                10,
+                AUGE20_CODE_ID,
+                &token_init.to_bytes(),
+                42,
+                gas::DEFAULT_GAS_LIMIT,
+            )
+            .expect("isolated create must succeed")
+            .outcome
+            .gas_used;
+
+        let block = make_block(42, 0, vec![op]);
+        let result = execute_block(&block, &storage);
+        assert!(result.is_ok(), "execute_block failed: {result:?}");
+
+        // --- Asserções econômicas ---
+        let expected_gas_cost = gas_used * gas::GAS_PRICE_AUGESAT;
+        let expected_total_cost = flat_fee + expected_gas_cost;
+
+        let sender_after = storage.get_account(10).unwrap().unwrap();
+        let leader_after = storage.get_account(0).unwrap().unwrap();
+
+        let sender_debit = sender_before_balance - sender_after.balance;
+        let leader_credit = leader_after.balance - leader_before_balance;
+        // O leader também recebe o block reward; isola a parte fee+gas.
+        let leader_fee_credit = leader_credit - block_reward(42);
+
+        assert_eq!(
+            sender_debit, expected_total_cost,
+            "sender must pay flat_fee + gas_cost"
+        );
+        assert_eq!(
+            leader_fee_credit, expected_total_cost,
+            "leader must receive exactly flat_fee + gas_cost via total_fees"
+        );
+        assert_eq!(
+            expected_total_cost,
+            flat_fee + (gas_used * gas::GAS_PRICE_AUGESAT)
+        );
+
+        // --- Prova de que o contrato realmente executou (estado persistido) ---
+        let cid = contract_id_of(10, AUGE20_CODE_ID, &token_init.to_bytes());
+        let meta = ContractStateStore::new(&storage)
+            .get_contract(&cid)
+            .unwrap();
+        assert!(
+            meta.is_some(),
+            "AUGE20 contract must have been created and persisted"
+        );
+
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    /// TESTE 2 — Saldo insuficiente para a reserva máxima de gas.
+    ///
+    /// Quando `saldo < flat_fee + max_gas_cost` (com `max_gas_cost =
+    /// DEFAULT_GAS_LIMIT * GAS_PRICE_AUGESAT`), a operação é rejeitada ANTES da
+    /// execução do WASM. O saldo do sender permanece inalterado, nenhum gas é
+    /// cobrado, nenhuma fee é creditada ao leader, e nenhum estado de contrato é
+    /// criado.
+    #[test]
+    fn contract_rejected_when_balance_below_max_gas_reserve() {
+        use augecoin_contracts::store::ContractStateStore;
+        use augecoin_contracts::{
+            contract_id_of, gas, ContractOp, CreateContract, TokenInit, AUGE20_CODE_ID,
+        };
+
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+
+        let kp_sender = create_keypair(1);
+        let kp_leader = create_keypair(99);
+
+        // Saldo ABAIXO de flat_fee + max_gas_cost.
+        let max_gas_cost = gas::DEFAULT_GAS_LIMIT * gas::GAS_PRICE_AUGESAT; // 100_000
+        let flat_fee: u64 = 1000;
+        let sender_before_balance = (flat_fee + max_gas_cost) - 1; // 1 a menos que a reserva
+        assert!(sender_before_balance < flat_fee + max_gas_cost);
+
+        let sender = make_account(10, &kp_sender, sender_before_balance, 0);
+        storage.put_account(&sender).unwrap();
+        let leader = make_account(0, &kp_leader, 200, 0);
+        storage.put_account(&leader).unwrap();
+
+        let token_init = TokenInit {
+            name: "Gas Reject".into(),
+            symbol: "REJ".into(),
+            decimals: 2,
+            initial_supply: 100,
+            max_supply: 1000,
+            mint_enabled: false,
+            burn_enabled: false,
+        };
+        let contract_op = ContractOp::CreateContract(CreateContract {
+            code_id: AUGE20_CODE_ID,
+            instantiate_data: token_init.to_bytes(),
+        });
+        let op = Operation {
+            chain_id: 1,
+            op_type: OperationType::Contract,
+            payload: OperationPayload::Contract {
+                account: 10,
+                n_operation: 0,
+                fee: flat_fee,
+                op_type: contract_op.op_type(),
+                data: contract_op.to_bytes(),
+            },
+            signatures: vec![dummy_sig()],
+        };
+        let op = sign_op(&kp_sender, &op);
+
+        let block = make_block(42, 0, vec![op]);
+        let result = execute_block(&block, &storage);
+        assert!(result.is_err(), "insufficient reserve must reject the op");
+
+        // Saldo do sender inalterado, sem gas, sem fee.
+        let sender_after = storage.get_account(10).unwrap().unwrap();
+        assert_eq!(sender_after.balance, sender_before_balance);
+        assert_eq!(sender_after.n_operation, 0);
+
+        // Leader inalterado (bloco falhou -> nada persistido).
+        let leader_after = storage.get_account(0).unwrap().unwrap();
+        assert_eq!(leader_after.balance, 200);
+
+        // O contrato/WASM nunca executou: nenhum estado de contrato persistido.
+        let cid = contract_id_of(10, AUGE20_CODE_ID, &token_init.to_bytes());
+        assert!(ContractStateStore::new(&storage)
+            .get_contract(&cid)
+            .unwrap()
+            .is_none());
+
+        std::fs::remove_dir_all(&path).ok();
+    }
+
+    // TESTE 3 (consistência de total_fees) — INTENCIONALMENTE NÃO ADICIONADO.
+    //
+    // O Teste 1 acima já prova toda a cadeia econômica:
+    //   Contract execution -> valor retornado (fee + gas) -> total_fees -> leader reward.
+    // Em Test 1, `sender_debit == expected_total_cost` prova que o sender pagou
+    // exatamente `fee + gas_cost`, e `leader_fee_credit == expected_total_cost`
+    // (após isolar o block reward) prova que esse valor exato chegou ao leader
+    // via `total_fees`. Portanto nenhum gas é perdido entre os quatro estágios,
+    // e um Teste 3 separado seria duplicação da mesma lógica.
 }

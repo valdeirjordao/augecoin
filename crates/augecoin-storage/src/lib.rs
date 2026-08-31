@@ -1,11 +1,15 @@
 pub mod checkpoint;
 pub mod state_root;
 
+/// Re-exported so dependent crates can build `WriteBatch`es without taking a
+/// direct `rocksdb` dependency.
+pub use rocksdb::WriteBatch;
+
 use augecoin_core::account::Account;
 use augecoin_core::block::OperationBlock;
 use augecoin_core::safe_box::SafeBox;
 use augecoin_crypto::address::AddressHash;
-use rocksdb::{ColumnFamilyDescriptor, DBCompressionType, Options, WriteBatch, DB};
+use rocksdb::{ColumnFamilyDescriptor, DBCompressionType, Options, DB};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -16,9 +20,19 @@ const CF_BLOCKS: &str = "blocks";
 const CF_SAFEBOX: &str = "safebox";
 const CF_OP_INDEX: &str = "op_index";
 const CF_ADDRESS_INDEX: &str = "address_index";
-const CF_VALIDATOR_SET: &str = "validator_set";
+pub(crate) const CF_VALIDATOR_SET: &str = "validator_set";
 const CF_EQUIVOCATION_PROOFS: &str = "equivocation_proofs";
 const CF_FAUCET_CLAIMS: &str = "faucet_claims";
+pub const CF_CONTRACTS: &str = "contracts";
+
+// Contract state column families (incremental, kept entirely outside the SafeBox).
+// Each logical entity lives in its own CF so a token transfer only touches the
+// `contract_balances` CF and a single atomic `WriteBatch` can span several
+// contract entities without rewriting any account data.
+pub const CF_CONTRACT_METADATA: &str = "contract_metadata";
+pub const CF_CONTRACT_BALANCES: &str = "contract_balances";
+pub const CF_CONTRACT_CODES: &str = "contract_codes";
+pub const CF_CONTRACT_CODE_HASH: &str = "contract_code_hash";
 
 const ALL_COLUMN_FAMILIES: &[&str] = &[
     CF_ACCOUNTS,
@@ -29,6 +43,11 @@ const ALL_COLUMN_FAMILIES: &[&str] = &[
     CF_VALIDATOR_SET,
     CF_EQUIVOCATION_PROOFS,
     CF_FAUCET_CLAIMS,
+    CF_CONTRACTS,
+    CF_CONTRACT_METADATA,
+    CF_CONTRACT_BALANCES,
+    CF_CONTRACT_CODES,
+    CF_CONTRACT_CODE_HASH,
 ];
 
 // RocksDB tuning — see DECISIONS: disk growth was dominated by full SafeBox
@@ -85,6 +104,9 @@ struct SafeboxCache {
     /// Bytes of the last persisted snapshot.
     last_snapshot_bytes: u64,
 }
+
+/// Key/value pairs returned by contract-state prefix scans.
+pub type ContractKeyValuePairs = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// A marketplace listing for a single AUGEID.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,19 +248,22 @@ impl Storage {
         let iter = db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
         for item in iter {
             let (_key, value) = item.map_err(|e| StorageError::Database(e.to_string()))?;
-            if let Ok(account) = Account::from_bytes(&value) {
-                cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
-                if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
-                    &account.account_info.account_key.ed25519_public_key,
-                ) {
-                    cache.address_index.insert(
-                        AddressHash::from_public_key(key.to_bytes()),
-                        account.account_number,
-                    );
-                }
-                cache.sync_derived_indices(&account, 0);
-                safebox.add_account(account);
+            let account = Account::from_bytes(&value).map_err(|e| {
+                StorageError::Database(format!(
+                    "invalid account record while rebuilding SafeBox: {e}"
+                ))
+            })?;
+            cache.bump_pubkey(&account.account_info.account_key.ed25519_public_key, 1);
+            if let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(
+                &account.account_info.account_key.ed25519_public_key,
+            ) {
+                cache.address_index.insert(
+                    AddressHash::from_public_key(key.to_bytes()),
+                    account.account_number,
+                );
             }
+            cache.sync_derived_indices(&account, 0);
+            safebox.add_account(account);
         }
         safebox.update_hash();
         cache.safebox = Some(safebox);
@@ -268,6 +293,13 @@ impl Storage {
             .expect("safebox loaded")
             .header
             .safe_box_hash)
+    }
+
+    /// Canonical commitment of every consensus-relevant persisted state.
+    /// Unlike the SafeBox Merkle hash, this includes validator and contract
+    /// column families and is the value carried between block headers.
+    pub fn consensus_state_root(&self) -> Result<[u8; 64], StorageError> {
+        Ok(state_root::compute_consensus_state_root(&self.db))
     }
 
     /// Return the current name index (clone) for name-uniqueness validation.
@@ -470,6 +502,26 @@ impl Storage {
         validator_set_bytes: Option<&[u8]>,
         force_snapshot: bool,
     ) -> Result<[u8; 64], StorageError> {
+        self.commit_block_atomic_with_contracts(
+            modified,
+            block,
+            validator_set_bytes,
+            &[],
+            force_snapshot,
+        )
+    }
+
+    /// Commit every consensus-relevant block effect in one RocksDB transaction.
+    /// Contract writes are already routed to their destination column family by
+    /// the contract overlay, avoiding a storage-to-contract dependency cycle.
+    pub fn commit_block_atomic_with_contracts(
+        &self,
+        modified: &HashMap<u64, Account>,
+        block: &OperationBlock,
+        validator_set_bytes: Option<&[u8]>,
+        contract_writes: &[(String, Vec<u8>, Option<Vec<u8>>)],
+        force_snapshot: bool,
+    ) -> Result<[u8; 64], StorageError> {
         let mut cache = self
             .safebox_cache
             .lock()
@@ -513,6 +565,13 @@ impl Storage {
         );
         if let Some(vs) = validator_set_bytes {
             batch.put_cf(&cf_validator, b"vset", vs);
+        }
+        for (cf, key, value) in contract_writes {
+            let handle = self.cf(cf);
+            match value {
+                Some(value) => batch.put_cf(&handle, key, value),
+                None => batch.delete_cf(&handle, key),
+            }
         }
 
         // (2) Update the resident SafeBox + pubkey index in memory.
@@ -856,6 +915,130 @@ impl Storage {
             Ok(None) => Ok(None),
             Err(e) => Err(StorageError::Database(e.to_string())),
         }
+    }
+
+    // ---- Contract state (outside the SafeBox) ----
+
+    pub fn contract_put(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+        self.db
+            .put_cf(&self.cf(CF_CONTRACTS), key, value)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    pub fn contract_get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        self.db
+            .get_cf(&self.cf(CF_CONTRACTS), key)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    pub fn contract_delete(&self, key: &[u8]) -> Result<(), StorageError> {
+        self.db
+            .delete_cf(&self.cf(CF_CONTRACTS), key)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    pub fn contract_scan_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<ContractKeyValuePairs, StorageError> {
+        let cf = self.cf(CF_CONTRACTS);
+        let iter = self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start);
+        let mut out = Vec::new();
+        for item in iter {
+            let (k, v) = item.map_err(|e| StorageError::Database(e.to_string()))?;
+            if k.starts_with(prefix) {
+                out.push((k.to_vec(), v.to_vec()));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Scan a specific contract column family for keys starting with `prefix`.
+    /// Unlike [`Storage::contract_scan_prefix`], which only covers the generic
+    /// `contracts` CF, this reaches the dedicated CFs (e.g. `contract_metadata`
+    /// where `contract/{id}` records live) so enumerated reads can find data
+    /// that the key-routing layer otherwise spreads across families.
+    pub fn contract_scan_prefix_cf(
+        &self,
+        cf: &str,
+        prefix: &[u8],
+    ) -> Result<ContractKeyValuePairs, StorageError> {
+        let handle = self.cf(cf);
+        let iter = self.db.iterator_cf(
+            &handle,
+            rocksdb::IteratorMode::From(prefix, rocksdb::Direction::Forward),
+        );
+        let mut out = Vec::new();
+        for item in iter {
+            let (k, v) = item.map_err(|e| StorageError::Database(e.to_string()))?;
+            if !k.starts_with(prefix) {
+                break;
+            }
+            out.push((k.to_vec(), v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    // ---- Dedicated contract-state column families ---------------------------
+    //
+    // These operate on explicitly named column families so contract state is
+    // isolated from account/SafeBox data and a single `WriteBatch` can span
+    // multiple contract entities atomically. All access is by direct key — no
+    // full scans are performed on the hot path.
+
+    pub fn contract_cf_put(&self, cf: &str, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+        let handle = self.cf(cf);
+        self.db
+            .put_cf(&handle, key, value)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    pub fn contract_cf_get(&self, cf: &str, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        let handle = self.cf(cf);
+        self.db
+            .get_cf(&handle, key)
+            .map(|opt| opt.map(|v| v.to_vec()))
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    pub fn contract_cf_delete(&self, cf: &str, key: &[u8]) -> Result<(), StorageError> {
+        let handle = self.cf(cf);
+        self.db
+            .delete_cf(&handle, key)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    /// Append a put targeting `cf` to an existing batch (used to compose atomic,
+    /// multi-entity contract-state writes).
+    pub fn contract_cf_put_batch(
+        &self,
+        batch: &mut WriteBatch,
+        cf: &str,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<(), StorageError> {
+        let handle = self.cf(cf);
+        batch.put_cf(&handle, key, value);
+        Ok(())
+    }
+
+    /// Append a delete targeting `cf` to an existing batch.
+    pub fn contract_cf_delete_batch(
+        &self,
+        batch: &mut WriteBatch,
+        cf: &str,
+        key: &[u8],
+    ) -> Result<(), StorageError> {
+        let handle = self.cf(cf);
+        batch.delete_cf(&handle, key);
+        Ok(())
+    }
+
+    /// Atomically commit a batch of contract-state writes.
+    pub fn contract_write_batch(&self, batch: WriteBatch) -> Result<(), StorageError> {
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::Database(e.to_string()))
     }
 
     pub fn list_equivocation_proofs(&self) -> Result<Vec<(u64, u64, Vec<u8>)>, StorageError> {
@@ -1447,6 +1630,33 @@ mod tests {
     }
 
     #[test]
+    fn commit_block_atomic_includes_contract_state() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        let mut modified = HashMap::new();
+        modified.insert(10, test_account(10, 500));
+        let block = empty_block(7);
+        let writes = vec![(
+            CF_CONTRACTS.to_string(),
+            b"state-contract-key".to_vec(),
+            Some(b"state-contract-value".to_vec()),
+        )];
+
+        storage
+            .commit_block_atomic_with_contracts(&modified, &block, None, &writes, true)
+            .unwrap();
+
+        assert_eq!(storage.get_height().unwrap(), 7);
+        assert!(storage.get_block(7).unwrap().is_some());
+        assert_eq!(storage.get_account(10).unwrap().unwrap().balance, 500);
+        assert_eq!(
+            storage.contract_get(b"state-contract-key").unwrap(),
+            Some(b"state-contract-value".to_vec())
+        );
+        cleanup(&path);
+    }
+
+    #[test]
     fn commit_block_atomic_is_atomic_on_validator_set() {
         let path = test_path();
         let storage = Storage::open(&path).unwrap();
@@ -1548,5 +1758,199 @@ mod tests {
 
         assert_eq!(storage.list_pending_gifts().unwrap().len(), 0);
         cleanup(&path);
+    }
+}
+
+// ── Contract-state column families (Fase 3) ──────────────────────────────────
+
+#[cfg(test)]
+mod contract_cf_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static CTR: AtomicU32 = AtomicU32::new(0);
+
+    fn tmp() -> (Storage, String) {
+        let id = CTR.fetch_add(1, Ordering::SeqCst);
+        let path = format!("/tmp/augecoin-contract-cf-{id}");
+        std::fs::remove_dir_all(&path).ok();
+        (Storage::open(&path).unwrap(), path)
+    }
+
+    fn cleanup(path: &str) {
+        std::fs::remove_dir_all(path).ok();
+    }
+
+    #[test]
+    fn contract_cf_raw_crud() {
+        let (s, p) = tmp();
+        s.contract_cf_put(CF_CONTRACT_METADATA, b"meta-1", b"hello")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"bal-1", b"100")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_CODES, b"code-1", b"wasm")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_CODE_HASH, b"hash-1", b"id-1")
+            .unwrap();
+
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_METADATA, b"meta-1")
+                .unwrap()
+                .unwrap(),
+            b"hello".to_vec()
+        );
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"bal-1")
+                .unwrap()
+                .unwrap(),
+            b"100".to_vec()
+        );
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_CODES, b"code-1")
+                .unwrap()
+                .unwrap(),
+            b"wasm".to_vec()
+        );
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_CODE_HASH, b"hash-1")
+                .unwrap()
+                .unwrap(),
+            b"id-1".to_vec()
+        );
+
+        s.contract_cf_delete(CF_CONTRACT_BALANCES, b"bal-1")
+            .unwrap();
+        assert!(s
+            .contract_cf_get(CF_CONTRACT_BALANCES, b"bal-1")
+            .unwrap()
+            .is_none());
+        cleanup(&p);
+    }
+
+    #[test]
+    fn contract_cf_restart_persists() {
+        let (s, p) = tmp();
+        s.contract_cf_put(CF_CONTRACT_METADATA, b"contract", b"meta")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"balance", b"42")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_CODES, b"code", b"wasm-bytes")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_CODE_HASH, b"hash", b"code-id")
+            .unwrap();
+        drop(s);
+
+        // Reopen the same RocksDB and verify everything survived.
+        let s2 = Storage::open(&p).unwrap();
+        assert_eq!(
+            s2.contract_cf_get(CF_CONTRACT_METADATA, b"contract")
+                .unwrap()
+                .unwrap(),
+            b"meta".to_vec()
+        );
+        assert_eq!(
+            s2.contract_cf_get(CF_CONTRACT_BALANCES, b"balance")
+                .unwrap()
+                .unwrap(),
+            b"42".to_vec()
+        );
+        assert_eq!(
+            s2.contract_cf_get(CF_CONTRACT_CODES, b"code")
+                .unwrap()
+                .unwrap(),
+            b"wasm-bytes".to_vec()
+        );
+        assert_eq!(
+            s2.contract_cf_get(CF_CONTRACT_CODE_HASH, b"hash")
+                .unwrap()
+                .unwrap(),
+            b"code-id".to_vec()
+        );
+        cleanup(&p);
+    }
+
+    #[test]
+    fn contract_cf_atomic_batch() {
+        let (s, p) = tmp();
+        let mut batch = WriteBatch::default();
+        s.contract_cf_put_batch(&mut batch, CF_CONTRACT_BALANCES, b"sender", b"old")
+            .unwrap();
+        s.contract_cf_put_batch(&mut batch, CF_CONTRACT_BALANCES, b"receiver", b"old")
+            .unwrap();
+        s.contract_write_batch(batch).unwrap();
+
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"sender")
+                .unwrap()
+                .unwrap(),
+            b"old".to_vec()
+        );
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"receiver")
+                .unwrap()
+                .unwrap(),
+            b"old".to_vec()
+        );
+
+        // Atomic "transfer": sender -> receiver in a single batch.
+        let mut batch = WriteBatch::default();
+        s.contract_cf_put_batch(&mut batch, CF_CONTRACT_BALANCES, b"sender", b"new-s")
+            .unwrap();
+        s.contract_cf_put_batch(&mut batch, CF_CONTRACT_BALANCES, b"receiver", b"new-r")
+            .unwrap();
+        s.contract_write_batch(batch).unwrap();
+
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"sender")
+                .unwrap()
+                .unwrap(),
+            b"new-s".to_vec()
+        );
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"receiver")
+                .unwrap()
+                .unwrap(),
+            b"new-r".to_vec()
+        );
+        cleanup(&p);
+    }
+
+    #[test]
+    fn contract_cf_no_full_scan_on_hot_path() {
+        // The typed store reaches balances by direct key; this confirms the raw
+        // helper honors an exact key (no prefix expansion) so callers never scan.
+        let (s, p) = tmp();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"abc", b"1")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"abcd", b"2")
+            .unwrap();
+        assert_eq!(
+            s.contract_cf_get(CF_CONTRACT_BALANCES, b"abc")
+                .unwrap()
+                .unwrap(),
+            b"1".to_vec()
+        );
+        cleanup(&p);
+    }
+
+    #[test]
+    fn contract_cf_prefix_scan_returns_only_matching_keys() {
+        let (s, p) = tmp();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"bal-contract-a", b"1")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"bal-contract-ab", b"2")
+            .unwrap();
+        s.contract_cf_put(CF_CONTRACT_BALANCES, b"bal-contract-b", b"3")
+            .unwrap();
+
+        let entries = s
+            .contract_scan_prefix_cf(CF_CONTRACT_BALANCES, b"bal-contract-a")
+            .unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert!(entries
+            .iter()
+            .all(|(key, _)| key.starts_with(b"bal-contract-a")));
+        cleanup(&p);
     }
 }

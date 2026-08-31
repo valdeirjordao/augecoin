@@ -270,6 +270,7 @@ impl SyncManager {
             OperationPayload::CreateAccount { .. } => 0,
             OperationPayload::GiftAccount { fee, .. } => *fee,
             OperationPayload::AcceptGift { fee, .. } => *fee,
+            OperationPayload::Contract { fee, .. } => *fee,
         }
     }
 

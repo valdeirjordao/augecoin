@@ -11,7 +11,7 @@ export async function render() {
   const root = document.getElementById('page-root');
   root.innerHTML = `
     <main class="container page">
-      <div class="page-head"><h1>Supply & Emission</h1><p class="muted">AUGECOIN monetary policy — linear emission, 7.25 AUGE per block.</p></div>
+      <div class="page-head"><h1>Supply & Emission</h1><p class="muted">AUGECOIN monetary policy — linear emission, 2.50 AUGE per block.</p></div>
       <section class="grid-stats" id="supply-cards">${skeleton(2, 4)}</section>
       <div class="grid-2">
         <div class="card chart-card">

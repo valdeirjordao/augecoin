@@ -7,7 +7,7 @@ export const CONFIG = Object.freeze({
   get RPC_URL() {
     const qs = new URLSearchParams(location.search).get('rpc');
     const ls = (() => { try { return localStorage.getItem('auge_rpc'); } catch { return null; } })();
-    return qs || ls || 'https://www.augeco.in/rpc';
+    return qs || ls || '/rpc';
   },
 
   NETWORK: 'Mainnet',
@@ -18,12 +18,12 @@ export const CONFIG = Object.freeze({
   // Monetary policy (crates/augecoin-core/src/emission.rs)
   DECIMALS: 8,
   AUGESAT_PER_AUGE: 100_000_000,
-  TOTAL_SUPPLY_AUGE: 762_120_000,
-  BLOCK_REWARD_AUGE: 7.25,
-  BLOCK_REWARD_AUGESAT: 725_000_000,
-  TOTAL_EMISSION_BLOCKS: 105_120_000,
-  BLOCK_TIME_SECONDS: 15,
-  BLOCKS_PER_DAY: 5760,
+  TOTAL_SUPPLY_AUGE: 788_940_000,
+  BLOCK_REWARD_AUGE: 2.50,
+  BLOCK_REWARD_AUGESAT: 250_000_000,
+  TOTAL_EMISSION_BLOCKS: 315_576_000,
+  BLOCK_TIME_SECONDS: 5,
+  BLOCKS_PER_DAY: 17280,
 
   // UI tuning
   RECENT_BLOCKS: 12,

@@ -104,6 +104,7 @@ fn end_to_end_operation_lifecycle() {
         max_operations: 1000,
         chain_id: 1,
         ttl_seconds: 3600,
+        contract_gas_reserve: 100_000,
     });
 
     // Op1: sender(100) transfers to receiver(200)
@@ -220,6 +221,7 @@ fn end_to_end_multiple_blocks_in_sequence() {
             max_operations: 1000,
             chain_id: 1,
             ttl_seconds: 3600,
+            contract_gas_reserve: 100_000,
         });
 
         let op = sign_op(&kp_alice, &make_transfer_op(100, alice_seq, 99, 100, 10));

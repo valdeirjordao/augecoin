@@ -7,13 +7,15 @@ import { getNodeStatus } from './api/client.js';
 
 import * as home from './pages/home.js';
 import * as blocks from './pages/blocks.js';
-import * as block from './pages/block.js';
-import * as transaction from './pages/transaction.js';
+import * as block from './pages/block.js?v=20260831-1';
+import * as transaction from './pages/transaction.js?v=20260831-1';
 import * as account from './pages/account.js';
 import * as validators from './pages/validators.js';
 import * as supply from './pages/supply.js';
 import * as richlist from './pages/richlist.js';
 import * as search from './pages/search.js';
+import * as contracts from './pages/contracts.js';
+import * as contract from './pages/contract.js';
 
 const PAGES = {
   home,
@@ -25,6 +27,8 @@ const PAGES = {
   supply,
   richlist,
   search,
+  contracts,
+  contract,
 };
 
 async function loadFooterStatus() {

@@ -9,7 +9,7 @@ import { createPoller, createTpsTracker } from '../realtime.js';
 const RECENT_BLOCK_COUNT = 8;
 
 function rewardInfo() {
-  // Linear emission, no halving: reward stays 7.25 AUGE until block 105,119,999.
+  // Linear emission, no halving: reward stays 2.50 AUGE until block 315,575,999.
   return { label: 'Block reward', value: `${CONFIG.BLOCK_REWARD_AUGE} AUGE`, icon: 'coins' };
 }
 

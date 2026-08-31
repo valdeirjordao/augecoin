@@ -1,0 +1,86 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  background: #0e1116;
+  color: #e6e6e6;
+}
+.app {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #2a2f3a;
+  padding-bottom: 1rem;
+}
+.connect {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.connected {
+  color: #4ade80;
+}
+label {
+  display: block;
+  margin: 0.5rem 0;
+}
+input {
+  background: #161b22;
+  border: 1px solid #2a2f3a;
+  color: #e6e6e6;
+  padding: 0.4rem;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin: 1rem 0;
+}
+.tabs button {
+  background: #161b22;
+}
+.tabs button.active {
+  background: #2563eb;
+}
+.form {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 420px;
+}
+.result {
+  background: #161b22;
+  border: 1px solid #2a2f3a;
+  padding: 0.8rem;
+  border-radius: 6px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.error {
+  color: #f87171;
+}
+.hint {
+  color: #9ca3af;
+  font-size: 0.9rem;
+}

@@ -20,6 +20,7 @@ a { color: var(--color-primary); text-decoration: none; }
 a:hover { color: var(--color-primary-hover); }
 
 .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.container-wide { max-width: 1440px; }
 main.container { flex: 1; padding-bottom: 60px; }
 main.container.page { padding-top: 28px; }
 

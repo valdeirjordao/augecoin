@@ -19,11 +19,21 @@ export function esc(value) {
 
 /** augesat (u64) → human string with thousands separators and 8 decimals. */
 export function auge(value, opts = {}) {
-  const { decimals = 8, symbol = false, trim = false } = opts;
+  const { decimals = 8, symbol = false, trim = false, fixed = null } = opts;
   if (value === null || value === undefined) return '—';
   const v = BigInt(value);
   const neg = v < 0n;
   const abs = neg ? -v : v;
+  if (fixed !== null) {
+    const per = 10n ** BigInt(decimals);
+    const scale = 10n ** BigInt(fixed);
+    const scaled = (abs * scale + per / 2n) / per;
+    const int = scaled / scale;
+    const frac = (scaled % scale).toString().padStart(fixed, '0');
+    const intStr = Number(int).toLocaleString('en-US');
+    const out = `${neg ? '-' : ''}${intStr}.${frac}`;
+    return symbol ? `${out} AUGE` : out;
+  }
   const per = 10n ** BigInt(decimals);
   const int = abs / per;
   let frac = (abs % per).toString().padStart(decimals, '0');

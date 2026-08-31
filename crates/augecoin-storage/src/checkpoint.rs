@@ -110,6 +110,10 @@ impl Storage {
             .db
             .cf_handle(CF_ACCOUNTS)
             .expect("accounts column family must exist");
+        let cf_address = self
+            .db
+            .cf_handle(crate::CF_ADDRESS_INDEX)
+            .expect("address index column family must exist");
 
         let existing_keys: Vec<u64> = {
             let iter = self.db.iterator_cf(&cf, IteratorMode::Start);
@@ -120,15 +124,60 @@ impl Storage {
             .collect()
         };
 
-        for key in &existing_keys {
-            if !snapshot.accounts.contains_key(key) {
-                self.delete_account(*key)?;
+        let existing_addresses: Vec<Vec<u8>> = self
+            .db
+            .iterator_cf(&cf_address, IteratorMode::Start)
+            .map(|item| item.map(|(key, _)| key.to_vec()))
+            .collect::<Result<_, _>>()
+            .map_err(|e| crate::StorageError::Database(e.to_string()))?;
+
+        let mut batch = rocksdb::WriteBatch::default();
+        for key in existing_keys {
+            batch.delete_cf(&cf, key.to_be_bytes());
+        }
+        for key in existing_addresses {
+            batch.delete_cf(&cf_address, key);
+        }
+        for account in snapshot.accounts.values() {
+            batch.put_cf(
+                &cf,
+                account.account_number.to_be_bytes(),
+                account.to_bytes(),
+            );
+            if let Ok(public_key) = ed25519_dalek::VerifyingKey::from_bytes(
+                &account.account_info.account_key.ed25519_public_key,
+            ) {
+                let address =
+                    augecoin_crypto::address::AddressHash::from_public_key(public_key.to_bytes());
+                batch.put_cf(
+                    &cf_address,
+                    address.hash,
+                    account.account_number.to_be_bytes(),
+                );
             }
         }
+        let cf_validator = self
+            .db
+            .cf_handle(crate::CF_VALIDATOR_SET)
+            .expect("validator set column family must exist");
+        batch.put_cf(&cf_validator, b"height", snapshot.height.to_be_bytes());
+        self.db
+            .write(batch)
+            .map_err(|e| crate::StorageError::Database(e.to_string()))?;
 
-        for account in snapshot.accounts.values() {
-            self.put_account(account)?;
-        }
+        // All resident indices derive from accounts; discard them only after
+        // the replacement transaction is durable.
+        let mut cache = self
+            .safebox_cache
+            .lock()
+            .map_err(|_| crate::StorageError::Database("safebox cache lock poisoned".into()))?;
+        cache.safebox = None;
+        cache.pubkey_index.clear();
+        cache.address_index.clear();
+        cache.sale_index.clear();
+        cache.gift_index.clear();
+        cache.dirty.clear();
+        cache.blocks_since_snapshot = 0;
         Ok(())
     }
 

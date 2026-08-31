@@ -85,6 +85,29 @@ pub enum Commands {
         #[arg(long)]
         key_hex_file: String,
     },
+    /// Gift a Reserved AUGEID to a recipient Ed25519 public key. The recipient
+    /// activates it by signing an AcceptGift with the recipient key.
+    GiftAccount {
+        /// Reserved AUGEID to gift away
+        #[arg(long)]
+        account: u64,
+        /// Recipient Ed25519 public key hex (32 bytes)
+        #[arg(long)]
+        recipient_public_key: String,
+        /// Fee in augesat (default: 0 — Reserved accounts hold no balance)
+        #[arg(long)]
+        fee: Option<u64>,
+        /// n_operation to use (default: query the node)
+        #[arg(long)]
+        n_operation: Option<u64>,
+        /// Target chain id (default: 1 = mainnet)
+        #[arg(long)]
+        chain_id: Option<u64>,
+        /// File with the raw private key hex of the AUGEID owner (first
+        /// 32 bytes = seed). Accepts plain hex or KEY=<hex> style files.
+        #[arg(long)]
+        key_hex_file: String,
+    },
     GetPendings {
         #[arg(long)]
         json: bool,
@@ -100,6 +123,14 @@ pub enum Commands {
         max_balance: Option<u64>,
         #[arg(long)]
         json: bool,
+    },
+    Contract {
+        #[command(subcommand)]
+        action: ContractAction,
+    },
+    Token {
+        #[command(subcommand)]
+        action: TokenAction,
     },
 }
 
@@ -141,6 +172,14 @@ pub enum ValidatorAction {
         #[arg(long)]
         json: bool,
     },
+    /// SafeBox inventory (Reserved/ForSale/Owned AUGEIDs) of a validator key.
+    Inventory {
+        /// Ed25519 public key hex of the validator/leader account
+        #[arg(long)]
+        public_key: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -156,6 +195,127 @@ pub enum SecurityAction {
     Alerts {
         #[arg(long)]
         tail: bool,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ContractAction {
+    Store {
+        /// WASM bytecode hex (e.g. the auge20.wasm contents)
+        #[arg(long)]
+        wasm_hex: String,
+        /// Admin API key (must match node AUGECOIN_ADMIN_API_KEYS)
+        #[arg(long)]
+        api_key: String,
+        /// Gas limit hex (optional; defaults to chain DEFAULT_GAS_LIMIT)
+        #[arg(long)]
+        gas_limit_hex: Option<String>,
+        /// Emit raw JSON instead of pretty output
+        #[arg(long)]
+        json: bool,
+    },
+    Create {
+        /// Code id (u64, big-endian). AUGE20 = 1
+        #[arg(long, default_value_t = 1)]
+        code_id: u64,
+        /// Token name
+        #[arg(long)]
+        name: String,
+        /// Token symbol
+        #[arg(long)]
+        symbol: String,
+        /// Token decimals
+        #[arg(long, default_value_t = 8)]
+        decimals: u8,
+        /// Initial supply (whole tokens)
+        #[arg(long)]
+        initial_supply: u64,
+        /// Max supply (whole tokens)
+        #[arg(long)]
+        max_supply: u64,
+        /// Enable minting
+        #[arg(long, default_value_t = true)]
+        mint_enabled: bool,
+        /// Enable burning
+        #[arg(long, default_value_t = true)]
+        burn_enabled: bool,
+        #[arg(long)]
+        api_key: String,
+        #[arg(long)]
+        gas_limit_hex: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Info {
+        /// Contract id hex (32 bytes)
+        #[arg(long)]
+        contract_id_hex: String,
+        #[arg(long)]
+        json: bool,
+    },
+    Balance {
+        /// Contract id hex (32 bytes)
+        #[arg(long)]
+        contract_id_hex: String,
+        /// Owner account number
+        #[arg(long)]
+        address: u64,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum TokenAction {
+    Send {
+        /// Contract id hex (32 bytes)
+        #[arg(long)]
+        contract_id_hex: String,
+        /// Recipient account number
+        #[arg(long)]
+        to: u64,
+        /// Amount (whole tokens)
+        #[arg(long)]
+        amount: u64,
+        #[arg(long)]
+        api_key: String,
+        #[arg(long)]
+        gas_limit_hex: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Mint {
+        #[arg(long)]
+        contract_id_hex: String,
+        #[arg(long)]
+        to: u64,
+        #[arg(long)]
+        amount: u64,
+        #[arg(long)]
+        api_key: String,
+        #[arg(long)]
+        gas_limit_hex: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Burn {
+        #[arg(long)]
+        contract_id_hex: String,
+        #[arg(long)]
+        amount: u64,
+        #[arg(long)]
+        api_key: String,
+        #[arg(long)]
+        gas_limit_hex: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    Info {
+        /// Contract id hex (32 bytes)
+        #[arg(long)]
+        contract_id_hex: String,
         #[arg(long)]
         json: bool,
     },
@@ -191,6 +351,9 @@ fn main() {
                 ValidatorAction::Earnings { id, all, json } => {
                     commands::handle_validator_earnings(&cli, *id, *all, *json).await
                 }
+                ValidatorAction::Inventory { public_key, json } => {
+                    commands::handle_validator_inventory(&cli, public_key, *json).await
+                }
             },
             Commands::Security { action } => match action {
                 SecurityAction::Equivocations { json } => {
@@ -211,6 +374,27 @@ fn main() {
                 commands::handle_get_block(&cli, *block_number, *json).await
             }
             Commands::SendOperation { hex } => commands::handle_send_operation(&cli, hex).await,
+            Commands::GiftAccount {
+                account,
+                recipient_public_key,
+                fee,
+                n_operation,
+                chain_id,
+                key_hex_file,
+            } => {
+                commands::handle_gift_account(
+                    &cli,
+                    commands::GiftAccountArgs {
+                        account: *account,
+                        recipient_public_key: recipient_public_key.clone(),
+                        fee: *fee,
+                        n_operation: *n_operation,
+                        chain_id: *chain_id,
+                        key_hex_file: key_hex_file.clone(),
+                    },
+                )
+                .await
+            }
             Commands::SendTransfer {
                 from,
                 to,
@@ -254,6 +438,130 @@ fn main() {
                 )
                 .await
             }
+            Commands::Contract { action } => match action {
+                ContractAction::Store {
+                    wasm_hex,
+                    api_key,
+                    gas_limit_hex,
+                    json,
+                } => {
+                    commands::handle_contract_store(
+                        &cli,
+                        wasm_hex.clone(),
+                        api_key.clone(),
+                        gas_limit_hex.clone(),
+                        *json,
+                    )
+                    .await
+                }
+                ContractAction::Create {
+                    code_id,
+                    name,
+                    symbol,
+                    decimals,
+                    initial_supply,
+                    max_supply,
+                    mint_enabled,
+                    burn_enabled,
+                    api_key,
+                    gas_limit_hex,
+                    json,
+                } => {
+                    commands::handle_contract_create(
+                        &cli,
+                        *code_id,
+                        name.clone(),
+                        symbol.clone(),
+                        *decimals,
+                        *initial_supply,
+                        *max_supply,
+                        *mint_enabled,
+                        *burn_enabled,
+                        api_key.clone(),
+                        gas_limit_hex.clone(),
+                        *json,
+                    )
+                    .await
+                }
+                ContractAction::Info {
+                    contract_id_hex,
+                    json,
+                } => commands::handle_contract_info(&cli, contract_id_hex.clone(), *json).await,
+                ContractAction::Balance {
+                    contract_id_hex,
+                    address,
+                    json,
+                } => {
+                    commands::handle_contract_balance(
+                        &cli,
+                        contract_id_hex.clone(),
+                        *address,
+                        *json,
+                    )
+                    .await
+                }
+            },
+            Commands::Token { action } => match action {
+                TokenAction::Send {
+                    contract_id_hex,
+                    to,
+                    amount,
+                    api_key,
+                    gas_limit_hex,
+                    json,
+                } => {
+                    commands::handle_token_send(
+                        &cli,
+                        contract_id_hex.clone(),
+                        *to,
+                        *amount,
+                        api_key.clone(),
+                        gas_limit_hex.clone(),
+                        *json,
+                    )
+                    .await
+                }
+                TokenAction::Mint {
+                    contract_id_hex,
+                    to,
+                    amount,
+                    api_key,
+                    gas_limit_hex,
+                    json,
+                } => {
+                    commands::handle_token_mint(
+                        &cli,
+                        contract_id_hex.clone(),
+                        *to,
+                        *amount,
+                        api_key.clone(),
+                        gas_limit_hex.clone(),
+                        *json,
+                    )
+                    .await
+                }
+                TokenAction::Burn {
+                    contract_id_hex,
+                    amount,
+                    api_key,
+                    gas_limit_hex,
+                    json,
+                } => {
+                    commands::handle_token_burn(
+                        &cli,
+                        contract_id_hex.clone(),
+                        *amount,
+                        api_key.clone(),
+                        gas_limit_hex.clone(),
+                        *json,
+                    )
+                    .await
+                }
+                TokenAction::Info {
+                    contract_id_hex,
+                    json,
+                } => commands::handle_token_info(&cli, contract_id_hex.clone(), *json).await,
+            },
         }
     });
 
@@ -440,6 +748,8 @@ mod cli_parsing_tests {
         assert!(help.contains("send-operation"));
         assert!(help.contains("get-pendings"));
         assert!(help.contains("find-accounts"));
+        assert!(help.contains("contract"));
+        assert!(help.contains("token"));
         assert!(help.contains("AUGECOIN"));
     }
 
@@ -711,5 +1021,303 @@ mod cli_parsing_tests {
         assert_eq!(min_balance, Some(1000));
         assert_eq!(max_balance, Some(999999));
         assert!(json);
+    }
+
+    #[test]
+    fn contract_store_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "contract",
+            "store",
+            "--wasm-hex",
+            "0061736d",
+            "--api-key",
+            "admin-key",
+        ])
+        .unwrap();
+        let Commands::Contract { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            ContractAction::Store {
+                wasm_hex,
+                api_key,
+                gas_limit_hex,
+                json,
+            } => {
+                assert_eq!(wasm_hex, "0061736d");
+                assert_eq!(api_key, "admin-key");
+                assert!(gas_limit_hex.is_none());
+                assert!(!json);
+            }
+            _ => panic!("expected Store"),
+        }
+    }
+
+    #[test]
+    fn contract_create_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "contract",
+            "create",
+            "--code-id",
+            "1",
+            "--name",
+            "Auge",
+            "--symbol",
+            "AUG",
+            "--decimals",
+            "8",
+            "--initial-supply",
+            "1000000",
+            "--max-supply",
+            "2000000",
+            "--api-key",
+            "admin-key",
+        ])
+        .unwrap();
+        let Commands::Contract { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            ContractAction::Create {
+                code_id,
+                name,
+                symbol,
+                decimals,
+                initial_supply,
+                max_supply,
+                mint_enabled,
+                burn_enabled,
+                api_key,
+                gas_limit_hex,
+                json,
+            } => {
+                assert_eq!(code_id, 1);
+                assert_eq!(name, "Auge");
+                assert_eq!(symbol, "AUG");
+                assert_eq!(decimals, 8);
+                assert_eq!(initial_supply, 1_000_000);
+                assert_eq!(max_supply, 2_000_000);
+                assert!(mint_enabled);
+                assert!(burn_enabled);
+                assert_eq!(api_key, "admin-key");
+                assert!(gas_limit_hex.is_none());
+                assert!(!json);
+            }
+            _ => panic!("expected Create"),
+        }
+    }
+
+    #[test]
+    fn contract_info_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "contract",
+            "info",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--json",
+        ])
+        .unwrap();
+        let Commands::Contract { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            ContractAction::Info {
+                contract_id_hex,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert!(json);
+            }
+            _ => panic!("expected Info"),
+        }
+    }
+
+    #[test]
+    fn contract_balance_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "contract",
+            "balance",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--address",
+            "42",
+        ])
+        .unwrap();
+        let Commands::Contract { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            ContractAction::Balance {
+                contract_id_hex,
+                address,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert_eq!(address, 42);
+                assert!(!json);
+            }
+            _ => panic!("expected Balance"),
+        }
+    }
+
+    #[test]
+    fn token_send_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "token",
+            "send",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--to",
+            "7",
+            "--amount",
+            "500",
+            "--api-key",
+            "admin-key",
+        ])
+        .unwrap();
+        let Commands::Token { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            TokenAction::Send {
+                contract_id_hex,
+                to,
+                amount,
+                api_key,
+                gas_limit_hex,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert_eq!(to, 7);
+                assert_eq!(amount, 500);
+                assert_eq!(api_key, "admin-key");
+                assert!(gas_limit_hex.is_none());
+                assert!(!json);
+            }
+            _ => panic!("expected Send"),
+        }
+    }
+
+    #[test]
+    fn token_mint_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "token",
+            "mint",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--to",
+            "7",
+            "--amount",
+            "1000",
+            "--api-key",
+            "admin-key",
+        ])
+        .unwrap();
+        let Commands::Token { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            TokenAction::Mint {
+                contract_id_hex,
+                to,
+                amount,
+                api_key,
+                gas_limit_hex,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert_eq!(to, 7);
+                assert_eq!(amount, 1000);
+                assert_eq!(api_key, "admin-key");
+                assert!(gas_limit_hex.is_none());
+                assert!(!json);
+            }
+            _ => panic!("expected Mint"),
+        }
+    }
+
+    #[test]
+    fn token_burn_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "token",
+            "burn",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--amount",
+            "250",
+            "--api-key",
+            "admin-key",
+        ])
+        .unwrap();
+        let Commands::Token { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            TokenAction::Burn {
+                contract_id_hex,
+                amount,
+                api_key,
+                gas_limit_hex,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert_eq!(amount, 250);
+                assert_eq!(api_key, "admin-key");
+                assert!(gas_limit_hex.is_none());
+                assert!(!json);
+            }
+            _ => panic!("expected Burn"),
+        }
+    }
+
+    #[test]
+    fn token_info_command_parses() {
+        let cli = Cli::try_parse_from([
+            "augecoin-cli",
+            "token",
+            "info",
+            "--contract-id-hex",
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "--json",
+        ])
+        .unwrap();
+        let Commands::Token { action } = cli.command else {
+            panic!()
+        };
+        match action {
+            TokenAction::Info {
+                contract_id_hex,
+                json,
+            } => {
+                assert_eq!(
+                    contract_id_hex,
+                    "0000000000000000000000000000000000000000000000000000000000000001"
+                );
+                assert!(json);
+            }
+            _ => panic!("expected Info"),
+        }
     }
 }

@@ -61,9 +61,9 @@ fn make_account(num: u64, kp: &Ed25519KeyPair, balance: u64, n_operation: u64) -
 
 fn make_multi_op(sender: u64, n_op: u64, to: u64, receivers: usize) -> Operation {
     let receivers: Vec<ReceiverInfo> = (0..receivers)
-        .map(|_| ReceiverInfo {
+        .map(|index| ReceiverInfo {
             account: to,
-            amount: 1,
+            amount: u64::from(index == 0),
             payload: vec![],
         })
         .collect();
@@ -134,8 +134,6 @@ fn block_is_byte_bounded_and_chain_advances() {
     let sender_kp = create_keypair(777);
     let receiver_kp = create_keypair(778);
 
-    let sender = make_account(100, &sender_kp, TARGET_OPS as u64 + 10_000, 0);
-    storage.put_account(&sender).unwrap();
     let receiver = make_account(200, &receiver_kp, 0, 0);
     storage.put_account(&receiver).unwrap();
 
@@ -144,12 +142,17 @@ fn block_is_byte_bounded_and_chain_advances() {
         max_operations: 20_000,
         chain_id: 1,
         ttl_seconds: 0,
+        contract_gas_reserve: 100_000,
     })));
 
     // Admit more operations (by byte size) than fit in a single transmissible
     // block. Each op is ~20 KiB, so TARGET_OPS comfortably exceeds the budget.
     for n in 0..TARGET_OPS as u64 {
-        let op = sign_op(&sender_kp, &make_multi_op(100, n, 200, RECEIVERS));
+        let sender = 1_000 + n;
+        storage
+            .put_account(&make_account(sender, &sender_kp, 10, 0))
+            .unwrap();
+        let op = sign_op(&sender_kp, &make_multi_op(sender, 0, 200, RECEIVERS));
         mempool
             .lock()
             .unwrap()

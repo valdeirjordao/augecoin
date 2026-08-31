@@ -4,7 +4,7 @@ export const CONFIG = Object.freeze({
   get RPC_URL() {
     const qs = new URLSearchParams(location.search).get('rpc');
     const ls = (() => { try { return localStorage.getItem('auge_wallet_rpc'); } catch { return null; } })();
-    return qs || ls || 'https://www.augeco.in/rpc';
+    return qs || ls || '/rpc';
   },
 
   // Platform backend (identity + wallet registry). Same-origin in production
@@ -15,8 +15,8 @@ export const CONFIG = Object.freeze({
     return qs || ls || '/api';
   },
 
-  NETWORK: 'Testnet',
-  CHAIN_ID: 2n,
+  NETWORK: 'Mainnet',
+  CHAIN_ID: 1n,
   DECIMALS: 8,
   AUGESAT_PER_AUGE: 100_000_000n,
   MIN_FEE_AUGESAT: 1_000,

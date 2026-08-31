@@ -128,6 +128,34 @@ jobs:
           curl --fail --silent --show-error --location \
             --max-time 20 https://wallet.augeco.in/ >/dev/null
 
+          # Regression guard: /api/* MUST be proxied to the wallet-web backend,
+          # not served as the static SPA. A missing `location /api/` in nginx
+          # returns 405 on POST/OPTIONS and text/html on GET.
+          # Fix/reference: infra/wallet-web.nginx.conf (and sites-available/wallet.augeco.in)
+          echo "== GET /api/me must be JSON (not the SPA index.html) =="
+          # Unauthenticated -> backend replies 401 application/json (proves proxy + JSON).
+          me_body=$(curl -s -D /tmp/me.hdr --max-time 20 https://wallet.augeco.in/api/me)
+          me_ct=$(tr -d '\r' < /tmp/me.hdr | awk -F': ' 'tolower($1)=="content-type"{print $2}')
+          echo "Content-Type: $me_ct"
+          case "$me_ct" in
+            application/json*) ;;
+            *) echo "FAIL: /api/me not proxied (Content-Type: $me_ct)"; exit 1 ;;
+          esac
+
+          echo "== POST /api/auth/register must reach backend (not 405) =="
+          reg_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+            https://wallet.augeco.in/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"ci-smoke@example.com","password":"short","display_name":"CI","public_key_hex":"ab"}')
+          echo "register status: $reg_status"
+          if [ "$reg_status" = "405" ]; then
+            echo "FAIL: /api/auth/register returned 405 (nginx not proxying /api)"; exit 1
+          fi
+          if [ "$reg_status" = "404" ]; then
+            echo "FAIL: /api/auth/register 404 (backend route missing)"; exit 1
+          fi
+          echo "OK: /api proxy healthy"
+
   docker:
     name: Docker Build
     runs-on: ubuntu-latest

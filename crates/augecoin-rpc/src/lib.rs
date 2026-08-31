@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod config;
 pub mod endpoints;
+pub mod endpoints_contract;
 
 use axum::{
     routing::{get, post},
@@ -70,36 +71,14 @@ type AppState = endpoints::AppState;
 /// `sensitive_rate_limiter` on top of the global limiter.
 const SENSITIVE_METHODS: &[&str] = &["createaccount", "faucet"];
 
-fn client_identifier(
-    api_key: Option<&str>,
-    remote: Option<SocketAddr>,
-    forwarded_for: Option<&str>,
-) -> String {
-    if let Some(key) = api_key {
+fn client_identifier(authenticated_api_key: Option<&str>, remote: Option<SocketAddr>) -> String {
+    if let Some(key) = authenticated_api_key {
         return format!("key:{key}");
     }
-    // Behind a reverse proxy the TCP peer is the proxy itself (usually
-    // loopback), which would collapse every user into a single rate-limit
-    // bucket. When the direct peer is loopback, trust the client IP from
-    // X-Forwarded-For so each real client is limited independently.
     if let Some(addr) = remote {
-        if addr.ip().is_loopback() {
-            if let Some(ip) = forwarded_for.and_then(first_forwarded_ip) {
-                return format!("ip:{ip}");
-            }
-        }
         return format!("ip:{}", addr.ip());
     }
     "anonymous".to_string()
-}
-
-/// Return the left-most IP of an `X-Forwarded-For` chain (the original client).
-fn first_forwarded_ip(xff: &str) -> Option<String> {
-    xff.split(',')
-        .next()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
 }
 
 async fn jsonrpc_handler(
@@ -109,9 +88,9 @@ async fn jsonrpc_handler(
     Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     let api_key = headers.get("x-api-key").and_then(|v| v.to_str().ok());
-    let forwarded = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
-
-    let client_id = client_identifier(api_key, Some(remote), forwarded);
+    let auth_level = auth::check_auth(api_key, &state.api_keys);
+    let authenticated_key = api_key.filter(|key| state.api_keys.is_valid(key));
+    let client_id = client_identifier(authenticated_key, Some(remote));
 
     if !state.rate_limiter.check(&client_id) {
         return Json(JsonRpcResponse {
@@ -139,7 +118,6 @@ async fn jsonrpc_handler(
         });
     }
 
-    let auth_level = auth::check_auth(api_key, &state.api_keys);
     if auth::is_admin_method(&req.method) && auth_level != auth::AuthLevel::Admin {
         return Json(JsonRpcResponse {
             jsonrpc: "2.0".into(),
@@ -254,6 +232,12 @@ fn dispatch_method(
             let result = endpoints::handle_find_accounts(p, state)?;
             serde_json::to_value(result).map_err(|e| e.to_string())
         }
+        "listaccountsbykey" => {
+            let p: endpoints::ListAccountsByKeyParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints::handle_list_accounts_by_key(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
         "getaccountcount" => {
             let result = endpoints::handle_get_account_count(state)?;
             Ok(serde_json::json!(result))
@@ -341,6 +325,90 @@ fn dispatch_method(
             serde_json::to_value(result).map_err(|e| e.to_string())
         }
         "ping" => Ok(serde_json::json!("pong")),
+        "contract_get" => {
+            let p: endpoints_contract::ContractGetParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_get(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_code_by_id" => {
+            let p: endpoints_contract::ContractCodeByIdParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_code_by_id(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_code_by_hash" => {
+            let p: endpoints_contract::ContractCodeByHashParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_code_by_hash(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_state" => {
+            let p: endpoints_contract::ContractStateParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_state(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_balance" => {
+            let p: endpoints_contract::ContractBalanceParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_balance(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_token_info" => {
+            let p: endpoints_contract::ContractTokenInfoParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_token_info(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_query" => {
+            let p: endpoints_contract::ContractQueryParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_query(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_simulate" => {
+            let p: endpoints_contract::ContractSimulateParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_simulate(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_estimate_gas" => {
+            let p: endpoints_contract::ContractEstimateGasParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_estimate_gas(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_events" => {
+            let p: endpoints_contract::ContractEventsParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_events(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_list_auge20" => {
+            let p: endpoints_contract::ContractListParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_list_auge20(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_store_code" => {
+            let p: endpoints_contract::ContractStoreCodeParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_store_code(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_create" => {
+            let p: endpoints_contract::ContractCreateParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_create(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
+        "contract_execute" => {
+            let p: endpoints_contract::ContractExecuteParams =
+                serde_json::from_value(params.clone()).map_err(|e| e.to_string())?;
+            let result = endpoints_contract::handle_contract_execute(p, state)?;
+            serde_json::to_value(result).map_err(|e| e.to_string())
+        }
         _ => Err(format!("unknown method: {method}")),
     }
 }
@@ -491,8 +559,8 @@ async fn create_account_handler(
             "admin API key required for createaccount".into(),
         ));
     }
-    let forwarded = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
-    let client_id = client_identifier(api_key, Some(remote), forwarded);
+    let authenticated_key = api_key.filter(|key| state.api_keys.is_valid(key));
+    let client_id = client_identifier(authenticated_key, Some(remote));
     if !state.rate_limiter.check(&client_id) || !state.sensitive_rate_limiter.check(&client_id) {
         return Err((
             axum::http::StatusCode::TOO_MANY_REQUESTS,
@@ -511,11 +579,8 @@ async fn faucet_handler(
     Json(params): Json<endpoints::FaucetParams>,
 ) -> Result<Json<endpoints::FaucetResult>, (axum::http::StatusCode, String)> {
     let api_key = headers.get("x-api-key").and_then(|v| v.to_str().ok());
-    let forwarded = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
-    let client_id = match forwarded.and_then(first_forwarded_ip) {
-        Some(ip) => format!("ip:{ip}"),
-        None => client_identifier(api_key, Some(remote), None),
-    };
+    let authenticated_key = api_key.filter(|key| state.api_keys.is_valid(key));
+    let client_id = client_identifier(authenticated_key, Some(remote));
     if !state.rate_limiter.check(&client_id) || !state.sensitive_rate_limiter.check(&client_id) {
         return Err((
             axum::http::StatusCode::TOO_MANY_REQUESTS,
