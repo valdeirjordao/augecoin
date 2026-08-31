@@ -1,8 +1,7 @@
 # AUGECOIN — Architecture Graph
 
-> Gerado a partir do grafo do Graphify (`graphify-out/graph.json`).
-> Data da indexação: 2026-08-17. Modo: `--code-only`.
-> Fonte de verdade: `graphify-out/GRAPH_REPORT.md` (3167 nós · 6966 arestas · 167 comunidades).
+> Derivado da análise estrutural do workspace em 2026-08-17.
+> Esta visão complementa a leitura direta dos crates e seus testes.
 
 ## 1. Crates principais (workspace)
 
@@ -17,7 +16,7 @@
 | `augecoin-cli` | Binário CLI (consulta/operações) | augecoin-core/crypto |
 | `augecoin-node` | Binário do validador: `main`, `ConsensusEngine`, `execution`, `genesis`, `alerts`, `metrics` | todos acima |
 
-Caminho crítico das dependências (Community 71 no grafo):
+Caminho crítico das dependências:
 ```
 crypto ← core ← {storage, consensus}
               consensus ← network

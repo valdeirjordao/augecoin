@@ -1,78 +1,126 @@
-# AUGECOIN — Kit de Execução para OpenCode 1.18 + DeepSeek V4 Pro
+# AUGECOIN
 
-## Por que este kit existe
+AUGECOIN é uma blockchain em Rust com consenso Proof of Authority, estado
+persistido em RocksDB, rede P2P baseada em libp2p, API RPC, contratos WASM e
+clientes TypeScript, web e desktop.
 
-O prompt mestre original (14 fases) funciona conceitualmente, mas colado
-inteiro — ou mesmo uma fase inteira de uma vez — ele sobrecarrega o agente:
-o DeepSeek V4 Pro tem janela de 1.000.000 tokens, mas janela grande **não
-é a mesma coisa** que precisão grande. Em tarefas de geração de código,
-quanto mais contexto irrelevante o modelo carrega, maior a chance de
-"lost in the middle": ele mistura decisões antigas, reintroduz padrões
-que você já rejeitou, ou modifica arquivos fora do escopo.
+## Arquitetura
 
-A solução não é reduzir a especificação — é **separar o que é permanente
-do que é da tarefa do momento**, e nunca colar as duas coisas juntas em
-excesso.
-
-## Os 6 arquivos do kit
-
-| Arquivo | O que é | Quando muda |
+| Camada | Componentes | Responsabilidade |
 |---|---|---|
-| `PROJECT_RULES.md` | A "constituição" do agente — regras absolutas, fluxo de trabalho, o que ele nunca pode fazer | Praticamente nunca |
-| `SPEC.md` | A especificação técnica congelada do protocolo AUGECOIN | Só via decisão formal registrada em `DECISIONS.md` |
-| `DECISIONS.md` | Log de ADRs (Architecture Decision Records) — toda escolha de design vira uma entrada aqui | Cresce a cada decisão tomada |
-| `OPEN_QUESTIONS.md` | Perguntas de produto ainda sem resposta — o agente é proibido de assumir, só de perguntar | Encolhe conforme você responde |
-| `PROGRESS.md` | Estado atual do projeto: qual microprompt foi concluído, o que passou nos testes | Atualizado ao fim de **cada** microprompt |
-| `PROMPTS.md` | A sequência de ~38 microprompts prontos para colar, um de cada vez, em ordem | Fixo — é o roteiro |
+| Criptografia e tipos | `augecoin-crypto`, `augecoin-core` | Chaves, assinaturas, hashes, contas, operações e blocos |
+| Consenso e execução | `augecoin-consensus`, `augecoin-node` | Validadores, proposição, votação, quórum e transição de estado |
+| Persistência | `augecoin-storage` | Estado canônico, blocos, índices e escrita atômica em RocksDB |
+| Rede e RPC | `augecoin-network`, `augecoin-rpc` | libp2p, gossip, sincronização e interface JSON-RPC |
+| Contratos | `augecoin-contracts`, `augecoin-wasm-runtime`, `augecoin-auge20-wasm` | Engine, sandbox WASM e token AUGE20 |
+| Clientes e operação | SDK, wallets, CLI, `augecoin-ops`, `infra/` | Assinatura local, operação de nós e observabilidade |
 
-## Como usar, na prática
+## Fluxo de Transação
 
-1. Crie o repositório e cole `PROJECT_RULES.md`, `SPEC.md`, `DECISIONS.md`,
-   `OPEN_QUESTIONS.md` e `PROGRESS.md` na raiz (pasta `docs/` sugerida).
-2. Abra `PROMPTS.md` e copie **apenas o próximo microprompt pendente**
-   (veja `PROGRESS.md` para saber qual é) — nunca vários de uma vez.
-3. Cole no OpenCode. Cada microprompt já instrui o agente a reler os 4
-   documentos de estado antes de começar — você não precisa colar a spec
-   inteira de novo a cada vez.
-4. Rode os comandos de verificação listados no próprio microprompt.
-5. Se passar: peça ao agente para atualizar `PROGRESS.md` (marcar
-   concluído) e, se alguma decisão de design foi tomada no processo,
-   `DECISIONS.md` (novo ADR). Faça commit nomeando a branch pela fase
-   (ex: `phase-01c-hdkeys`).
-6. Se não passar: corrija dentro do mesmo microprompt. Não avance de fase
-   com testes quebrados — essa é a regra mais importante do processo
-   inteiro.
+```text
+Wallet / SDK / CLI
+  -> Operation assinada
+  -> RPC ou gossip P2P
+  -> Mempool::validate_and_admit
+  -> ConsensusEngine::build_block
+  -> proposta, validação, votos e quórum
+  -> execute_block
+  -> Storage::commit_block_atomic_with_contracts
+```
 
-## Por que quebrar em ~38 microprompts em vez de 14 fases
+O mempool verifica chain ID, duplicidade, assinaturas, sequência de operação,
+saldo e taxa mínima. A execução do bloco revalida as operações, aplica as
+transições de estado e persiste contas, bloco, conjunto de validadores e estado
+de contratos em um único `WriteBatch`.
 
-Cada uma das 14 fases originais mistura, em uma tarefa só, várias
-decisões de design independentes (ex: a FASE 1 de criptografia junta
-assinatura híbrida + hashing + derivação de chave + endereços — quatro
-módulos com testes próprios). Pedir tudo isso de uma vez aumenta a chance
-do agente:
+## Consenso PoA
 
-- Reaproveitar/inventar interface entre módulos que ainda não foi
-  decidida por você;
-- Deixar de testar um dos quatro módulos porque "já gastou o orçamento
-  de atenção" nos outros três;
-- Alterar arquivos de um módulo enquanto implementa outro, quebrando o
-  princípio de escopo fechado do `PROJECT_RULES.md`.
+- O conjunto ativo é representado por `ValidatorSet`.
+- O quórum é calculado como `floor(2n / 3) + 1`.
+- O líder é escolhido deterministicamente entre validadores ativos por altura e
+  round.
+- O líder monta e assina o bloco; validadores verificam pré-estado, execução e
+  assinaturas antes de votar.
+- Um bloco é aplicado somente após verificação de quórum, assinatura do líder,
+  raiz de operações e raiz de estado prévia.
+- O runtime de consenso em produção está no loop de `augecoin-node`; o crate
+  `augecoin-consensus` fornece as primitivas de conjunto, quórum e
+  equivocation.
 
-Cada microprompt em `PROMPTS.md` entrega **um artefato verificável por
-vez**, com escopo de arquivos explícito (permitido/proibido) e comandos
-de teste próprios. Isso é mais lento em número de mensagens, mas muito
-mais confiável — é a mesma lógica usada em revisão de código humana:
-PRs pequenos revisam melhor que PRs gigantes.
+## Tokenomics Implementada
 
-## Ordem de leitura recomendada para você (não para o agente)
+Os valores abaixo descrevem a implementação atual em
+`crates/augecoin-core/src/constants.rs` e `emission.rs`.
 
-1. `PROJECT_RULES.md` — entenda as regras antes de rodar qualquer coisa.
-2. `SPEC.md` — confirme que reflete exatamente o que você quer (ela é a
-   fonte da verdade; qualquer erro aqui se propaga para todas as fases).
-3. `OPEN_QUESTIONS.md` — responda o que puder agora; o que ficar em
-   aberto será perguntado pelo agente na fase correspondente (marcado em
-   `PROMPTS.md`).
-4. `PROMPTS.md` — comece pelo microprompt `FASE-00A`.
+| Parâmetro | Valor atual |
+|---|---:|
+| Unidade mínima | 1 AUGE = 100.000.000 augesat |
+| Taxa mínima por operação | 1.000 augesat |
+| Tempo de bloco | 5 segundos |
+| Recompensa por bloco | 250.000.000 augesat (2,50 AUGE) |
+| Blocos de emissão | 315.576.000 |
+| Hard cap | 788.940.000 AUGE |
+| Contas reservadas emitidas por bloco | 3 |
+| Distribuição de taxas e recompensa | 100% para o líder do bloco |
+
+`block_reward(height)` retorna a recompensa fixa durante o período de emissão
+e zero após seu término. A execução soma as taxas das operações ao reward e
+credita o total ao líder do bloco.
+
+> **Nota de protocolo:** `docs/SPEC.md` e ADR-015 descrevem parâmetros
+> econômicos diferentes dos valores presentes na implementação atual. Esta
+> documentação não altera nem resolve essa divergência.
+
+## AUGE20 E Contratos WASM
+
+```text
+Contrato de criação assinado
+  -> validação de taxa e reserva de gás
+  -> execute_operation
+  -> ContractEngine::create_contract
+  -> AUGE20 WASM (code ID 1)
+  -> writes em overlay
+  -> commit atômico do estado de contrato
+```
+
+O runtime expõe somente o host `auge`, com acesso a sender autenticado, altura,
+ID do contrato, armazenamento com escopo do contrato e eventos. Imports e
+limites de memória são validados, e a execução é medida por fuel.
+
+O AUGE20 implementa criação, transferência, mint, burn, consulta de saldo,
+supply e metadados. Atualmente não existe validação global de unicidade para
+nome ou ticker/símbolo de token; apenas IDs de contrato duplicados são
+rejeitados.
+
+## Rede, Estado E RPC
+
+- P2P: TCP, Noise, Yamux, Gossipsub, Identify, Kademlia e tópicos unicast.
+- Estado: contas, blocos, SafeBox, índices, validadores, faucet e contratos em
+  column families RocksDB.
+- Integridade: `consensus_state_root` inclui estado de contas, validadores e
+  contratos.
+- RPC: métodos de leitura para contas, blocos, operações, validadores e
+  contratos; métodos mutáveis entram no mempool e passam pelo consenso antes de
+  modificar a cadeia.
+
+## Estrutura Do Repositório
+
+| Diretório | Conteúdo |
+|---|---|
+| `crates/` | Crates Rust de protocolo, node, rede, armazenamento e operação |
+| `apps/` | Wallets web, mobile e desktop, além do validator desktop |
+| `packages/` | SDK TypeScript e bindings WASM |
+| `infra/` | Imagens, topologia de nós e observabilidade |
+| `scripts/` | Gênesis, inicialização, monitoramento e operação |
+| `docs/` | Especificação, decisões e documentação técnica |
+
+## Documentação Técnica
+
+- [Apresentação técnica](docs/TECHNICAL_PRESENTATION.md)
+- [Especificação do protocolo](docs/SPEC.md)
+- [Decisões arquiteturais](docs/DECISIONS.md)
+- [Regras do projeto](docs/PROJECT_RULES.md)
+- [Questões em aberto](docs/OPEN_QUESTIONS.md)
 
 ## Public Testnet Accounts
 

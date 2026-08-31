@@ -1,5 +1,5 @@
 # AUGECOIN — PROMPTS.md
-### Cole UM microprompt por vez no OpenCode, na ordem. Não pule, não junte dois. Confira `PROGRESS.md` para saber qual é o próximo.
+### Execute UM microprompt por vez, na ordem. Não pule, não junte dois. Confira `PROGRESS.md` para saber qual é o próximo.
 
 Cada microprompt já inclui, no topo, a instrução de releitura de
 contexto — você não precisa colar `SPEC.md`/`PROJECT_RULES.md` de novo

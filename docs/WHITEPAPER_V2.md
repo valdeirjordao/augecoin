@@ -512,6 +512,6 @@ atual.
 
 ---
 
-*Whitepaper v2 gerado a partir da análise do repositório via graphify +
-leitura dos crates de implementação. Alterações de parâmetros monetários ou
+*Whitepaper v2 gerado a partir da leitura dos crates de implementação.
+Alterações de parâmetros monetários ou
 criptográficos exigem ADR em `DECISIONS.md`.*

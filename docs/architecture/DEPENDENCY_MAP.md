@@ -1,6 +1,6 @@
 # AUGECOIN — Dependency Map
 
-> Derivado de `graphify-out/graph.json`. Referencie `ARCHITECTURE_GRAPH.md` para o grafo completo.
+> Derivado da análise estrutural do workspace. Referencie `ARCHITECTURE_GRAPH.md` para a visão completa.
 
 ## Grafo de dependências entre crates
 
@@ -31,7 +31,7 @@ augecoin-crypto
 | `safe_box.rs` | references | `Account`, `blake3_512` |
 | `wallet-desktop` | depends_on | `augecoin-crypto` |
 
-## Comunidades arquiteturais relevantes (Graphify)
+## Comunidades arquiteturais relevantes
 
 | Community | Conteúdo identificado |
 |---|---|
