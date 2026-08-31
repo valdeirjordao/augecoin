@@ -67,6 +67,43 @@ Os valores abaixo descrevem a implementação atual em
 e zero após seu término. A execução soma as taxas das operações ao reward e
 credita o total ao líder do bloco.
 
+## Taxas De Operação E Contrato
+
+A taxa mínima de qualquer operação admitida no mempool é
+`MIN_FEE_AUGESAT = 1.000` augesat. Essa taxa plana é validada com o saldo e a
+sequência da conta antes de a operação poder entrar em um bloco.
+
+Operações de contrato pagam dois componentes:
+
+```text
+custo total = taxa plana da operação + (gas_used * GAS_PRICE_AUGESAT)
+```
+
+| Parâmetro | Valor atual |
+|---|---:|
+| Taxa plana mínima | 1.000 augesat |
+| Preço do gás | 1 augesat por unidade de gás |
+| Limite de gás usado pela execução de consenso | 100.000 unidades |
+| Reserva exigida com a taxa mínima | 101.000 augesat |
+
+Antes da execução, o node exige saldo suficiente para a taxa plana mais o
+limite máximo de gás. Após execução bem-sucedida, cobra a taxa plana e apenas
+o gás efetivamente consumido; o restante da reserva não é debitado. O consumo
+de gás é determinístico: combina custo-base da operação, fuel WASM e chamadas
+de host.
+
+| Operação de contrato | Custo-base de gás |
+|---|---:|
+| Publicar código WASM | 50.000 |
+| Criar contrato | 10.000 |
+| Transferir token | 5.000 |
+| Mint | 7.500 |
+| Burn | 5.000 |
+
+Taxa plana e gás cobrado são agregados às taxas do bloco e destinados ao líder
+que finaliza o bloco. Não existe, na implementação atual, uma taxa fixa
+adicional exclusiva para criar um token AUGE20.
+
 > **Nota de protocolo:** `docs/SPEC.md` e ADR-015 descrevem parâmetros
 > econômicos diferentes dos valores presentes na implementação atual. Esta
 > documentação não altera nem resolve essa divergência.
@@ -95,6 +132,35 @@ O AUGE20 implementa criação, transferência, mint, burn, consulta de saldo,
 supply e metadados. Atualmente não existe validação global de unicidade para
 nome ou ticker/símbolo de token; apenas IDs de contrato duplicados são
 rejeitados.
+
+### Criação De Um Token AUGE20
+
+O criador monta um `ContractOp::CreateContract` para o `code ID 1`, com um
+`TokenInit` serializado contendo, nesta ordem: `decimals`, flags de mint e
+burn, `initial_supply`, `max_supply`, nome e símbolo.
+
+```text
+Conta assinante
+  -> Operation::Contract com taxa plana
+  -> validação de assinatura, sequência, saldo e reserva de gás
+  -> ContractEngine::create_contract
+  -> validação do TokenInit
+  -> instanciação do AUGE20 WASM
+  -> configuração, supply e saldo inicial gravados no overlay
+  -> commit atômico com o bloco
+```
+
+Na criação, o engine exige nome e símbolo não vazios, `decimals <= 18` e
+`initial_supply <= max_supply`. O ID é determinístico e deriva de
+`owner + code_id + init_data`; por isso, uma segunda criação com exatamente os
+mesmos dados e mesmo owner é rejeitada como contrato duplicado. Esse mecanismo
+não impede tokens diferentes de compartilharem nome ou símbolo.
+
+O caminho de wallet/SDK cria uma operação assinada pela conta do usuário. Já o
+endpoint RPC administrativo `contract_create` assina a operação com a conta
+admin configurada no node; nessa rota, o campo `sender_hex` da requisição não
+define o owner on-chain. A execução canônica sempre usa o limite padrão de
+100.000 unidades de gás, independentemente do limite usado na simulação RPC.
 
 ## Rede, Estado E RPC
 
