@@ -293,3 +293,19 @@ Alternativas consideradas: alterar o código para 60 s (descartado — a
 rede chain_id=1 e todos os vetores de teste já operam a 15 s; mudança
 quebraria a emissão projetada).
 Status: Accepted
+
+## ADR-016
+
+Data: 2026-08-31
+Fase relacionada: Manutencao de seguranca (Dependabot)
+Decision: Dependencias com correcao compativel recebem update direto; quando
+nao ha update compativel, o workspace aplica um patch local minimo e
+versionado. `libp2p` remove as dependencias opcionais DNS e mDNS nao usadas;
+`libp2p-yamux` usa somente `yamux 0.13.10`; e `glib 0.18.5` recebe o backport
+do reparo de ownership.
+Reason: Remove as cadeias vulneraveis Hickory e Yamux sem atualizar a API de
+rede, e corrige GLib sem uma atualizacao quebradora da cadeia Tauri/GTK.
+Alternativas consideradas: atualizar Tauri/GTK e libp2p para versoes mais
+novas (descartado agora por exigir migracao de API); manter alertas ignorados
+(descartado porque as dependencias e o codigo afetados podem ser corrigidos).
+Status: Accepted

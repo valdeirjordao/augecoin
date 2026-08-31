@@ -45,3 +45,12 @@ infra/genesis1/tls/
 *.sqlite-wal
 *.sqlite-journal
 *.db
+
+# Only locally patched security dependencies are versioned.
+/vendor/*
+!/vendor/glib-0.18.5/
+!/vendor/glib-0.18.5/**
+!/vendor/libp2p-0.56.0/
+!/vendor/libp2p-0.56.0/**
+!/vendor/libp2p-yamux-0.47.0/
+!/vendor/libp2p-yamux-0.47.0/**

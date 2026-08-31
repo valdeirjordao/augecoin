@@ -78,6 +78,19 @@ The JSON-RPC endpoint is protected by:
 - Admin operations (validator management, protocol upgrades) require the
   admin key and are rejected from unauthenticated sources.
 
+### Dependency Security
+
+- A local `libp2p` patch removes the unused DNS and mDNS optional dependencies,
+  so they cannot re-enter the dependency graph and Hickory is absent from the
+  lockfile.
+- `libp2p-yamux` is locally patched to use `yamux 0.13.10`, which addresses
+  `GHSA-vxx9-2994-q338` / `CVE-2026-32314` without a breaking libp2p upgrade.
+- `glib 0.18.5` carries the upstream ownership fix for `GHSA-wrw7-89jp-8q8g`
+  as a local patch. Version-only scanners may require an explicit review until
+  the Tauri/GTK dependency chain can be upgraded to `glib >= 0.20.0`.
+- The mobile wallet pins `uuid` to `11.1.1`, addressing
+  `GHSA-w5hq-g745-h8pq` / `CVE-2026-41907`.
+
 ---
 
 ## Known Limitations

@@ -23,3 +23,8 @@ exclude = [
 
 [profile.dev]
 incremental = false
+
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
+libp2p = { path = "vendor/libp2p-0.56.0" }
+libp2p-yamux = { path = "vendor/libp2p-yamux-0.47.0" }
