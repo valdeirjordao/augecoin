@@ -1,0 +1,99 @@
+version: "3.8"
+
+services:
+  # ─── AugeCoin Admin Panel ────────────────────────────────────────────────
+  admin-panel:
+    build: ./admin-panel
+    container_name: augecoin-admin
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - ADMIN_USER=admin
+      - ADMIN_PASS=${ADMIN_PASS:-admin}
+      - GATEWAY_URL=http://augecoin-gateway:8443
+      - PORT=3000
+    depends_on:
+      - augecoin-gateway
+    restart: unless-stopped
+    networks: [augecoin]
+
+  # ─── AugeCoin Gateway (Rust) ─────────────────────────────────────────────
+  augecoin-gateway:
+    build: ./crates/augecoin-gateway
+    container_name: augecoin-gateway
+    ports:
+      - "127.0.0.1:8443:8443"
+    environment:
+      - UPSTREAM_RPC_URL=${UPSTREAM_RPC_URL:-http://augecoin-node:4003}
+      - DATABASE_URL=postgres://augecoin:augecoin@postgres:5432/augecoin_gateway
+      - GATEWAY_JWT_SECRET=${GATEWAY_JWT_SECRET}
+      - GATEWAY_ADMIN_BOOTSTRAP_KEY=${ADMIN_API_KEY}
+      - GATEWAY_PORT=8443
+      - GATEWAY_HOST=0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./config/gateway-tls:/etc/gateway/tls:ro
+    networks: [augecoin]
+
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: augecoin-postgres
+    environment:
+      POSTGRES_USER: augecoin
+      POSTGRES_PASSWORD: augecoin
+      POSTGRES_DB: augecoin_gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./crates/augecoin-gateway/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U augecoin -d augecoin_gateway"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [augecoin]
+
+  # ─── AugeCoin Node (optional — for demo/dev) ─────────────────────────────
+  augecoin-node:
+    build: .
+    container_name: augecoin-node
+    command: ["target/release/augecoin-node", "--chain", "testnet"]
+    ports:
+      - "127.0.0.1:4003:4003"
+    environment:
+      - AUGECOIN_CHAIN_ID=2
+      - AUGECOIN_GENESIS_CONFIG=/config/genesis-testnet.toml
+    volumes:
+      - ./config:/config:ro
+      - augecoin-data:/data
+    restart: unless-stopped
+    networks: [augecoin]
+    profiles: ["dev"]
+
+  # ─── Prometheus (metrics) ─────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.48
+    container_name: augecoin-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [augecoin]
+    profiles: ["monitoring"]
+
+volumes:
+  pgdata:
+  augecoin-data:
+  prometheus-data:
+
+networks:
+  augecoin:
+    driver: bridge

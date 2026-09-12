@@ -1,0 +1,13 @@
+# augecoin-prometheus config (optional, for metrics monitoring)
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "augecoin-gateway"
+    static_configs:
+      - targets: ["augecoin-gateway:9090"]
+
+  - job_name: "augecoin-node"
+    static_configs:
+      - targets: ["augecoin-node:4003"]
