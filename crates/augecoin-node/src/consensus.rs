@@ -699,8 +699,9 @@ impl ConsensusEngine {
         if let Some(ref net) = self.network {
             let data = serialize_consensus_msg(msg);
             // Resolve the target validator's PeerId from the validator set and
-            // unicast over LibP2P. Fall back to broadcast if the id is unknown
-            // (e.g. a validator that is not yet in our set).
+            // unicast over LibP2P. Also publish on the relay topic as a
+            // fallback so that bootnodes with a direct TCP connection to the
+            // target can forward the message when the target is behind NAT.
             let peer: Option<PeerId> = self
                 .validator_set
                 .validators()
@@ -708,7 +709,10 @@ impl ConsensusEngine {
                 .find(|v| v.id == validator_id)
                 .and_then(|v| peer_id_from_ed25519(&v.ed25519_public_key));
             match peer {
-                Some(p) => net.send_to(p, data),
+                Some(ref p) => {
+                    net.send_to(p.clone(), data.clone());
+                    net.send_relay(p.clone(), data);
+                }
                 None => net.broadcast(data),
             }
         }

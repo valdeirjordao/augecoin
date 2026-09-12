@@ -21,6 +21,10 @@ pub const OPS_TOPIC: &str = "augecoin/ops";
 pub const BLOCK_TOPIC: &str = "augecoin/blocks";
 pub const CONSENSUS_TOPIC: &str = "augecoin/consensus";
 pub const PEERS_TOPIC: &str = "augecoin/peers";
+pub const RELAY_TOPIC: &str = "augecoin/relay";
+
+/// Raw bytes of a [`PeerId`] (32 bytes for Ed25519-based IDs).
+pub const PEER_ID_LEN: usize = 32;
 
 /// Maximum size of a single gossipsub message (RPC payload), in bytes.
 ///
@@ -32,6 +36,32 @@ pub const PEERS_TOPIC: &str = "augecoin/peers";
 /// `AUGECOIN_MAX_TRANSMIT_SIZE`.
 pub fn max_transmit_size() -> usize {
     augecoin_core::limits::max_transmit_size()
+}
+
+// ---- Relay helpers --------------------------------------------------------
+
+/// Encode a relay message: `[target_peer_id (32 bytes)][payload...]`.
+///
+/// When unicast delivery to a validator is not possible (NAT / no direct
+/// TCP path), the sender publishes this envelope on `RELAY_TOPIC`. Every
+/// node receives it, but only the target validator processes the payload;
+/// all others discard it silently.
+pub fn encode_relay(target: &PeerId, payload: &[u8]) -> Vec<u8> {
+    let peer_bytes = target.to_bytes();
+    let mut buf = Vec::with_capacity(peer_bytes.len() + payload.len());
+    buf.extend_from_slice(&peer_bytes);
+    buf.extend_from_slice(payload);
+    buf
+}
+
+/// Decode a relay envelope, returning `None` if the message is too short
+/// to contain a valid 32-byte PeerId.
+pub fn decode_relay(data: &[u8]) -> Option<(PeerId, &[u8])> {
+    if data.len() < PEER_ID_LEN {
+        return None;
+    }
+    let peer = PeerId::from_bytes(&data[..PEER_ID_LEN]).ok()?;
+    Some((peer, &data[PEER_ID_LEN..]))
 }
 
 /// Build the hardened gossipsub configuration used by every node.
@@ -135,7 +165,7 @@ impl AugecoinBehaviour {
         );
 
         if is_validator {
-            for topic in [OPS_TOPIC, BLOCK_TOPIC, CONSENSUS_TOPIC, PEERS_TOPIC] {
+            for topic in [OPS_TOPIC, BLOCK_TOPIC, CONSENSUS_TOPIC, PEERS_TOPIC, RELAY_TOPIC] {
                 gossipsub
                     .subscribe(&gossipsub::IdentTopic::new(topic))
                     .map_err(|e| NetworkError::Gossipsub(e.to_string()))?;
@@ -269,10 +299,25 @@ impl AugecoinBehaviour {
         self.publish_to_topic(&unicast_topic(peer), data)
     }
 
+    pub fn publish_relay(
+        &mut self,
+        target: &PeerId,
+        data: Vec<u8>,
+    ) -> Result<gossipsub::MessageId, NetworkError> {
+        let envelope = encode_relay(target, &data);
+        self.publish_to_topic(RELAY_TOPIC, envelope)
+    }
+
     /// Hash of the peer-exchange topic, used to tell peer announcements apart
     /// from consensus traffic on the shared inbound pipe.
     pub fn peers_topic_hash() -> gossipsub::TopicHash {
         gossipsub::IdentTopic::new(PEERS_TOPIC).hash()
+    }
+
+    /// Hash of the relay topic, used to deliver unicast messages via bootnode
+    /// relay when a direct TCP path is unavailable.
+    pub fn relay_topic_hash() -> gossipsub::TopicHash {
+        gossipsub::IdentTopic::new(RELAY_TOPIC).hash()
     }
 
     /// Hash of the operations topic, used to route gossiped operations into

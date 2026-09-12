@@ -20,6 +20,7 @@ const MAX_CONSENSUS_MSG_SIZE: usize = 16 * 1024 * 1024;
 pub enum OutboundConsensus {
     Broadcast(Vec<u8>),
     Unicast { target: PeerId, data: Vec<u8> },
+    Relay { target: PeerId, data: Vec<u8> },
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,15 @@ impl ConsensusNetworkHandle {
         let _ = self
             .outbound_tx
             .send(OutboundConsensus::Unicast { target: peer, data });
+    }
+
+    /// Send a relay envelope: publishes on RELAY_TOPIC so that any peer with
+    /// a TCP connection to the target can forward the payload. Used as a
+    /// fallback when direct unicast delivery may not reach a NAT'd validator.
+    pub fn send_relay(&self, peer: PeerId, data: Vec<u8>) {
+        let _ = self
+            .outbound_tx
+            .send(OutboundConsensus::Relay { target: peer, data });
     }
 
     pub fn recv_inbound(&self) -> Result<InboundConsensus, crossbeam_channel::RecvError> {
@@ -92,6 +102,7 @@ impl ConsensusNetworkHandle {
 pub trait ConsensusTransport: Send + Sync {
     fn broadcast(&self, data: Vec<u8>);
     fn send_to(&self, peer: PeerId, data: Vec<u8>);
+    fn send_relay(&self, peer: PeerId, data: Vec<u8>);
     fn recv(&self) -> Result<InboundConsensus, crossbeam_channel::RecvError>;
     fn try_recv(&self) -> Option<InboundConsensus>;
     fn peer_count(&self) -> u32;
@@ -108,6 +119,10 @@ impl ConsensusTransport for ConsensusNetworkHandle {
 
     fn send_to(&self, peer: PeerId, data: Vec<u8>) {
         ConsensusNetworkHandle::send_to(self, peer, data);
+    }
+
+    fn send_relay(&self, peer: PeerId, data: Vec<u8>) {
+        ConsensusNetworkHandle::send_relay(self, peer, data);
     }
 
     fn recv(&self) -> Result<InboundConsensus, crossbeam_channel::RecvError> {
@@ -312,6 +327,37 @@ pub fn start_consensus_network(
                                     // mempool via sender/n_operation).
                                     if message.data.len() <= MAX_CONSENSUS_MSG_SIZE {
                                         let _ = op_inbound_tx.send(message.data);
+                                    }
+                                } else if message.topic == AugecoinBehaviour::relay_topic_hash() {
+                                    // Relay envelope: either we are the target
+                                    // (process it), or we should forward it to
+                                    // the target's unicast topic so a peer that
+                                    // has a direct TCP path delivers it.
+                                    if message.data.len() <= MAX_CONSENSUS_MSG_SIZE {
+                                        let local_pid = *swarm.local_peer_id();
+                                        match crate::decode_relay(&message.data) {
+                                            Some((target_peer, payload)) => {
+                                                if target_peer == local_pid {
+                                                    // We are the intended recipient.
+                                                    let _ = inbound_tx.send(InboundConsensus {
+                                                        data: payload.to_vec(),
+                                                        source: message.source,
+                                                    });
+                                                } else if !conn_per_peer.contains_key(&target_peer) {
+                                                    // We don't have a direct connection
+                                                    // to the target, so we can't relay
+                                                    // effectively — drop silently.
+                                                } else {
+                                                    // We have a direct TCP connection to
+                                                    // the target: forward the payload to
+                                                    // its unicast topic (one hop relay).
+                                                    let _ = swarm
+                                                        .behaviour_mut()
+                                                        .publish_unicast(&target_peer, payload.to_vec());
+                                                }
+                                            }
+                                            None => {}
+                                        }
                                     }
                                 } else if message.topic
                                     == gossipsub::IdentTopic::new(crate::unicast_topic(
@@ -557,6 +603,11 @@ pub fn start_consensus_network(
                         OutboundConsensus::Unicast { target, data } => {
                             if let Err(e) = swarm.behaviour_mut().publish_unicast(&target, data) {
                                 eprintln!("[network] failed to publish unicast message to {target}: {e}");
+                            }
+                        }
+                        OutboundConsensus::Relay { target, data } => {
+                            if let Err(e) = swarm.behaviour_mut().publish_relay(&target, data) {
+                                eprintln!("[network] failed to publish relay message to {target}: {e}");
                             }
                         }
                     }

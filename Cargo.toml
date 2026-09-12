@@ -13,8 +13,6 @@ members = [
     "crates/augecoin-ops",
     "crates/augecoin-wasm-runtime",
     "crates/augecoin-contracts",
-    "apps/wallet-desktop/src-tauri",
-    "apps/validator-desktop/src-tauri",
     "tools/augecoin-stress",
 ]
 exclude = [
