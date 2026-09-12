@@ -1,0 +1,64 @@
+# AUGECOIN — Gênese chain_id=1 (Caminho A: set compartilhado, sem DEV_MODE)
+# Ids de validador começam em 1. Admin é chave OFFLINE.
+
+[genesis]
+chain_id = 1
+treasury_balance = 100000000000
+faucet_balance = 5000000000
+validator_balance = 0
+admin_balance = 100000000
+
+[admin]
+ed25519_public_key_hex = "586c0dedfba4dcc35213285491455eac3e3258e77fd5b5bd1a27c105d57fc52f"
+
+[[validators]]
+ed25519_public_key_hex = "040bbfa0220014800e3a733c61d528e8e51b1d5a55ddc1b139fea90d2353d045"
+
+[[validators]]
+ed25519_public_key_hex = "f2365fe9a4d2d22fc7f18c96400a8adcb07a6512fb8101790bafbb263761e4ee"
+
+[[validators]]
+ed25519_public_key_hex = "7dabbd2f7991018fbba218f4695596f9b986b94de40c678e51c79ca6e13d0580"
+
+[[validators]]
+ed25519_public_key_hex = "d8799b16fd6d0986f33a0aab9861f78ac758b13fc9cbc169986e969310f1554b"
+
+# Contas de reward dos validadores (account_number == leader_id) nascem ligadas às chaves.
+[[accounts]]
+role = "validator_reward"
+account_number = 1
+balance = 0
+public_key_hex = "040bbfa0220014800e3a733c61d528e8e51b1d5a55ddc1b139fea90d2353d045"
+
+[[accounts]]
+role = "validator_reward"
+account_number = 2
+balance = 0
+public_key_hex = "f2365fe9a4d2d22fc7f18c96400a8adcb07a6512fb8101790bafbb263761e4ee"
+
+[[accounts]]
+role = "validator_reward"
+account_number = 3
+balance = 0
+public_key_hex = "7dabbd2f7991018fbba218f4695596f9b986b94de40c678e51c79ca6e13d0580"
+
+[[accounts]]
+role = "validator_reward"
+account_number = 4
+balance = 0
+public_key_hex = "d8799b16fd6d0986f33a0aab9861f78ac758b13fc9cbc169986e969310f1554b"
+
+[[accounts]]
+role = "treasury"
+account_number = 900
+public_key_hex = "586c0dedfba4dcc35213285491455eac3e3258e77fd5b5bd1a27c105d57fc52f"
+
+[[accounts]]
+role = "faucet"
+account_number = 901
+public_key_hex = "586c0dedfba4dcc35213285491455eac3e3258e77fd5b5bd1a27c105d57fc52f"
+
+[[accounts]]
+role = "admin"
+account_number = 903
+public_key_hex = "586c0dedfba4dcc35213285491455eac3e3258e77fd5b5bd1a27c105d57fc52f"

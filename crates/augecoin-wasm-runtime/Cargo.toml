@@ -1,0 +1,12 @@
+[package]
+name = "augecoin-wasm-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic, sandboxed WASM runtime for AUGECOIN smart contracts (V1)"
+
+[dependencies]
+wasmi = "0.31"
+thiserror = "1"
+
+[dev-dependencies]
+wat = "1"

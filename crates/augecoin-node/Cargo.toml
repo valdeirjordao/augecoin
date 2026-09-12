@@ -1,0 +1,32 @@
+[package]
+name = "augecoin-node"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+augecoin-core = { path = "../augecoin-core" }
+augecoin-crypto = { path = "../augecoin-crypto" }
+augecoin-storage = { path = "../augecoin-storage" }
+augecoin-contracts = { path = "../augecoin-contracts" }
+augecoin-consensus = { path = "../augecoin-consensus" }
+augecoin-network = { path = "../augecoin-network" }
+augecoin-rpc = { path = "../augecoin-rpc" }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+prometheus = { version = "0.13", default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "net"] }
+rayon = "1"
+hex = "0.4"
+crossbeam-channel = "0.5"
+rand = "0.8"
+bip39 = { version = "2", features = ["rand"] }
+libc = "0.2"
+tempfile = "3"
+
+[[bin]]
+name = "augecoin-keygen"
+path = "src/bin/keygen.rs"

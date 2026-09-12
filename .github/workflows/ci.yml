@@ -1,0 +1,335 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghcup /usr/local/share/boost /usr/lib/jvm \
+            /opt/microsoft /opt/google /usr/local/aws-cli \
+            /usr/local/julia3.11 2>/dev/null || true
+          sudo apt-get clean
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h /
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev clang librocksdb-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: Prepare Linux Tauri sidecar for workspace checks
+        run: |
+          cargo build -p augecoin-node --release
+          mkdir -p apps/validator-desktop/src-tauri/binaries
+          cp target/release/augecoin-node \
+            apps/validator-desktop/src-tauri/binaries/augecoin-node-x86_64-unknown-linux-gnu
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace --release
+
+      - name: Test
+        run: cargo test --workspace --release
+
+      - name: Fuzz compile check
+        run: |
+          cd crates/augecoin-core/fuzz
+          cargo check
+
+  typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/sdk-ts/package-lock.json
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add wasm32-unknown-unknown
+
+      - name: Cache wasm-bindgen-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-bindgen*
+          key: wasm-bindgen-cli-0.2.127
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          if ! wasm-bindgen --version 2>/dev/null | grep -q "0.2.127"; then
+            cargo install wasm-bindgen-cli --version 0.2.127
+          fi
+
+      - name: WASM build
+        run: ./scripts/build-wasm.sh
+
+      - name: SDK smoke test
+        run: |
+          cd packages/sdk-ts
+          npm ci
+          npm test
+
+  wallet-web:
+    name: Wallet Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: typescript
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate production wallet
+        run: |
+          test -s wallet/index.html
+          grep -q 'wallet.augeco.in' landing/index.html
+          curl --fail --silent --show-error --location \
+            --max-time 20 https://wallet.augeco.in/ >/dev/null
+
+          # Regression guard: /api/* MUST be proxied to the wallet-web backend,
+          # not served as the static SPA. A missing `location /api/` in nginx
+          # returns 405 on POST/OPTIONS and text/html on GET.
+          # Fix/reference: infra/wallet-web.nginx.conf (and sites-available/wallet.augeco.in)
+          echo "== GET /api/me must be JSON (not the SPA index.html) =="
+          # Unauthenticated -> backend replies 401 application/json (proves proxy + JSON).
+          me_body=$(curl -s -D /tmp/me.hdr --max-time 20 https://wallet.augeco.in/api/me)
+          me_ct=$(tr -d '\r' < /tmp/me.hdr | awk -F': ' 'tolower($1)=="content-type"{print $2}')
+          echo "Content-Type: $me_ct"
+          case "$me_ct" in
+            application/json*) ;;
+            *) echo "FAIL: /api/me not proxied (Content-Type: $me_ct)"; exit 1 ;;
+          esac
+
+          echo "== POST /api/auth/register must reach backend (not 405) =="
+          reg_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+            https://wallet.augeco.in/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"ci-smoke@example.com","password":"short","display_name":"CI","public_key_hex":"ab"}')
+          echo "register status: $reg_status"
+          if [ "$reg_status" = "405" ]; then
+            echo "FAIL: /api/auth/register returned 405 (nginx not proxying /api)"; exit 1
+          fi
+          if [ "$reg_status" = "404" ]; then
+            echo "FAIL: /api/auth/register 404 (backend route missing)"; exit 1
+          fi
+          echo "OK: /api proxy healthy"
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f infra/Dockerfile -t augecoin-node:ci .
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev clang librocksdb-dev
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Consensus integration
+        run: |
+          cargo test -p augecoin-consensus --test four_node_liveness --release -- --nocapture
+          cargo test -p augecoin-consensus --test adversarial_tests --release -- --nocapture
+
+      - name: Node integration
+        run: |
+          cargo test -p augecoin-node --test end_to_end_block_execution --release -- --nocapture
+          cargo test -p augecoin-node --test load_test --release -- --nocapture
+          cargo test -p augecoin-node --test partition_test --release -- --nocapture
+
+  desktop-linux:
+    name: Desktop Packages (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf \
+            libssl-dev clang librocksdb-dev
+
+      - name: Build validator-desktop (.deb / .AppImage)
+        env:
+          AUGECOIN_RELEASE_PUBLIC_KEY_HEX: ${{ secrets.AUGECOIN_RELEASE_PUBLIC_KEY_HEX || '' }}
+        run: |
+          cargo build -p augecoin-node --release
+          mkdir -p apps/validator-desktop/src-tauri/binaries
+          cp target/release/augecoin-node \
+            apps/validator-desktop/src-tauri/binaries/augecoin-node-x86_64-unknown-linux-gnu
+          cd apps/validator-desktop
+          npm ci
+          npm run tauri build -- --bundles deb,appimage
+
+      - name: Upload validator artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-desktop-linux
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+
+      - name: Build wallet-desktop (.deb / .AppImage)
+        run: |
+          rm -rf target/release/bundle
+          cd apps/wallet-desktop
+          npm ci
+          npm run tauri build -- --bundles deb,appimage
+
+      - name: Upload wallet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-desktop-linux
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+
+  desktop-windows:
+    name: Desktop Packages (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Add MSVC target
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Build validator-desktop (.msi / .nsis)
+        shell: bash
+        env:
+          AUGECOIN_RELEASE_PUBLIC_KEY_HEX: ${{ secrets.AUGECOIN_RELEASE_PUBLIC_KEY_HEX || '' }}
+        run: |
+          cargo build -p augecoin-node --release --target x86_64-pc-windows-msvc
+          mkdir -p apps/validator-desktop/src-tauri/binaries
+          cp target/x86_64-pc-windows-msvc/release/augecoin-node.exe \
+            apps/validator-desktop/src-tauri/binaries/augecoin-node-x86_64-pc-windows-msvc.exe
+          cd apps/validator-desktop
+          npm ci
+          npm run tauri build -- --bundles msi,nsis
+
+      - name: Upload validator artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-desktop-windows
+          path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+
+      - name: Build wallet-desktop (.msi / .nsis)
+        shell: bash
+        run: |
+          rm -rf target/release/bundle
+          cd apps/wallet-desktop
+          npm ci
+          npm run tauri build -- --bundles msi,nsis
+
+      - name: Upload wallet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-desktop-windows
+          path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+
+  conclude:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    needs: [rust, typescript, wallet-web, docker, integration, desktop-linux, desktop-windows]
+    if: always()
+    steps:
+      - name: Status
+        run: |
+          echo "CI pipeline complete"
+          echo "rust: ${{ needs.rust.result }}"
+          echo "typescript: ${{ needs.typescript.result }}"
+          echo "wallet-web: ${{ needs.wallet-web.result }}"
+          echo "docker: ${{ needs.docker.result }}"
+          echo "integration: ${{ needs.integration.result }}"
+          echo "desktop-linux: ${{ needs.desktop-linux.result }}"
+          echo "desktop-windows: ${{ needs.desktop-windows.result }}"

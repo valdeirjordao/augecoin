@@ -1,0 +1,15 @@
+[package]
+name = "augecoin-contracts"
+version = "0.1.0"
+edition = "2021"
+description = "AUGECOIN smart contracts engine (WASM Lite V1)"
+
+[dependencies]
+augecoin-crypto = { path = "../augecoin-crypto" }
+augecoin-storage = { path = "../augecoin-storage" }
+augecoin-wasm-runtime = { path = "../augecoin-wasm-runtime" }
+thiserror = "1"
+
+[dev-dependencies]
+wat = "1"
+augecoin-core = { path = "../augecoin-core" }

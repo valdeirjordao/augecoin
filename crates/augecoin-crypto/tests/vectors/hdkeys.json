@@ -1,0 +1,27 @@
+[
+  {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "index": 0,
+    "ed25519_public_key_hex": "6589bfd8bbf0e34991b0cf5cf3467a2755ddf4a744809cb718b8f040cf3d780c"
+  },
+  {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "index": 1,
+    "ed25519_public_key_hex": "81bdb5143452b2a03b4768d45634b6e5a1e2af095b7c45dd300f56d5cb741899"
+  },
+  {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "index": 2,
+    "ed25519_public_key_hex": "7147183c2df89dd18f2ed625668906b2242e0146dbf2bae11d0f79969187522e"
+  },
+  {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "index": 42,
+    "ed25519_public_key_hex": "9858f87fa67265c5edb5432b3a900d08acd8b4ccdbf12e8fd35516f89c2271b1"
+  },
+  {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "index": 999,
+    "ed25519_public_key_hex": "5fe2dbdcb1fb63e5e81890a5a64773dab343f87b999b207608b6eefbad0e21c2"
+  }
+]

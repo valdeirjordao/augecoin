@@ -1,0 +1,8 @@
+# cargo-audit: excecoes documentadas (risco aceito, com revisao programada).
+# Justificativas completas em docs/SECURITY.md, secao "Dependency risk register".
+[advisories]
+ignore = [
+    # rsa Marvin Attack — RSA nao e usado em nenhum caminho do protocolo
+    # (Ed25519 + ML-DSA/BLAKE3); dependencia transita apenas. Revisar 2026-Q4.
+    "RUSTSEC-2023-0071",
+]

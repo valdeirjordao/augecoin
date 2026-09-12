@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AugeCoin Payment</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e17; color: #e8eaed; min-height: 100vh; }
+    .container { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 24px; color: #ffd700; }
+    .card { background: #141925; border: 1px solid #1e2a3a; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    label { display: block; font-size: 0.8rem; color: #8899aa; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    input { width: 100%; padding: 10px 14px; background: #0a0e17; border: 1px solid #1e2a3a; border-radius: 8px; color: #e8eaed; font-size: 1rem; outline: none; }
+    input:focus { border-color: #ffd700; }
+    button { width: 100%; padding: 12px; background: linear-gradient(135deg, #ffd700, #f0c040); color: #0a0e17; font-weight: 700; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; margin-top: 8px; }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; margin-top: 8px; }
+    .status.pending { background: #1a2540; color: #6ea8fe; }
+    .status.confirmed { background: #0d2818; color: #4caf84; }
+    .status.expired { background: #2a1515; color: #e05555; }
+    .qr-placeholder { width: 180px; height: 180px; margin: 16px auto; background: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #0a0e17; font-size: 0.8rem; text-align: center; padding: 12px; word-break: break-all; font-family: monospace; }
+    .amount { font-size: 2rem; font-weight: 700; color: #ffd700; text-align: center; margin-bottom: 8px; }
+    .meta { font-size: 0.85rem; color: #8899aa; text-align: center; }
+    .order-list { list-style: none; }
+    .order-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1e2a3a; }
+    .order-item:last-child { border-bottom: none; }
+    .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .badge-paid { background: #0d2818; color: #4caf84; }
+    .badge-pending { background: #1a2540; color: #6ea8fe; }
+    .badge-cancelled { background: #2a1515; color: #e05555; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AUGE Payment</h1>
+
+    <div class="card">
+      <label>Order amount (AUGE)</label>
+      <input type="number" id="amount" value="0.05" step="0.001" min="0.001" />
+      <label style="margin-top:12px">Order ID / Memo</label>
+      <input type="text" id="orderId" value="" placeholder="e.g. order-001" />
+      <button id="payBtn" onclick="createPayment()">Pay with AUGE</button>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <label>Payment Address</label>
+      <div class="meta" id="address"></div>
+      <div class="qr-placeholder" id="qr">—</div>
+      <div class="amount" id="amountDisplay"></div>
+      <div class="meta" id="memo"></div>
+      <div class="status pending" id="status">⏳ Waiting for payment…</div>
+    </div>
+
+    <div class="card">
+      <label>Recent Orders</label>
+      <ul class="order-list" id="orders"><li style="color:#556">Loading…</li></ul>
+    </div>
+  </div>
+
+  <script type="module">
+    const API = "http://localhost:3000/api";
+
+    async function loadOrders() {
+      const res = await fetch(`${API}/orders`);
+      const orders = await res.json();
+      const el = document.getElementById("orders");
+      if (!orders.length) { el.innerHTML = '<li style="color:#556">No orders yet</li>'; return; }
+      el.innerHTML = orders.map(o => {
+        const cls = o.status === "paid" ? "badge-paid" : o.status === "cancelled" ? "badge-cancelled" : "badge-pending";
+        return `<li class="order-item"><span>${o.id}</span><span><strong>${o.amountAuge} AUGE</strong> <span class="status-badge ${cls}">${o.status}</span></span></li>`;
+      }).join("");
+    }
+
+    async function createPayment() {
+      const amount = parseFloat(document.getElementById("amount").value);
+      const orderId = document.getElementById("orderId").value || `order-${Date.now()}`;
+      const btn = document.getElementById("payBtn");
+      btn.disabled = true;
+      btn.textContent = "Creating…";
+
+      try {
+        const res = await fetch(`${API}/payment/create`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, amountAuge: amount }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const card = document.getElementById("resultCard");
+        card.style.display = "block";
+        document.getElementById("address").textContent = data.merchantAccount;
+        document.getElementById("qr").textContent = data.qrData;
+        document.getElementById("amountDisplay").textContent = `${data.amountAuge} AUGE`;
+        document.getElementById("memo").textContent = `Session: ${data.sessionId.slice(0, 8)}…`;
+        document.getElementById("status").textContent = "⏳ Waiting for payment…";
+        document.getElementById("status").className = "status pending";
+
+        // Poll for status
+        pollStatus(data.sessionId);
+        loadOrders();
+      } catch (e: any) {
+        alert("Error: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Pay with AUGE";
+      }
+    }
+
+    async function pollStatus(sessionId) {
+      const statusEl = document.getElementById("status");
+      const interval = setInterval(async () => {
+        const res = await fetch(`${API}/payment/status/${sessionId}`);
+        const data = await res.json();
+        if (data.confirmed) {
+          statusEl.textContent = "Payment confirmed! ✓";
+          statusEl.className = "status confirmed";
+          clearInterval(interval);
+          loadOrders();
+        } else if (data.status === "expired") {
+          statusEl.textContent = "Session expired";
+          statusEl.className = "status expired";
+          clearInterval(interval);
+        }
+      }, 3000);
+    }
+
+    loadOrders();
+  </script>
+</body>
+</html>

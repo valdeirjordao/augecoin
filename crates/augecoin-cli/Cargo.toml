@@ -1,0 +1,21 @@
+[package]
+name = "augecoin-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "augecoin-cli"
+path = "src/main.rs"
+
+[dependencies]
+augecoin-core = { path = "../augecoin-core" }
+augecoin-crypto = { path = "../augecoin-crypto" }
+augecoin-contracts = { path = "../augecoin-contracts" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+hex = "0.4"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+thiserror = "2"

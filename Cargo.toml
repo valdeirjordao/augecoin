@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/augecoin-crypto",
+    "crates/augecoin-core",
+    "crates/augecoin-storage",
+    "crates/augecoin-consensus",
+    "crates/augecoin-network",
+    "crates/augecoin-rpc",
+    "crates/augecoin-cli",
+    "crates/augecoin-node",
+    "crates/augecoin-bench",
+    "crates/augecoin-ops",
+    "crates/augecoin-wasm-runtime",
+    "crates/augecoin-contracts",
+    "apps/wallet-desktop/src-tauri",
+    "apps/validator-desktop/src-tauri",
+    "tools/augecoin-stress",
+]
+exclude = [
+    "crates/augecoin-core/fuzz",
+]
+
+[profile.dev]
+incremental = false
+
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
+libp2p = { path = "vendor/libp2p-0.56.0" }
+libp2p-yamux = { path = "vendor/libp2p-yamux-0.47.0" }

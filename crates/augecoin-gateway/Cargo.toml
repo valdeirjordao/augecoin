@@ -1,0 +1,64 @@
+[package]
+name = "augecoin-gateway"
+version = "1.0.0"
+edition = "2021"
+description = "AugeCoin REST API Gateway — monetized JSON-RPC proxy with rate-limiting, billing and webhook delivery"
+repository = "https://github.com/augecoin/augecoin"
+license = "MIT"
+
+[dependencies]
+augecoin-rpc.path = "../../crates/augecoin-rpc"
+augecoin-core.path = "../../crates/augecoin-core"
+augecoin-storage.path = "../../crates/augecoin-storage"
+augecoin-crypto.path = "../../crates/augecoin-crypto"
+
+# HTTP / server
+axum = "0.8"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-br"] }
+tokio = { version = "1", features = ["full"] }
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2"
+
+# Auth / security
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Crypto
+sha2 = "0.10"
+hmac = "0.12"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.17", default-features = false, features = ["tokio", "tracing"] }
+prometheus = "0.13"
+
+# Database (billing / api keys)
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "uuid"] }
+
+# HTTP client for proxying
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Misc
+dotenvy = "0.15"
+snafu = "0.8"
+url = "2.5"
+hex = "0.4"
+rand = "0.8"
+
+[dev-dependencies]
+wiremock = "0.6"
+
+[[bin]]
+name = "augecoin-gateway"
+path = "src/main.rs"

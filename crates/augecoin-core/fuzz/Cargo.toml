@@ -1,0 +1,29 @@
+[package]
+name = "augecoin-core-fuzz"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+augecoin-core = { path = ".." }
+
+[dependencies.arbitrary]
+version = "1"
+features = ["derive"]
+
+[[bin]]
+name = "tx_deserialize"
+path = "fuzz_targets/tx_deserialize.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "block_deserialize"
+path = "fuzz_targets/block_deserialize.rs"
+test = false
+doc = false
