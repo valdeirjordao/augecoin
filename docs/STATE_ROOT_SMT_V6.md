@@ -163,17 +163,14 @@ root cache makes repeated reads free; the raw scan remains `O(state)`.
 
 ## 9. Security findings and blockers
 
-1. **Secrets in the worktree and Git history.** Validator/admin seed files exist
-   as untracked files (`config/validator-keys/*.env`, `infra/genesis1/*.env`,
-   `infra/genesis1/v1-key-key.txt`) and were previously committed (removed at
-   HEAD, still recoverable from history). `config/validator-keys/` is
-   world-readable and not ignored by Git. `scripts/start-validators.sh` contains
-   a hardcoded admin API key default. Values were **not** printed.
-   - Required: rotate all validator signing keys and admin/API keys; add
-     `config/validator-keys/`, `infra/genesis1/*.env` and any key material to
-     `.gitignore`; purge the history before any public push; set file mode 0600.
-   - No production credential has been revoked; that needs explicit
-     authorization.
+1. **Secrets in the worktree and Git history — RESOLVED.** Key material is
+   gitignored; the secret paths (`config/validator-keys/`,
+   `infra/genesis1/*.env`, `infra/genesis1/v1-key-key.txt`,
+   `infra/genesis1/data/`, `regenesis-backup-*`) were purged from all Git
+   history with `git filter-repo` and force-pushed. Hardcoded admin/DB secrets
+   were removed from the helper scripts. The validator consensus keys were
+   rotated on-chain (ids {5,6,7,8}); the ops/gateway shared secrets were
+   rotated. See `docs/CREDENTIAL_ROTATION_RUNBOOK.md`.
 2. **Checkpoint sync is unauthenticated.** `CheckpointSync` remains disabled by
    default (`AUGECOIN_ENABLE_CHECKPOINT_SYNC` opt-in) because its wire format
    carries no quorum signature, state-root commitment or execution proof. It

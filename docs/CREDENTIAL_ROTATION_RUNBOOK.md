@@ -33,32 +33,40 @@ to remove `config/validator-keys/`, `infra/genesis1/*.env`,
 commits and tags, then force-push and have every clone re-clone. Rotating the
 secrets (below) also makes the old history worthless.
 
-### 2. Validator consensus key rotation (coordinated ceremony)
+### 2. Validator consensus key rotation — **DONE (2026-10-13)**
 
-The validator signing keys are the critical exposure: a leaked seed allows
-equivocation. The set is changed on-chain with the activation-height–gated admin
-operations (`scripts/validator-admin.sh`, `crates/augecoin-ops`). Rotate **one
-validator at a time** so quorum (3/4) is never lost:
+Executed live on chain_id=1 with the activation-height `validatoradd` /
+`validatordeactivate` + `validatorremove` mechanism, one validator at a time,
+each new node synchronising from a copy of an existing DB:
 
-For each validator `i` in 1..4:
-1. Bring up a new node instance for `i` using the new seed from
-   `config/validator-keys-new/v$i.env` (isolated data dir and ports).
-2. `validator-admin.sh <admin-mnemonic> <rpc-port> add <new_ed25519_pubkey> <A_i>`
-   to add the new key with activation height `A_i` ≈ current + 200.
-3. Wait until the set activation height `A_i` is reached and the new instance is
-   signing/producing (`validator list` shows it active).
-4. `validator-admin.sh ... deactivate <old_id> <A_i + k>` then
-   `remove <old_id> <A_i + k>` to retire the old key.
-5. Confirm the network stays at quorum and roots converge, then move to `i+1`.
+| step | added id (new key) | retired old id |
+|---|---|---|
+| 1 | 5 | 1 |
+| 2 | 6 | 2 |
+| 3 | 7 | 3 |
+| 4 | 8 | 4 |
 
-Prerequisites: the node admin RPC must have `AUGECOIN_ADMIN_API_KEYS` set
-(currently the running validators have none, so admin methods are blocked), and
-the offline admin mnemonic/key must be available (from the secure store, not the
-repo). The on-chain **admin key** itself cannot be changed live and requires a
-governance/genesis action; treat it as separately managed.
+The on-chain active set is now **{5,6,7,8}**; the original {1,2,3,4} keys are
+deactivated and removed. All four new validators converge on the same v6 root
+and the chain kept quorum throughout. New signing seeds are in
+`config/validator-keys-new/` (mode 0600, untracked); the new public keys are in
+the corresponding `*.pub` files. `scripts/start-mainnet-current.sh` resumes this
+rotated set (ids 5..8, data dirs `node-5..8`).
 
-Rehearse the whole ceremony on the isolated testnet
-(`scripts/testnet-smt-4node.sh`) before touching mainnet.
+For a future rotation, repeat the same procedure with new ids/keys; the
+per-step runbook remains:
+
+For each validator `i`:
+1. Bring up a new node instance for `i` using a fresh seed (data dir copied from
+   a running peer so it starts at the current height).
+2. `validatoradd <new_pubkey> <A_i>` with `A_i` ≈ current + 40.
+3. Wait until `A_i`; confirm the new id signs blocks.
+4. `validatordeactivate <old_id> <current>` then `validatorremove <old_id> <current>`.
+5. Stop the old instance; confirm quorum and identical roots before the next `i`.
+
+Prerequisites: a node with `AUGECOIN_ADMIN_KEY_HEX` (offline admin key) and
+`AUGECOIN_ADMIN_API_KEYS` (admin panel key) configured, called with the
+`x-api-key` header.
 
 ### 3. Ops / gateway / node shared secrets
 
