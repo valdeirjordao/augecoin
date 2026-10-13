@@ -12,6 +12,7 @@ use augecoin_crypto::address::{derive_address, AddressHash};
 use augecoin_storage::{CF_CONTRACT_BALANCES, CF_CONTRACT_METADATA};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[cfg(test)]
 use super::auth;
@@ -1092,6 +1093,11 @@ mod contract_tests {
             faucet_claims: std::sync::Mutex::new(std::collections::HashMap::new()),
             admin_keypair: Some(admin_kp),
             op_broadcaster: None,
+            read_cache: Arc::new(crate::endpoints::ReadCache::new(
+                4096,
+                2048,
+                std::time::Duration::from_secs(5),
+            )),
         }
     }
 

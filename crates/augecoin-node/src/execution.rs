@@ -78,18 +78,29 @@ pub fn verify_block_quorum(
         return Err(ExecutionError::InvalidLeaderSignature);
     }
 
-    // Verify quorum signatures
+    // Verify quorum signatures.
+    //
+    // A quorum signature does not carry its signer id, so the block must be
+    // matched against the active validator keys. The previous nested loop
+    // re-parsed `VerifyingKey::from_bytes` for every (signature, validator)
+    // pair; parsing each key once up front keeps the same accept/reject
+    // semantics while removing the repeated deserialization.
     let threshold = quorum_threshold(active_vals.len() as u64) as usize;
     let mut valid_validators = HashSet::new();
 
+    let validator_keys: Vec<(u64, ed25519_dalek::VerifyingKey)> = active_vals
+        .iter()
+        .filter_map(|v| {
+            ed25519_dalek::VerifyingKey::from_bytes(&v.ed25519_public_key)
+                .ok()
+                .map(|pk| (v.id, pk))
+        })
+        .collect();
+
     for sig in &block.quorum_signatures {
-        for vi in &active_vals {
-            let pk = match ed25519_dalek::VerifyingKey::from_bytes(&vi.ed25519_public_key) {
-                Ok(k) => k,
-                Err(_) => continue,
-            };
-            if sig.verify(&pk, &block_hash) {
-                valid_validators.insert(vi.id);
+        for (id, pk) in &validator_keys {
+            if sig.verify(pk, &block_hash) {
+                valid_validators.insert(*id);
                 break;
             }
         }
@@ -120,8 +131,21 @@ pub fn verify_block_pre_state(
     block: &OperationBlock,
     storage: &Storage,
 ) -> Result<(), ExecutionError> {
+    // Reject a block whose declared protocol version disagrees with the version
+    // this node has activated at that height. This stops nodes on different
+    // state-root rules from silently accepting each other's blocks.
+    let expected_version = storage.active_protocol_version(block.header.block_number);
+    if block.header.protocol_version != expected_version {
+        return Err(ExecutionError::OperationFailed {
+            sender: block.header.leader_id,
+            reason: format!(
+                "block protocol_version {} is incompatible with active version {} at height {}",
+                block.header.protocol_version, expected_version, block.header.block_number
+            ),
+        });
+    }
     let local = storage
-        .consensus_state_root()
+        .active_consensus_state_root(block.header.block_number)
         .map_err(|e| ExecutionError::Storage(e.to_string()))?;
     if block.header.initial_safe_box_hash != local {
         return Err(ExecutionError::OperationFailed {
@@ -196,17 +220,41 @@ fn execute_block_inner(
     let load_account = |number: u64,
                         modified: &mut HashMap<u64, Account>,
                         original: &mut HashMap<u64, Account>,
-                        storage: &Storage|
+                        storage: &Storage,
+                        account_cache: &HashMap<u64, Account>|
      -> Result<Account, ExecutionError> {
         if let Some(acc) = modified.get(&number) {
             return Ok(acc.clone());
         }
-        let acc = storage
-            .get_account(number)
-            .map_err(|e| ExecutionError::Storage(e.to_string()))?
-            .unwrap_or_else(|| Account::new(number, [0u8; 32], block_number));
+        let acc = match account_cache.get(&number) {
+            Some(acc) => acc.clone(),
+            None => storage
+                .get_account(number)
+                .map_err(|e| ExecutionError::Storage(e.to_string()))?
+                .unwrap_or_else(|| Account::new(number, [0u8; 32], block_number)),
+        };
         original.entry(number).or_insert_with(|| acc.clone());
         Ok(acc)
+    };
+
+    // ---- Phase 0: prefetch accounts referenced by signature verification ----
+    // Phase 1 (signature verification) and Phase 2 (execution) both resolve the
+    // same sender accounts through `Storage::get_account`, which reads and
+    // deserializes from RocksDB every time. Prefetching once and sharing the
+    // parsed accounts removes one full read+parse pass per block without
+    // changing any validation rule: a miss simply falls back to storage.
+    let account_cache: HashMap<u64, Account> = {
+        let mut needed: HashSet<u64> = HashSet::new();
+        for op in &block.operations {
+            needed.extend(op_signature_accounts(op));
+        }
+        needed
+            .into_iter()
+            .filter_map(|num| match storage.get_account(num) {
+                Ok(Some(acc)) => Some((num, acc)),
+                _ => None,
+            })
+            .collect()
     };
 
     // ---- Phase 1: Parallel signature verification ----
@@ -215,7 +263,8 @@ fn execute_block_inner(
         .par_iter()
         .enumerate()
         .map(|(idx, op)| {
-            verify_operation_signatures(op, storage, block_number).map_err(|e| (idx, e))
+            verify_operation_signatures(op, &account_cache, storage, block_number)
+                .map_err(|e| (idx, e))
         })
         .collect();
 
@@ -231,14 +280,22 @@ fn execute_block_inner(
     // ---- Phase 2: Sequential execution ----
     let total_fee_ref = &mut 0u64;
 
+    // Accounts already present in `modified` before the current operation.
+    // An account is sealed exactly when the operation that *first* touches it
+    // commits, so we only need the set of accounts touched so far. `modified`
+    // never shrinks, making this set equivalent to the per-op key snapshot the
+    // previous implementation recomputed on every iteration (that snapshot was
+    // O(n) per operation and the `contains` probe another O(n), i.e. O(n^2)).
+    let mut touched: HashSet<u64> = HashSet::with_capacity(1024);
+
     for op in &block.operations {
-        let keys_before: Vec<u64> = modified.keys().copied().collect();
         let op_fee = execute_operation(
             op,
             block_number,
             &mut modified,
             &mut original,
             storage,
+            &account_cache,
             &existing_name_index,
             &mut name_pending,
             &mut pending_validator_set,
@@ -252,9 +309,10 @@ fn execute_block_inner(
         let new_keys: Vec<u64> = modified
             .keys()
             .copied()
-            .filter(|k| !keys_before.contains(k))
+            .filter(|k| !touched.contains(k))
             .collect();
         for num in new_keys {
+            touched.insert(num);
             if let Some(acc) = modified.get_mut(&num) {
                 acc.account_seal = Account::compute_account_seal(&acc.account_seal, &op_hash);
             }
@@ -285,7 +343,8 @@ fn execute_block_inner(
     }
 
     // 100% of block reward + 100% of fees go to the validator/leader
-    let mut leader_account = load_account(leader_id, &mut modified, &mut original, storage)?;
+    let mut leader_account =
+        load_account(leader_id, &mut modified, &mut original, storage, &account_cache)?;
     // Auto-created leader accounts start with a zero key; bind them to the
     // leader's consensus key (declared in the block header) so validators
     // actually control their rewards.
@@ -381,12 +440,58 @@ fn execute_block_inner(
     // The persistence transaction is durable, so this includes the account,
     // validator and contract effects of exactly this block.
     storage
-        .consensus_state_root()
+        .active_consensus_state_root(block_number)
         .map_err(|e| ExecutionError::Storage(e.to_string()))
+}
+
+/// Account numbers whose keys are consulted by `verify_operation_signatures`.
+fn op_signature_accounts(op: &Operation) -> Vec<u64> {
+    match &op.payload {
+        OperationPayload::Transaction { senders, .. }
+        | OperationPayload::AddressTransaction { senders, .. }
+        | OperationPayload::MultiOperation { senders, .. } => {
+            senders.iter().map(|s| s.account).collect()
+        }
+        OperationPayload::Data { account, senders, .. } => {
+            let mut v = Vec::with_capacity(1 + senders.len());
+            v.push(*account);
+            v.extend(senders.iter().map(|s| s.account));
+            v
+        }
+        OperationPayload::ChangeKey { account, .. }
+        | OperationPayload::ChangeKeySigned { account, .. }
+        | OperationPayload::ChangeAccountInfo { account, .. }
+        | OperationPayload::ListAccountForSale { account, .. }
+        | OperationPayload::DelistAccount { account, .. }
+        | OperationPayload::RecoverFounds { account }
+        | OperationPayload::GiftAccount { account, .. }
+        | OperationPayload::Contract { account, .. }
+        | OperationPayload::AcceptGift { account, .. } => vec![*account],
+        OperationPayload::BuyAccount { buyer_account, .. } => vec![*buyer_account],
+        OperationPayload::ValidatorAdmin(_) | OperationPayload::CreateAccount { .. } => Vec::new(),
+    }
+}
+
+/// Resolve a signature-check account from the pre-fetched block cache, falling
+/// back to storage. The fallback keeps the function correct for any account the
+/// prefetch did not cover.
+fn lookup_signer_account(
+    account: u64,
+    cache: &HashMap<u64, Account>,
+    storage: &Storage,
+) -> Result<Account, String> {
+    if let Some(acc) = cache.get(&account) {
+        return Ok(acc.clone());
+    }
+    storage
+        .get_account(account)
+        .map_err(|e| format!("storage error: {e}"))?
+        .ok_or_else(|| format!("sender {account} not found"))
 }
 
 fn verify_operation_signatures(
     op: &Operation,
+    cache: &HashMap<u64, Account>,
     storage: &Storage,
     _block_number: u64,
 ) -> Result<(), String> {
@@ -400,10 +505,7 @@ fn verify_operation_signatures(
                 return Err("not enough signatures for senders".into());
             }
             for (i, sender) in senders.iter().enumerate() {
-                let acc = storage
-                    .get_account(sender.account)
-                    .map_err(|e| format!("storage error: {e}"))?
-                    .ok_or_else(|| format!("sender {} not found", sender.account))?;
+                let acc = lookup_signer_account(sender.account, cache, storage)?;
 
                 let pk = ed25519_dalek::VerifyingKey::from_bytes(
                     &acc.account_info.account_key.ed25519_public_key,
@@ -418,10 +520,7 @@ fn verify_operation_signatures(
         OperationPayload::Data {
             account, senders, ..
         } => {
-            let signer_acc = storage
-                .get_account(*account)
-                .map_err(|e| format!("storage error: {e}"))?
-                .ok_or_else(|| format!("account {} not found", account))?;
+            let signer_acc = lookup_signer_account(*account, cache, storage)?;
 
             let pk = ed25519_dalek::VerifyingKey::from_bytes(
                 &signer_acc.account_info.account_key.ed25519_public_key,
@@ -433,10 +532,7 @@ fn verify_operation_signatures(
             }
 
             for (i, sender) in senders.iter().enumerate() {
-                let sender_acc = storage
-                    .get_account(sender.account)
-                    .map_err(|e| format!("storage error: {e}"))?
-                    .ok_or_else(|| format!("sender {} not found", sender.account))?;
+                let sender_acc = lookup_signer_account(sender.account, cache, storage)?;
 
                 let spk = ed25519_dalek::VerifyingKey::from_bytes(
                     &sender_acc.account_info.account_key.ed25519_public_key,
@@ -456,10 +552,7 @@ fn verify_operation_signatures(
         | OperationPayload::RecoverFounds { account }
         | OperationPayload::GiftAccount { account, .. }
         | OperationPayload::Contract { account, .. } => {
-            let acc = storage
-                .get_account(*account)
-                .map_err(|e| format!("storage error: {e}"))?
-                .ok_or_else(|| format!("account {} not found", account))?;
+            let acc = lookup_signer_account(*account, cache, storage)?;
 
             let pk = ed25519_dalek::VerifyingKey::from_bytes(
                 &acc.account_info.account_key.ed25519_public_key,
@@ -471,10 +564,7 @@ fn verify_operation_signatures(
             }
         }
         OperationPayload::AcceptGift { account, .. } => {
-            let acc = storage
-                .get_account(*account)
-                .map_err(|e| format!("storage error: {e}"))?
-                .ok_or_else(|| format!("account {} not found", account))?;
+            let acc = lookup_signer_account(*account, cache, storage)?;
 
             // The acceptor signs with the *recipient* key stored in the gift.
             let recipient_key = acc
@@ -491,10 +581,7 @@ fn verify_operation_signatures(
             }
         }
         OperationPayload::BuyAccount { buyer_account, .. } => {
-            let acc = storage
-                .get_account(*buyer_account)
-                .map_err(|e| format!("storage error: {e}"))?
-                .ok_or_else(|| format!("buyer {} not found", buyer_account))?;
+            let acc = lookup_signer_account(*buyer_account, cache, storage)?;
 
             let pk = ed25519_dalek::VerifyingKey::from_bytes(
                 &acc.account_info.account_key.ed25519_public_key,
@@ -602,6 +689,7 @@ fn execute_operation(
     modified: &mut HashMap<u64, Account>,
     original: &mut HashMap<u64, Account>,
     storage: &Storage,
+    account_cache: &HashMap<u64, Account>,
     existing_name_index: &BTreeMap<String, u64>,
     name_pending: &mut HashMap<String, u64>,
     pending_validator_set: &mut Option<augecoin_consensus::validator::ValidatorSet>,
@@ -616,10 +704,16 @@ fn execute_operation(
         if let Some(acc) = modified.get(&number) {
             return Ok(acc.clone());
         }
-        let acc = storage
-            .get_account(number)
-            .map_err(|e| ExecutionError::Storage(e.to_string()))?
-            .unwrap_or_else(|| Account::new(number, [0u8; 32], block_number));
+        // Reuse the pre-block account prefetch when available: nothing has been
+        // written to storage yet at this point, so the cached value is exactly
+        // what `Storage::get_account` would return.
+        let acc = match account_cache.get(&number) {
+            Some(acc) => acc.clone(),
+            None => storage
+                .get_account(number)
+                .map_err(|e| ExecutionError::Storage(e.to_string()))?
+                .unwrap_or_else(|| Account::new(number, [0u8; 32], block_number)),
+        };
         original.entry(number).or_insert_with(|| acc.clone());
         Ok(acc)
     };
@@ -777,12 +871,18 @@ fn execute_operation(
             }
 
             for receiver in receivers {
+                // Quarantine attribution: receiver-side failures must blame a
+                // real sender account so `evict_all_for_sender` actually
+                // removes the poison operation. A hardcoded `sender: 0`
+                // evicts nothing and the leader spins refusing the same
+                // proposal forever (chain stall).
+                let quarantine_sender = senders.first().map(|s| s.account).unwrap_or(0);
                 if let Some(public_key) = receiver.address.public_key {
                     let derived =
                         augecoin_crypto::address::AddressHash::from_public_key(public_key);
                     if derived != receiver.address {
                         return Err(ExecutionError::OperationFailed {
-                            sender: 0,
+                            sender: quarantine_sender,
                             reason: "address does not match public key".into(),
                         });
                     }
@@ -809,34 +909,10 @@ fn execute_operation(
                 let number = match number {
                     Some(number) => number,
                     None => {
-                        let public_key = receiver.address.public_key.ok_or_else(|| {
-                            ExecutionError::OperationFailed {
-                                sender: 0,
-                                reason: "legacy hash-only address cannot activate a new account; use a self-describing address".into(),
-                            }
-                        })?;
-                        // Reserved inventory is resident in the SafeBox; no account scan through storage.
-                        let sb = storage
-                            .safebox()
-                            .map_err(|e| ExecutionError::Storage(e.to_string()))?;
-                        let reserved = sb
-                            .accounts
-                            .values()
-                            .find(|a| a.account_info.state == AccountState::Reserved)
-                            .map(|a| a.account_number)
-                            .ok_or_else(|| ExecutionError::OperationFailed {
-                                sender: 0,
-                                reason: "no Reserved AUGEID available".into(),
-                            })?;
-                        let mut account = load_account(reserved, modified, original, storage)?;
-                        account.account_info.state = AccountState::Owned;
-                        account.account_info.account_key = AccountKey {
-                            ed25519_public_key: public_key,
-                        };
-                        account.updated_on_block_active_mode = block_number;
-                        account.n_operation = 0;
-                        modified.insert(reserved, account);
-                        reserved
+                        return Err(ExecutionError::OperationFailed {
+                            sender: quarantine_sender,
+                            reason: "address has no AUGEID: recipient must already own an AUGEID (obtain via block validation, gift or purchase)".into(),
+                        });
                     }
                 };
                 let mut account = load_account(number, modified, original, storage)?;

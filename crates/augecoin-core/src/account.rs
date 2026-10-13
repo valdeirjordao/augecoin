@@ -311,18 +311,28 @@ impl Account {
         self.account_info.locked_until_block >= current_block
     }
 
+    /// Append this account's canonical serialization to `buf`.
+    ///
+    /// `to_bytes` is the allocating wrapper; hot paths that hash many accounts
+    /// (e.g. the SafeBox Merkle root) can reuse one buffer across calls instead
+    /// of allocating a fresh `Vec` per account. The bytes produced are exactly
+    /// those of `to_bytes`.
+    pub fn write_bytes_into(&self, buf: &mut Vec<u8>) {
+        write_u64(buf, self.account_number);
+        buf.extend_from_slice(&self.account_info.to_bytes());
+        write_u64(buf, self.balance);
+        write_u64(buf, self.updated_on_block_passive_mode);
+        write_u64(buf, self.updated_on_block_active_mode);
+        write_u64(buf, self.n_operation);
+        write_optional_str(buf, &self.name);
+        write_u16(buf, self.account_type);
+        write_prefixed_bytes(buf, &self.account_data);
+        write_prefixed_bytes(buf, &self.account_seal);
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
-        write_u64(&mut buf, self.account_number);
-        buf.extend_from_slice(&self.account_info.to_bytes());
-        write_u64(&mut buf, self.balance);
-        write_u64(&mut buf, self.updated_on_block_passive_mode);
-        write_u64(&mut buf, self.updated_on_block_active_mode);
-        write_u64(&mut buf, self.n_operation);
-        write_optional_str(&mut buf, &self.name);
-        write_u16(&mut buf, self.account_type);
-        write_prefixed_bytes(&mut buf, &self.account_data);
-        write_prefixed_bytes(&mut buf, &self.account_seal);
+        self.write_bytes_into(&mut buf);
         buf
     }
 

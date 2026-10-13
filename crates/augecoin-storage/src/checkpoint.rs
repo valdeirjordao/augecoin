@@ -165,6 +165,10 @@ impl Storage {
             .write(batch)
             .map_err(|e| crate::StorageError::Database(e.to_string()))?;
 
+        // The replacement changed accounts/height, so the cached consensus root
+        // is stale.
+        self.invalidate_consensus_root();
+
         // All resident indices derive from accounts; discard them only after
         // the replacement transaction is durable.
         let mut cache = self
@@ -177,6 +181,7 @@ impl Storage {
         cache.sale_index.clear();
         cache.gift_index.clear();
         cache.dirty.clear();
+        cache.hash_dirty = false;
         cache.blocks_since_snapshot = 0;
         Ok(())
     }
@@ -299,6 +304,38 @@ mod checkpoint_tests {
     #[test]
     fn restore_nonexistent_checkpoint_fails() {
         assert!(AccountSnapshot::from_bytes(&[99u8; 10]).is_err());
+    }
+
+    #[test]
+    fn restore_invalidates_consensus_root_cache() {
+        let path = temp_path();
+        let storage = Storage::open(&path).unwrap();
+        for i in 0..5 {
+            storage.put_account(&make_account(i, i * 50)).unwrap();
+        }
+        let checkpoint = storage.create_checkpoint(10);
+
+        // Mutate so the cached root would be stale if it were not invalidated.
+        for i in 0..5 {
+            storage.put_account(&make_account(i, 999)).unwrap();
+        }
+        let root_after_mutation = storage.consensus_state_root().unwrap();
+        let computes_before_restore = storage.consensus_root_compute_count();
+
+        storage.restore_from_checkpoint(&checkpoint).unwrap();
+
+        // Restore wrote accounts + height, so it must force a rescan and never
+        // return the pre-restore cached value.
+        let root_restored = storage.consensus_state_root().unwrap();
+        assert!(
+            storage.consensus_root_compute_count() > computes_before_restore,
+            "restore must invalidate the cached consensus root"
+        );
+        assert_ne!(
+            root_restored, root_after_mutation,
+            "restore must not reuse the pre-restore root"
+        );
+        std::fs::remove_dir_all(&path).ok();
     }
 
     #[test]

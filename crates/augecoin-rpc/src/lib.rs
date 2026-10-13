@@ -13,6 +13,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Error)]
 pub enum RpcError {
@@ -87,12 +88,15 @@ async fn jsonrpc_handler(
     headers: axum::http::HeaderMap,
     Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
+    info!(method = %req.method, remote = %remote.ip(), "rpc request");
+
     let api_key = headers.get("x-api-key").and_then(|v| v.to_str().ok());
     let auth_level = auth::check_auth(api_key, &state.api_keys);
     let authenticated_key = api_key.filter(|key| state.api_keys.is_valid(key));
     let client_id = client_identifier(authenticated_key, Some(remote));
 
     if !state.rate_limiter.check(&client_id) {
+        warn!(method = %req.method, client = %client_id, "rate limited");
         return Json(JsonRpcResponse {
             jsonrpc: "2.0".into(),
             result: None,
@@ -107,6 +111,7 @@ async fn jsonrpc_handler(
     if SENSITIVE_METHODS.contains(&req.method.as_str())
         && !state.sensitive_rate_limiter.check(&client_id)
     {
+        warn!(method = %req.method, client = %client_id, "sensitive rate limited");
         return Json(JsonRpcResponse {
             jsonrpc: "2.0".into(),
             result: None,
@@ -119,6 +124,7 @@ async fn jsonrpc_handler(
     }
 
     if auth::is_admin_method(&req.method) && auth_level != auth::AuthLevel::Admin {
+        warn!(method = %req.method, client = %client_id, "auth rejected");
         return Json(JsonRpcResponse {
             jsonrpc: "2.0".into(),
             result: None,
@@ -139,15 +145,18 @@ async fn jsonrpc_handler(
             error: None,
             id: req.id,
         }),
-        Err(msg) => Json(JsonRpcResponse {
-            jsonrpc: "2.0".into(),
-            result: None,
-            error: Some(JsonRpcError {
-                code: -32000,
-                message: msg,
-            }),
-            id: req.id,
-        }),
+        Err(msg) => {
+            error!(method = %req.method, error = %msg, "rpc handler error");
+            Json(JsonRpcResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(JsonRpcError {
+                    code: -32000,
+                    message: msg,
+                }),
+                id: req.id,
+            })
+        }
     }
 }
 
@@ -647,6 +656,11 @@ mod rpc_tests {
             faucet_claims: std::sync::Mutex::new(std::collections::HashMap::new()),
             admin_keypair: None,
             op_broadcaster: None,
+            read_cache: Arc::new(endpoints::ReadCache::new(
+                4096,
+                2048,
+                std::time::Duration::from_secs(5),
+            )),
         })
     }
 

@@ -36,8 +36,21 @@ __pycache__/
 
 # Env
 .env
+*.env
+!*.env.example
 infra/genesis1/*.env
 infra/genesis1/tls/
+
+# Chaves e segredos de validadores (nunca versionar)
+config/validator-keys/
+config/validator-keys-new/
+**/*-key-key.txt
+*.key
+*.pem
+**/secrets/
+regenesis-backup-*/
+/backups/
+*.dump
 
 # Banco de dados runtime
 *.sqlite
@@ -54,3 +67,6 @@ infra/genesis1/tls/
 !/vendor/libp2p-0.56.0/**
 !/vendor/libp2p-yamux-0.47.0/
 !/vendor/libp2p-yamux-0.47.0/**
+
+# Genesis1 runtime DB (may contain validator state)
+infra/genesis1/data/

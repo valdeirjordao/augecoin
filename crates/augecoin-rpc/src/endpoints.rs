@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU64};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
 use crate::auth::{ApiKeyStore, RateLimiter};
 
@@ -93,6 +95,104 @@ pub struct AppState {
     /// network so every validator's mempool converges (otherwise only the
     /// node that received the RPC call would ever see the operation).
     pub op_broadcaster: Option<crossbeam_channel::Sender<Vec<u8>>>,
+    /// L1 read cache for hot endpoints (getaccount, getblock, nodestatus).
+    pub read_cache: Arc<ReadCache>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedEntry<T> {
+    value: T,
+    cached_at: Instant,
+}
+
+impl<T> CachedEntry<T> {
+    fn new(value: T) -> Self {
+        Self { value, cached_at: Instant::now() }
+    }
+}
+
+#[derive(Debug)]
+struct ReadCacheInner {
+    accounts: LruCache<u64, CachedEntry<AccountInfoResponse>>,
+    blocks: LruCache<u64, CachedEntry<BlockHeaderInfo>>,
+    node_status: LruCache<(), CachedEntry<NodeStatusResponse>>,
+}
+
+#[derive(Debug)]
+pub struct ReadCache {
+    inner: std::sync::Mutex<ReadCacheInner>,
+    ttl: Duration,
+}
+
+impl ReadCache {
+    pub fn new(account_capacity: usize, block_capacity: usize, ttl: Duration) -> Self {
+        ReadCache {
+            inner: std::sync::Mutex::new(ReadCacheInner {
+                accounts: LruCache::new(NonZeroUsize::new(account_capacity).unwrap_or(NonZeroUsize::MIN)),
+                blocks: LruCache::new(NonZeroUsize::new(block_capacity).unwrap_or(NonZeroUsize::MIN)),
+                node_status: LruCache::new(NonZeroUsize::MIN),
+            }),
+            ttl,
+        }
+    }
+
+    fn with_inner<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut ReadCacheInner) -> R,
+    {
+        let mut inner = self.inner.lock().unwrap();
+        f(&mut inner)
+    }
+
+    pub fn get_account(&self, number: u64) -> Option<AccountInfoResponse> {
+        self.with_inner(|inner| {
+            inner.accounts.get_mut(&number)
+                .filter(|e| e.cached_at.elapsed() < self.ttl)
+                .map(|e| e.value.clone())
+        })
+    }
+
+    pub fn put_account(&self, number: u64, value: AccountInfoResponse) {
+        self.with_inner(|inner| { inner.accounts.put(number, CachedEntry::new(value)); });
+    }
+
+    pub fn get_block(&self, number: u64) -> Option<BlockHeaderInfo> {
+        self.with_inner(|inner| {
+            inner.blocks.get_mut(&number)
+                .filter(|e| e.cached_at.elapsed() < self.ttl)
+                .map(|e| e.value.clone())
+        })
+    }
+
+    pub fn put_block(&self, number: u64, value: BlockHeaderInfo) {
+        self.with_inner(|inner| { inner.blocks.put(number, CachedEntry::new(value)); });
+    }
+
+    pub fn get_node_status(&self) -> Option<NodeStatusResponse> {
+        self.with_inner(|inner| {
+            inner.node_status.get_mut(&())
+                .filter(|e| e.cached_at.elapsed() < self.ttl)
+                .map(|e| e.value.clone())
+        })
+    }
+
+    pub fn put_node_status(&self, value: NodeStatusResponse) {
+        self.with_inner(|inner| { inner.node_status.put((), CachedEntry::new(value)); });
+    }
+
+    pub fn invalidate_all(&self) {
+        self.with_inner(|inner| {
+            inner.accounts.clear();
+            inner.blocks.clear();
+            inner.node_status.clear();
+        });
+    }
+}
+
+impl Default for ReadCache {
+    fn default() -> Self {
+        ReadCache::new(4096, 2048, Duration::from_secs(5))
+    }
 }
 
 impl AppState {
@@ -146,6 +246,7 @@ pub struct FaucetResult {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 fn default_max() -> u64 {
     100
 }
@@ -160,7 +261,7 @@ pub struct GetAccountParams {
     pub address: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct AccountInfoResponse {
     pub account_number: u64,
     pub balance: u64,
@@ -186,7 +287,7 @@ pub struct GetBlockParams {
     pub block_number: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BlockHeaderInfo {
     pub block_number: u64,
     pub account_key_hex: String,
@@ -367,10 +468,19 @@ pub struct FindAccountsParams {
     pub min_balance: Option<u64>,
     #[serde(default)]
     pub max_balance: Option<u64>,
+    /// Cursor returned by a previous page (account_number of last item).
+    /// When `None`, pagination starts from the beginning.
     #[serde(default)]
-    pub start: u64,
-    #[serde(default = "default_max")]
-    pub max: u64,
+    pub cursor: Option<u64>,
+    /// Hardcoded maximum page size. Ignored if client sends larger; capped at 100.
+    #[serde(default = "default_page_size")]
+    pub page_size: u64,
+}
+
+const MAX_FIND_ACCOUNTS_PAGE: u64 = 100;
+
+fn default_page_size() -> u64 {
+    MAX_FIND_ACCOUNTS_PAGE
 }
 
 #[derive(Debug, Deserialize)]
@@ -379,15 +489,17 @@ pub struct ListAccountsByKeyParams {
     pub ed25519_public_key_hex: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct FindAccountsResponse {
     pub accounts: Vec<AccountInfoResponse>,
     pub total: u64,
+    /// Account number to use as `cursor` for the next page. `None` = last page.
+    pub next_cursor: Option<u64>,
 }
 
 // ── nodestatus ───────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct NodeStatusResponse {
     pub current_height: u64,
     pub latest_block_hash_hex: String,
@@ -463,6 +575,13 @@ pub fn handle_get_account(
     params: GetAccountParams,
     state: &AppState,
 ) -> Result<AccountInfoResponse, String> {
+    // L1 cache: try account_number lookup first
+    if let Some(number) = params.account_number {
+        if let Some(cached) = state.read_cache.get_account(number) {
+            return Ok(cached);
+        }
+    }
+
     let acc = match (params.account_number, params.address.as_deref()) {
         (Some(number), _) => state
             .storage
@@ -486,7 +605,14 @@ pub fn handle_get_account(
         (None, None) => return Err("account_number or address is required".into()),
     };
 
-    Ok(account_to_response(&acc))
+    let response = account_to_response(&acc);
+
+    // Populate cache on cache miss
+    if let Some(number) = params.account_number {
+        state.read_cache.put_account(number, response.clone());
+    }
+
+    Ok(response)
 }
 
 pub fn handle_create_account(
@@ -1072,7 +1198,12 @@ pub fn handle_find_accounts(
         .iter_accounts()
         .map_err(|e| format!("storage error: {e}"))?;
 
-    let filtered: Vec<AccountInfoResponse> = accounts
+    let page_size = params.page_size.min(MAX_FIND_ACCOUNTS_PAGE) as usize;
+    let cursor = params.cursor.unwrap_or(0);
+
+    // Filter then paginate on raw Account fields to avoid materializing
+    // the full filtered Vec.
+    let mut collected: Vec<AccountInfoResponse> = accounts
         .iter()
         .filter(|acc| {
             if let Some(ref name) = params.name {
@@ -1101,17 +1232,26 @@ pub fn handle_find_accounts(
             }
             true
         })
+        .skip_while(|acc| acc.account_number < cursor)
+        .take(page_size)
         .map(account_to_response)
         .collect();
 
-    let total = filtered.len() as u64;
-    let start = params.start as usize;
-    let max = params.max.min(1000) as usize;
-    let page: Vec<AccountInfoResponse> = filtered.into_iter().skip(start).take(max).collect();
+    let next_cursor = if collected.len() == page_size {
+        collected.last().map(|r| r.account_number + 1)
+    } else {
+        None
+    };
+
+    let total = state
+        .storage
+        .max_account_number()
+        .unwrap_or(0);
 
     Ok(FindAccountsResponse {
-        accounts: page,
+        accounts: collected,
         total,
+        next_cursor,
     })
 }
 
@@ -1143,6 +1283,7 @@ pub fn handle_list_accounts_by_key(
     Ok(FindAccountsResponse {
         accounts: filtered,
         total,
+        next_cursor: None,
     })
 }
 
@@ -2331,7 +2472,7 @@ mod endpoint_tests {
             storage: Arc::new(storage),
             mempool: Arc::new(std::sync::Mutex::new(mempool)),
             node_status,
-            api_keys: crate::auth::ApiKeyStore::empty(),
+            api_keys: crate::auth::ApiKeyStore::new(Vec::new()),
             rate_limiter: crate::auth::RateLimiter::new(1000, std::time::Duration::from_secs(60)),
             sensitive_rate_limiter: crate::auth::RateLimiter::new(
                 50,
@@ -2344,6 +2485,11 @@ mod endpoint_tests {
             faucet_claims: std::sync::Mutex::new(HashMap::new()),
             admin_keypair: Some(admin_kp),
             op_broadcaster: None,
+            read_cache: Arc::new(ReadCache::new(
+                4096,
+                2048,
+                std::time::Duration::from_secs(5),
+            )),
         }
     }
 
@@ -2677,8 +2823,8 @@ mod endpoint_tests {
                 account_type: None,
                 min_balance: None,
                 max_balance: None,
-                start: 0,
-                max: 100,
+                cursor: None,
+                page_size: 100,
             },
             &state,
         );
@@ -2711,8 +2857,8 @@ mod endpoint_tests {
                 account_type: None,
                 min_balance: Some(1000),
                 max_balance: None,
-                start: 0,
-                max: 100,
+                cursor: None,
+                page_size: 100,
             },
             &state,
         );

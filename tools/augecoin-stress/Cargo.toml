@@ -1,0 +1,23 @@
+[package]
+name = "augecoin-stress"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "augecoin-stress"
+path = "src/main.rs"
+
+[dependencies]
+augecoin-core = { path = "../../crates/augecoin-core" }
+augecoin-crypto = { path = "../../crates/augecoin-crypto" }
+augecoin-contracts = { path = "../../crates/augecoin-contracts" }
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+hdrhistogram = "7"
+
+[dev-dependencies]

@@ -9,6 +9,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use tracing::{error, warn};
 use crate::AppState;
 use crate::rate_limit::RateLimiter;
 use crate::models::ApiKeyRow;
@@ -24,18 +25,30 @@ pub async fn authenticate_api_key(
         .headers()
         .get("x-api-key")
         .and_then(|v| v.to_str().ok())
-        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+        .ok_or_else(|| {
+            warn!("authenticate_api_key: missing x-api-key header");
+            axum::http::StatusCode::UNAUTHORIZED
+        })?;
 
-    let row: Option<ApiKeyRow> = sqlx::query_as(
+    let row: Option<ApiKeyRow> = match sqlx::query_as(
         r#"SELECT id, developer_id, key_prefix, key_hash, tier, label, scopes, revoked, last_used_at, created_at
            FROM api_keys WHERE key_hash = encode(sha256($1::bytea), 'hex') AND revoked = false"#,
     )
     .bind(api_key)
     .fetch_optional(state.db.as_ref())
     .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("authenticate_api_key: DB error: {:?}", e);
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
 
-    let row = row.ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+    let row = row.ok_or_else(|| {
+        warn!("authenticate_api_key: invalid API key");
+        axum::http::StatusCode::UNAUTHORIZED
+    })?;
 
     let db_clone = state.db.clone();
     let key_id = row.id;
@@ -50,7 +63,7 @@ pub async fn authenticate_api_key(
         developer_id: row.developer_id,
         api_key_id: Some(row.id),
         tier: row.tier,
-        scopes: row.scopes.unwrap_or_default(),
+        scopes: row.scopes.0.clone(),
     };
 
     req.extensions_mut().insert(claims);

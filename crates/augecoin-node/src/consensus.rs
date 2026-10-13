@@ -1,7 +1,7 @@
 use augecoin_consensus::quorum::quorum_threshold;
 use augecoin_consensus::validator::{ValidatorInfo, ValidatorSet};
 use augecoin_core::block::{OperationBlock, OperationBlockHeader};
-use augecoin_core::constants::{CT_BUILD_PROTOCOL, CT_MAX_PROTOCOL};
+use augecoin_core::constants::CT_MAX_PROTOCOL;
 use augecoin_core::emission::block_reward;
 use augecoin_core::mempool::Mempool;
 use augecoin_core::operation::Operation;
@@ -24,6 +24,19 @@ const BLOCK_HASH_LEN: usize = 64;
 // A quorum can never need more signatures than this within the 2 MiB consensus
 // envelope. Keep the bound independent from attacker-controlled packet length.
 const MAX_QUORUM_SIGNATURES: usize = 32_768;
+
+// ── Production-grade batch sync constants ─────────────────────────────
+/// Maximum number of blocks in a single batch sync request/response.
+pub const BATCH_SYNC_MAX_BLOCKS: u64 = 32;
+/// Target bytes per batch response (~1 MiB to stay comfortably under the 2 MiB
+/// consensus envelope and avoid triggering TCP fragmentation).
+pub const BATCH_SYNC_TARGET_BYTES: usize = 1024 * 1024;
+/// Initial retry delay in milliseconds for failed block applications.
+pub const SYNC_RETRY_INITIAL_DELAY_MS: u64 = 500;
+/// Maximum retry delay (caps exponential backoff).
+pub const SYNC_RETRY_MAX_DELAY_MS: u64 = 30_000;
+/// Multiplier for exponential backoff on consecutive failures.
+pub const SYNC_RETRY_BACKOFF_FACTOR: u64 = 2;
 
 #[derive(Debug, Clone)]
 pub enum ConsensusEvent {
@@ -67,6 +80,19 @@ pub enum ConsensusEvent {
         height: u64,
         block_bytes: Vec<u8>,
         quorum_sigs: Vec<HybridSignature>,
+        from_id: u64,
+    },
+    // Batch sync: request a range of consecutive blocks.
+    BlockRangeRequest {
+        start_height: u64,
+        count: u64,
+        requester_id: u64,
+    },
+    // Batch sync: response with a batch of consecutive blocks.
+    BlockRangeResponse {
+        start_height: u64,
+        blocks: Vec<Vec<u8>>,
+        quorum_sigs: Vec<Vec<HybridSignature>>,
         from_id: u64,
     },
     RoundChange {
@@ -292,6 +318,49 @@ pub fn serialize_consensus_msg(msg: &ConsensusEvent) -> Vec<u8> {
             buf.extend_from_slice(&payload);
             buf
         }
+        ConsensusEvent::BlockRangeRequest {
+            start_height,
+            count,
+            requester_id,
+        } => {
+            let mut payload = Vec::new();
+            write_u64_be(&mut payload, *start_height);
+            write_u64_be(&mut payload, *count);
+            write_u64_be(&mut payload, *requester_id);
+            let mut buf = vec![11u8];
+            write_u32_be(&mut buf, payload.len() as u32);
+            buf.extend_from_slice(&payload);
+            buf
+        }
+        ConsensusEvent::BlockRangeResponse {
+            start_height,
+            blocks,
+            quorum_sigs,
+            from_id,
+        } => {
+            let mut payload = Vec::new();
+            write_u64_be(&mut payload, *start_height);
+            write_u64_be(&mut payload, *from_id);
+            // Per-block signature groups: count(4) + sigs_per_block(64 each)
+            let group_count = quorum_sigs.len().min(BATCH_SYNC_MAX_BLOCKS as usize);
+            write_u32_be(&mut payload, group_count as u32);
+            for sigs in quorum_sigs.iter().take(group_count) {
+                write_u32_be(&mut payload, sigs.len().min(MAX_QUORUM_SIGNATURES) as u32);
+                for sig in sigs.iter().take(MAX_QUORUM_SIGNATURES) {
+                    payload.extend_from_slice(&sig.bytes);
+                }
+            }
+            let block_count = blocks.len().min(BATCH_SYNC_MAX_BLOCKS as usize);
+            write_u32_be(&mut payload, block_count as u32);
+            for blk in blocks.iter().take(block_count) {
+                write_u32_be(&mut payload, blk.len() as u32);
+                payload.extend_from_slice(blk);
+            }
+            let mut buf = vec![12u8];
+            write_u32_be(&mut buf, payload.len() as u32);
+            buf.extend_from_slice(&payload);
+            buf
+        }
     }
 }
 
@@ -491,10 +560,63 @@ pub fn deserialize_consensus_msg(data: &[u8]) -> Result<ConsensusEvent, String> 
             let requester_id = read_u64_be(data, &mut pos)?;
             Ok(ConsensusEvent::StatusRequest { requester_id })
         }
-        7 => {
+         7 => {
             let height = read_u64_be(data, &mut pos)?;
             let from_id = read_u64_be(data, &mut pos)?;
             Ok(ConsensusEvent::StatusResponse { height, from_id })
+        }
+        11 => {
+            let start_height = read_u64_be(data, &mut pos)?;
+            let count = read_u64_be(data, &mut pos)?;
+            let requester_id = read_u64_be(data, &mut pos)?;
+            Ok(ConsensusEvent::BlockRangeRequest {
+                start_height,
+                count,
+                requester_id,
+            })
+        }
+         12 => {
+            let start_height = read_u64_be(data, &mut pos)?;
+            let from_id = read_u64_be(data, &mut pos)?;
+            // Per-block signature groups: group_count(4) + per group: sig_count(4) + sigs
+            let group_count = read_u32_be(data, &mut pos)? as usize;
+            if group_count > BATCH_SYNC_MAX_BLOCKS as usize {
+                return Err("range group count exceeds batch limit".to_string());
+            }
+            let mut quorum_sigs: Vec<Vec<HybridSignature>> = Vec::with_capacity(group_count);
+            for _ in 0..group_count {
+                let gs = read_u32_be(data, &mut pos)? as usize;
+                if gs > MAX_QUORUM_SIGNATURES {
+                    return Err("range group sig count exceeds protocol maximum".to_string());
+                }
+                let mut group = Vec::with_capacity(gs);
+                for _ in 0..gs {
+                    let mut sig_bytes = [0u8; ED25519_SIG_LEN];
+                    sig_bytes.copy_from_slice(&data[pos..pos + ED25519_SIG_LEN]);
+                    pos += ED25519_SIG_LEN;
+                    group.push(Ed25519Signature { bytes: sig_bytes });
+                }
+                quorum_sigs.push(group);
+            }
+            let block_count = read_u32_be(data, &mut pos)? as usize;
+            if block_count > BATCH_SYNC_MAX_BLOCKS as usize {
+                return Err("range block count exceeds batch limit".to_string());
+            }
+            let mut blocks = Vec::with_capacity(block_count);
+            for _ in 0..block_count {
+                let blen = read_u32_be(data, &mut pos)? as usize;
+                if pos.checked_add(blen).is_none_or(|end| end > data.len()) {
+                    return Err("range block data truncated".to_string());
+                }
+                blocks.push(data[pos..pos + blen].to_vec());
+                pos += blen;
+            }
+            Ok(ConsensusEvent::BlockRangeResponse {
+                start_height,
+                blocks,
+                quorum_sigs,
+                from_id,
+            })
         }
         _ => Err(format!("unknown message type: {msg_type}")),
     }
@@ -728,6 +850,25 @@ impl ConsensusEngine {
         self.network.as_ref().and_then(|n| n.try_recv_operation())
     }
 
+    /// Drain sync messages (checkpoints and blocks) received on sync topics.
+    pub fn try_recv_sync(&self) -> Option<Vec<u8>> {
+        self.network.as_ref().and_then(|n| n.try_recv_sync())
+    }
+
+    /// Broadcast a sync checkpoint snapshot to all validators.
+    pub fn broadcast_sync_checkpoint(&self, data: Vec<u8>) {
+        if let Some(ref net) = self.network {
+            let _ = net.broadcast(data);
+        }
+    }
+
+    /// Broadcast a sync block for replay to all validators.
+    pub fn broadcast_sync_block(&self, data: Vec<u8>) {
+        if let Some(ref net) = self.network {
+            let _ = net.broadcast(data);
+        }
+    }
+
     pub fn gossipsub_peer_count(&self) -> u32 {
         self.network
             .as_ref()
@@ -786,15 +927,24 @@ impl ConsensusEngine {
             .unwrap()
             .as_secs();
 
+        // Select the state-root/consensus protocol active at this height. The
+        // initial state root must be the one this node would verify against, so
+        // a leader never proposes a block whose pre-state it cannot reproduce.
+        let protocol_version = self.storage.active_protocol_version(block_number);
+        let initial_state_root = self
+            .storage
+            .active_consensus_state_root(block_number)
+            .unwrap_or(prev_safe_box_hash);
+
         let header = OperationBlockHeader {
             block_number,
             account_key: self.keypair.verifying_key().to_bytes(),
             reward,
             fee: 0,
-            protocol_version: CT_BUILD_PROTOCOL,
+            protocol_version,
             protocol_available: CT_MAX_PROTOCOL,
             timestamp,
-            initial_safe_box_hash: prev_safe_box_hash,
+            initial_safe_box_hash: initial_state_root,
             operations_hash: [0u8; 64],
             block_payload: vec![],
             proof_of_work: [0u8; 32],

@@ -134,13 +134,17 @@ async fn main() -> Result<(), GatewayError> {
     let mw_auth_jwt = from_fn_with_state(state.clone(), gateway_mw::authenticate_jwt);
 
     // ── Routes ───────────────────────────────────────────────────────────────
-    let app = Router::new()
-        // Public
+    let public_routes = Router::new()
+        // Health / readiness
         .route("/health", get(|| async { "ok" }))
         .route("/readyz", get(|| async { "ready" }))
+        // Pricing (public info)
         .route("/v1/pricing", get(|| async { Json(rate_limit::public_tiers()) }))
+        // Developer registration and auth
         .route("/v1/developers/register", post(auth::register_developer))
-        .route("/v1/auth/token", post(auth::exchange_api_key))
+        .route("/v1/auth/token", post(auth::exchange_api_key));
+
+    let authenticated_routes = Router::new()
         // JSON-RPC proxy
         .route("/", post(rpc_proxy::handle_jsonrpc))
         .route("/v1/rpc", post(rpc_proxy::handle_jsonrpc))
@@ -154,7 +158,7 @@ async fn main() -> Result<(), GatewayError> {
         .route("/v1/account/{id}/balance", get(rpc_proxy::handle_balance))
         // Developer self-service
         .route("/v1/developers/me", get(auth::get_current_developer))
-        .route("/v1/developers/keys", post(auth::create_api_key))
+        .route("/v1/developers/keys", get(auth::list_all_keys).post(auth::create_api_key))
         .route("/v1/developers/keys/{id}", delete(auth::revoke_api_key))
         .route("/v1/developers/usage", get(billing::get_usage_stats))
         .route("/v1/developers/billing", get(billing::get_billing_summary))
@@ -174,10 +178,13 @@ async fn main() -> Result<(), GatewayError> {
         .route("/v1/admin/keys", get(auth::list_all_keys))
         .route("/v1/admin/developers", get(auth::list_all_developers))
         // Middleware layers
-        .route_layer(mw_auth_api_key)
         .route_layer(mw_check_rate)
         .route_layer(mw_bill)
-        .route_layer(mw_auth_jwt)
+        .route_layer(mw_auth_api_key)
+        .route_layer(mw_auth_jwt);
+
+    let app = public_routes
+        .merge(authenticated_routes)
         // Global
         .layer(CorsLayer::permissive())
         .layer(tower_http::trace::TraceLayer::new_for_http())

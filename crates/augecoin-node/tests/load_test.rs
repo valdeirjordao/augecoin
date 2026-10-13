@@ -80,7 +80,7 @@ fn load_test_operation_throughput() {
                     }],
                     receivers: vec![ReceiverInfo {
                         account: 10000,
-                        amount: 90,
+                        amount: 100,
                         payload: vec![],
                     }],
                     changers: vec![],
@@ -130,8 +130,7 @@ fn load_test_operation_throughput() {
                 );
             }
             Err(e) => {
-                results.push((op_count, elapsed));
-                eprintln!("block with {op_count} ops failed: {e:?}");
+                panic!("block with {op_count} ops failed: {e:?}");
             }
         }
 
@@ -194,7 +193,7 @@ fn load_test_max_block() {
                 }],
                 receivers: vec![ReceiverInfo {
                     account: 10000,
-                    amount: 45,
+                    amount: 50,
                     payload: vec![],
                 }],
                 changers: vec![],

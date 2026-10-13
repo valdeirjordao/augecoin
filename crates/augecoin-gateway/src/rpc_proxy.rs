@@ -28,6 +28,7 @@ impl RpcProxy {
     pub fn new(upstream_rpc: &str) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
+            .danger_accept_invalid_certs(true)
             .build()
             .expect("reqwest client build");
 

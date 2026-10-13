@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUGECOIN — Technical Book</title>
+<meta name="description" content="AUGECOIN Technical Book — Documentação técnica completa da blockchain AUGECOIN. Arquitetura, consenso, SafeBox, APIs e mais.">
+<meta property="og:title" content="AUGECOIN Technical Book">
+<meta property="og:description" content="Documentação técnica completa da blockchain AUGECOIN">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://augecoin.in/fonte">
+<style>
+:root{--bg:#0a0e17;--bg2:#111827;--bg3:#1f2937;--fg:#e5e7eb;--fg2:#9ca3af;--accent:#3b82f6;--accent2:#60a5fa;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--border:#374151;--code-bg:#0d1117;--sidebar-w:300px;--header-h:64px}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--fg);line-height:1.7}
+a{color:var(--accent2);text-decoration:none;transition:color .2s}
+a:hover{color:#93c5fd}
+
+/* Header */
+.header{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:rgba(10,14,23,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 2rem;z-index:1000}
+.header-logo{font-size:1.3rem;font-weight:700;color:#fff;letter-spacing:-.5px}
+.header-logo span{color:var(--accent)}
+.header-nav{margin-left:auto;display:flex;gap:1.5rem;align-items:center}
+.header-nav a{color:var(--fg2);font-size:.9rem;font-weight:500}
+.header-nav a:hover{color:#fff}
+.header-search{background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:.45rem 1rem;border-radius:8px;width:260px;font-size:.85rem;outline:none;transition:border-color .2s}
+.header-search:focus{border-color:var(--accent)}
+.header-search::placeholder{color:var(--fg2)}
+
+/* Sidebar */
+.sidebar{position:fixed;top:var(--header-h);left:0;bottom:0;width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:1.5rem 0;z-index:900;transition:transform .3s}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.sidebar-title{font-size:.7rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--fg2);padding:0 1.5rem;margin-bottom:.8rem}
+.sidebar a{display:block;padding:.45rem 1.5rem;color:var(--fg2);font-size:.85rem;border-left:3px solid transparent;transition:all .15s}
+.sidebar a:hover{color:#fff;background:rgba(59,130,246,.08)}
+.sidebar a.active{color:var(--accent2);border-left-color:var(--accent);background:rgba(59,130,246,.1)}
+.sidebar .chapter-num{color:var(--accent);font-weight:600;margin-right:.5rem;font-size:.8rem}
+.sidebar .chapter-title{font-weight:500}
+.sidebar .chapter-sub{display:block;padding-left:2.8rem;font-size:.8rem;color:var(--fg2);padding-top:.15rem;padding-bottom:.15rem}
+
+/* Main */
+.main{margin-left:var(--sidebar-w);margin-top:var(--header-h);padding:2.5rem 3rem 4rem;max-width:960px}
+
+/* Cover */
+.cover{text-align:center;padding:4rem 0 3rem;border-bottom:1px solid var(--border);margin-bottom:3rem}
+.cover h1{font-size:2.8rem;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:.5rem}
+.cover h1 span{background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.cover .subtitle{font-size:1.1rem;color:var(--fg2);margin-bottom:1.5rem}
+.cover .meta{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+.cover .meta-item{background:var(--bg3);padding:.5rem 1rem;border-radius:8px;font-size:.8rem;color:var(--fg2);border:1px solid var(--border)}
+.cover .meta-item strong{color:var(--fg);font-weight:600}
+
+/* Chapters */
+.chapter{margin-bottom:4rem;padding-bottom:3rem;border-bottom:1px solid var(--border)}
+.chapter:last-child{border-bottom:none}
+.chapter h2{font-size:1.8rem;font-weight:700;color:#fff;margin-bottom:1rem;letter-spacing:-.5px}
+.chapter h3{font-size:1.25rem;font-weight:600;color:#fff;margin:1.8rem 0 .8rem;padding-top:.5rem}
+.chapter h4{font-size:1.05rem;font-weight:600;color:var(--fg);margin:1.2rem 0 .5rem}
+.chapter p{margin:.6rem 0;color:var(--fg)}
+.chapter ul,.chapter ol{margin:.6rem 0;padding-left:1.5rem}
+.chapter li{margin:.3rem 0;color:var(--fg)}
+.chapter strong{color:#fff;font-weight:600}
+.chapter hr{border:none;border-top:1px solid var(--border);margin:2rem 0}
+
+/* Tables */
+.table-wrap{overflow-x:auto;margin:1rem 0;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{background:var(--bg3);color:#fff;font-weight:600;text-align:left;padding:.6rem 1rem;white-space:nowrap}
+td{padding:.55rem 1rem;border-top:1px solid var(--border);color:var(--fg)}
+tr:hover td{background:rgba(59,130,246,.04)}
+
+/* Code */
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin:1rem 0;font-size:.82rem;line-height:1.6}
+code{font-family:'Fira Code','JetBrains Mono','Consolas',monospace;font-size:.85em}
+:not(pre)>code{background:var(--bg3);padding:.15rem .4rem;border-radius:4px;color:var(--accent2);font-size:.82em}
+pre code{color:var(--fg)}
+
+/* ASCII art */
+pre.art{text-align:center;color:var(--accent2);font-size:.78rem;line-height:1.4}
+
+/* Badges */
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:4px;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.badge-green{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--accent2)}
+
+/* Cards */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1.2rem;transition:border-color .2s}
+.card:hover{border-color:var(--accent)}
+.card h4{margin:0 0 .4rem;font-size:.95rem;color:#fff}
+.card p{margin:0;font-size:.85rem;color:var(--fg2)}
+
+/* Flow diagram */
+.flow{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin:1rem 0;font-family:'Fira Code',monospace;font-size:.82rem;line-height:1.5;color:var(--accent2);white-space:pre;overflow-x:auto}
+
+/* TOC (inline) */
+.toc-inline{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1.5rem 2rem;margin:1.5rem 0}
+.toc-inline h3{margin:0 0 1rem;font-size:1.1rem}
+.toc-inline ol{margin:0;padding-left:1.2rem}
+.toc-inline li{margin:.3rem 0;font-size:.9rem}
+
+/* Search highlight */
+mark{background:rgba(59,130,246,.3);color:#fff;border-radius:2px;padding:0 2px}
+
+/* Mobile */
+.menu-btn{display:none;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;margin-right:1rem}
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:1.5rem 1rem 3rem}
+  .header-search{width:160px}
+  .menu-btn{display:block}
+  .cover h1{font-size:2rem}
+}
+
+/* Scroll indicator */
+.scroll-top{position:fixed;bottom:2rem;right:2rem;width:44px;height:44px;background:var(--accent);color:#fff;border:none;border-radius:50%;font-size:1.2rem;cursor:pointer;opacity:0;transition:opacity .3s;z-index:999;display:flex;align-items:center;justify-content:center}
+.scroll-top.visible{opacity:1}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <button class="menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+  <div class="header-logo">AUGE<span>COIN</span></div>
+  <nav class="header-nav">
+    <a href="#chapter-1">Docs</a>
+    <a href="https://github.com/augecoin" target="_blank">GitHub</a>
+    <a href="https://augecoin.in" target="_blank">Home</a>
+    <input type="text" class="header-search" placeholder="Buscar no livro..." id="searchInput" oninput="handleSearch(this.value)">
+  </nav>
+</header>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-title">Sumário</div>
+  <a href="#cover"><span class="chapter-num">●</span> <span class="chapter-title">Capa</span></a>
+  <a href="#chapter-1"><span class="chapter-num">1</span> <span class="chapter-title">Visão Geral</span></a>
+  <a href="#ch1-overview" class="chapter-sub">Resumo Executivo</a>
+  <a href="#ch1-graphify" class="chapter-sub">Análise Graphify</a>
+  <a href="#ch1-arch" class="chapter-sub">Arquitetura Geral</a>
+  <a href="#chapter-2"><span class="chapter-num">2</span> <span class="chapter-title">Arquitetura</span></a>
+  <a href="#ch2-crates" class="chapter-sub">Crates</a>
+  <a href="#ch2-deps" class="chapter-sub">Dependências</a>
+  <a href="#chapter-3"><span class="chapter-num">3</span> <span class="chapter-title">SafeBox</span></a>
+  <a href="#ch3-struct" class="chapter-sub">Estrutura</a>
+  <a href="#ch3-lifecycle" class="chapter-sub">Ciclo de Vida</a>
+  <a href="#ch3-persist" class="chapter-sub">Persistência</a>
+  <a href="#chapter-4"><span class="chapter-num">4</span> <span class="chapter-title">Consenso</span></a>
+  <a href="#ch4-poa" class="chapter-sub">PoA</a>
+  <a href="#ch4-round" class="chapter-sub">Máquina de Estados</a>
+  <a href="#ch4-quorum" class="chapter-sub">Quórum</a>
+  <a href="#chapter-5"><span class="chapter-num">5</span> <span class="chapter-title">Storage</span></a>
+  <a href="#ch5-rocks" class="chapter-sub">RocksDB</a>
+  <a href="#ch5-wal" class="chapter-sub">WAL</a>
+  <a href="#chapter-6"><span class="chapter-num">6</span> <span class="chapter-title">Rede</span></a>
+  <a href="#ch6-p2p" class="chapter-sub">libp2p</a>
+  <a href="#ch6-gossip" class="chapter-sub">Gossipsub</a>
+  <a href="#chapter-7"><span class="chapter-num">7</span> <span class="chapter-title">RPC</span></a>
+  <a href="#ch7-methods" class="chapter-sub">Métodos</a>
+  <a href="#ch7-auth" class="chapter-sub">Autenticação</a>
+  <a href="#chapter-8"><span class="chapter-num">8</span> <span class="chapter-title">Wallet</span></a>
+  <a href="#ch8-types" class="chapter-sub">Tipos</a>
+  <a href="#ch8-market" class="chapter-sub">Marketplace</a>
+  <a href="#chapter-9"><span class="chapter-num">9</span> <span class="chapter-title">AUGEID</span></a>
+  <a href="#ch9-states" class="chapter-sub">Estados</a>
+  <a href="#ch9-formula" class="chapter-sub">Fórmula</a>
+  <a href="#chapter-10"><span class="chapter-num">10</span> <span class="chapter-title">Benchmark</span></a>
+  <a href="#chapter-11"><span class="chapter-num">11</span> <span class="chapter-title">Segurança</span></a>
+  <a href="#ch11-crypto" class="chapter-sub">Criptografia</a>
+  <a href="#ch11-attacks" class="chapter-sub">Superfícies</a>
+  <a href="#chapter-12"><span class="chapter-num">12</span> <span class="chapter-title">Testes</span></a>
+  <a href="#chapter-13"><span class="chapter-num">13</span> <span class="chapter-title">APIs</span></a>
+  <a href="#ch13-ref" class="chapter-sub">Referência</a>
+  <a href="#chapter-14"><span class="chapter-num">14</span> <span class="chapter-title">Anexos</span></a>
+</aside>
+
+<main class="main">
+
+<!-- COVER -->
+<section class="cover" id="cover">
+  <h1>AUGE<span>COIN</span></h1>
+  <h1 style="font-size:1.6rem;font-weight:400;color:var(--fg2);margin-top:-.3rem">Technical Book</h1>
+  <p class="subtitle">Documentação técnica completa da blockchain AUGECOIN<br>Para auditorias, empresas, pesquisadores e sistemas de IA</p>
+  <div class="meta">
+    <div class="meta-item"><strong>v1.0</strong> — Versão</div>
+    <div class="meta-item"><strong>14</strong> Capítulos</div>
+    <div class="meta-item"><strong>3.167</strong> Nós Graphify</div>
+    <div class="meta-item"><strong>6.966</strong> Arestas</div>
+    <div class="meta-item"><strong>167</strong> Comunidades</div>
+    <div class="meta-item">Rust <strong>1.97.1</strong></div>
+  </div>
+</section>
+
+<!-- TOC Inline -->
+<div class="toc-inline">
+  <h3>Sumário</h3>
+  <ol>
+    <li><a href="#chapter-1">Visão Geral</a></li>
+    <li><a href="#chapter-2">Arquitetura Geral</a></li>
+    <li><a href="#chapter-3">SafeBox</a></li>
+    <li><a href="#chapter-4">Consenso</a></li>
+    <li><a href="#chapter-5">Storage</a></li>
+    <li><a href="#chapter-6">Rede</a></li>
+    <li><a href="#chapter-7">RPC</a></li>
+    <li><a href="#chapter-8">Wallet</a></li>
+    <li><a href="#chapter-9">AUGEID</a></li>
+    <li><a href="#chapter-10">Benchmark</a></li>
+    <li><a href="#chapter-11">Segurança</a></li>
+    <li><a href="#chapter-12">Testes</a></li>
+    <li><a href="#chapter-13">APIs</a></li>
+    <li><a href="#chapter-14">Anexos</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 1 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-1">
+<h2>1 — Visão Geral</h2>
+
+<h3 id="ch1-overview">Resumo Executivo</h3>
+<p>AUGECOIN é uma blockchain <strong>Proof of Authority</strong> construída em Rust, com:</p>
+<ul>
+  <li><strong>Assinaturas híbridas</strong>: Ed25519 + CRYSTALS-Dilithium (pós-quântico desde o gênesis)</li>
+  <li><strong>BLAKE3-512</strong> hashing (modo XOF, 512 bits)</li>
+  <li><strong>SafeBox</strong> — modelo de estado incremental com snapshots determinísticos</li>
+  <li><strong>Consenso PoA</strong> — quórum 2/3+1, líder round-robin</li>
+  <li><strong>Contas nativas numeradas</strong> (AUGEID) com marketplace, doações e resolução de nomes</li>
+  <li><strong>Suprimento total</strong>: 750.000.000 AUGE (75 trilhões de augesat), emitido em 50 anos</li>
+</ul>
+
+<h3 id="ch1-graphify">Análise Graphify</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Métrica</th><th>Valor</th></tr>
+  <tr><td>Nós</td><td><strong>3.167</strong></td></tr>
+  <tr><td>Arestas</td><td><strong>6.966</strong></td></tr>
+  <tr><td>Comunidades</td><td><strong>167</strong></td></tr>
+  <tr><td>Confiança Extração</td><td><strong>99%</strong></td></tr>
+</table>
+</div>
+
+<h4>God Nodes (Abstrações Centrais)</h4>
+<div class="table-wrap">
+<table>
+  <tr><th>#</th><th>Nome</th><th>Arestas</th><th>Função</th></tr>
+  <tr><td>1</td><td><code>Storage</code></td><td>68</td><td>Persistência RocksDB</td></tr>
+  <tr><td>2</td><td><code>Account</code></td><td>58</td><td>Conta AugeAccount</td></tr>
+  <tr><td>3</td><td><code>AppState</code></td><td>55</td><td>Estado compartilhado do node</td></tr>
+  <tr><td>4</td><td><code>Mempool</code></td><td>37</td><td>Pool de transações pendentes</td></tr>
+  <tr><td>5</td><td><code>ConsensusEngine</code></td><td>31</td><td>Motor de consenso PoA</td></tr>
+  <tr><td>6</td><td><code>SyncManager</code></td><td>27</td><td>Sincronização de nós</td></tr>
+</table>
+</div>
+
+<h3 id="ch1-arch">Arquitetura Geral</h3>
+<pre class="art">
+┌─────────────────────────────────────────────────────────────┐
+│                      AUGECOIN Node                          │
+│                                                             │
+│  ┌────────────┐  ┌──────────────┐  ┌────────────────────┐  │
+│  │   Crypto    │  │   Consenso   │  │      Rede          │  │
+│  │  (Ed25519   │  │  (PoA Round) │  │  (libp2p +         │  │
+│  │ +Dilithium  │  │              │  │   gossipsub)       │  │
+│  │ +BLAKE3)    │  │              │  │                    │  │
+│  └──────┬─────┘  └──────┬───────┘  └────────┬───────────┘  │
+│         └────────────────┼──────────────────┘               │
+│                          │                                  │
+│  ┌───────────────────────┼──────────────────────────────┐   │
+│  │              Execution Engine                         │   │
+│  │   mempool → execute_block → SafeBox → commit_atomic  │   │
+│  └───────────────────────┬──────────────────────────────┘   │
+│                          │                                  │
+│  ┌───────────────────────┼──────────────────────────────┐   │
+│  │              Storage (RocksDB)                        │   │
+│  │  accounts │ blocks │ validator_set │ equivocation     │   │
+│  └───────────────────────┬──────────────────────────────┘   │
+│                          │                                  │
+│  ┌───────────────────────┼──────────────────────────────┐   │
+│  │         RPC (JSON-RPC 2.0 + gRPC over TLS)          │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+</pre>
+
+<h4>Mapa de Dependências dos Crates</h4>
+<pre class="art">
+augecoin-crypto ──→ augecoin-core ──→ augecoin-storage
+                                      │
+                    augecoin-consensus─┘
+                           │
+                    augecoin-network
+                           │
+                    augecoin-node
+                           │
+                    augecoin-rpc ──→ augecoin-cli
+</pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 2 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-2">
+<h2>2 — Arquitetura Geral</h2>
+
+<h3 id="ch2-crates">Rust Workspace</h3>
+<p>O projeto é organizado como um workspace Cargo com 9 crates:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Crate</th><th>Entrada</th><th>Fontes</th><th>Responsabilidade</th></tr>
+  <tr><td><code>augecoin-crypto</code></td><td>lib.rs</td><td>6</td><td>Ed25519+Dilithium, BLAKE3, HD keys, Bech32m, WASM</td></tr>
+  <tr><td><code>augecoin-core</code></td><td>lib.rs</td><td>8</td><td>AugeAccount, Transaction, Block, SafeBox, emission</td></tr>
+  <tr><td><code>augecoin-storage</code></td><td>lib.rs</td><td>4</td><td>RocksDB, column families, checkpoints, state_root</td></tr>
+  <tr><td><code>augecoin-consensus</code></td><td>lib.rs</td><td>5</td><td>ValidatorSet, quorum, round state, equivocation</td></tr>
+  <tr><td><code>augecoin-network</code></td><td>lib.rs</td><td>3</td><td>libp2p, gossipsub, sync, rate limiting</td></tr>
+  <tr><td><code>augecoin-node</code></td><td>main.rs</td><td>8</td><td>Orquestração, execução, mempool, métricas</td></tr>
+  <tr><td><code>augecoin-rpc</code></td><td>lib.rs</td><td>4</td><td>JSON-RPC, gRPC, auth, endpoints</td></tr>
+  <tr><td><code>augecoin-cli</code></td><td>main.rs</td><td>4</td><td>CLI: validator, status, earnings, security</td></tr>
+  <tr><td><code>augecoin-bench</code></td><td>lib.rs</td><td>—</td><td>Benchmarks de performance</td></tr>
+</table>
+</div>
+
+<h3 id="ch2-deps">Architecture Decision Records</h3>
+<div class="card-grid">
+  <div class="card"><h4>ADR-001</h4><p>Estrutura do Cargo workspace com 9 crates</p></div>
+  <div class="card"><h4>ADR-002</h4><p>RocksDB como backend de persistência</p></div>
+  <div class="card"><h4>ADR-003</h4><p>Assinatura híbrida Ed25519 + Dilithium</p></div>
+  <div class="card"><h4>ADR-004</h4><p>BLAKE3-512 para hashing</p></div>
+  <div class="card"><h4>ADR-005</h4><p>ClaimAccount auto-atribuído ao líder</p></div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 3 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-3">
+<h2>3 — SafeBox</h2>
+<p><span class="badge badge-blue">CAPÍTULO MAIS IMPORTANTE</span></p>
+
+<h3 id="ch3-struct">Estrutura</h3>
+<pre><code>SafeBox {
+  header: SafeBoxHeader {
+    protocol, start_block, end_block,
+    blocks_count, safe_box_hash
+  }
+  accounts: BTreeMap&lt;u64, Account&gt;    // ordenado por número
+  name_index: BTreeMap&lt;String, u64&gt;  // nome → número
+}</code></pre>
+
+<h3 id="ch3-lifecycle">Ciclo de Vida do AUGEID</h3>
+<pre class="art">
+Unknown → (emissão do bloco) → Reserved → (venda/doação) → Owned → Normal
+                                       ↘ GiftPending (aguardando aceite)
+</pre>
+<div class="table-wrap">
+<table>
+  <tr><th>Estado</th><th>Descrição</th></tr>
+  <tr><td><code>Reserved</code></td><td>Emitido ao líder; sem chave; não envia/recebe AUGE</td></tr>
+  <tr><td><code>Owned</code></td><td>Tem proprietário (account_key, n_operation=0)</td></tr>
+  <tr><td><code>ForSale</code></td><td>Anunciado no marketplace (sale_index)</td></tr>
+  <tr><td><code>GiftPending</code></td><td>Doação pendente (gift_index)</td></tr>
+  <tr><td><code>Normal</code></td><td>Conta operacional</td></tr>
+</table>
+</div>
+
+<h4>Hash de Consenso</h4>
+<p><code>compute_safe_box_hash()</code> = raiz Merkle (blake3_512) sobre:</p>
+<ol>
+  <li><code>accounts.values().map(|a| a.hash())</code> — folha por conta</li>
+  <li><code>name_index</code> — <code>blake3(name || number)</code> por entrada</li>
+</ol>
+<p><strong>SafeBox vazio → <code>[0u8; 64]</code>.</strong> O hash é gravado no header do bloco e realimentado no seguinte.</p>
+
+<h3 id="ch3-persist">Persistência Incremental</h3>
+<pre><code>execute_block (por bloco)
+  └─ commit_block_atomic(&amp;modified, block, validator_set_bytes)
+        ├─ WriteBatch: put_account + put_block + put_height + put_validator_set
+        ├─ atualiza SafeboxCache (O(k))
+        └─ snapshot completo periódico</code></pre>
+
+<h4>Índices Residentes</h4>
+<div class="table-wrap">
+<table>
+  <tr><th>Índice</th><th>Mapeamento</th><th>Uso</th></tr>
+  <tr><td><code>name_index</code></td><td>nome → AUGEID</td><td>resolução <code>resolve_name("CarlosPay")</code></td></tr>
+  <tr><td><code>pubkey_index</code></td><td>pubkey → refcount</td><td>detecção de chave duplicada</td></tr>
+  <tr><td><code>sale_index</code></td><td>AUGEID → SaleListing</td><td>marketplace</td></tr>
+  <tr><td><code>gift_index</code></td><td>AUGEID → GiftListing</td><td>doações pendentes</td></tr>
+</table>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 4 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-4">
+<h2>4 — Consenso</h2>
+
+<h3 id="ch4-poa">Proof of Authority (PoA)</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Parâmetro</th><th>Valor</th></tr>
+  <tr><td>Modelo</td><td>PoA com líder rotativo round-robin</td></tr>
+  <tr><td>Quórum</td><td>2/3 + 1 → 3 assinaturas válidas de 4</td></tr>
+  <tr><td>Líder</td><td><code>active[(H+1+round) % len]</code></td></tr>
+  <tr><td>Timeout</td><td>120s (2× block time) → view-change</td></tr>
+  <tr><td>Equivocation</td><td>Prova on-chain com duas assinaturas conflitantes</td></tr>
+</table>
+</div>
+
+<h3 id="ch4-round">Máquina de Estados da Rodada</h3>
+<pre class="art">
+Propose → Collect → Commit
+   │         │         │
+   │    add_signature  │
+   │    acumula sigs   │
+   └─── timeout ───→ view_change (próximo líder)
+</pre>
+<div class="table-wrap">
+<table>
+  <tr><th>Fase</th><th>Descrição</th></tr>
+  <tr><td><strong>Propose</strong></td><td>Líder constrói bloco com <code>initial_safe_box_hash</code> e assina</td></tr>
+  <tr><td><strong>Collect</strong></td><td><code>add_signature</code> acumula assinaturas dos demais validadores</td></tr>
+  <tr><td><strong>Commit</strong></td><td><code>try_commit</code> quando assinaturas ≥ quórum</td></tr>
+  <tr><td><strong>Timeout</strong></td><td><code>check_timeout</code> dispara <code>view_change</code></td></tr>
+</table>
+</div>
+
+<h3 id="ch4-quorum">Verificação de Quórum</h3>
+<p>3 assinaturas válidas de 4 finalizam um bloco. Generalizado: <code>quorum_threshold(n) = ⌈2n/3⌉ + 1</code>.</p>
+<p>Assinaturas de validadores fora do ValidatorSet ativo <strong>não contam</strong> para o quórum.</p>
+
+<h4>Verificação de Bloco</h4>
+<ol>
+  <li>Rejeita timestamp futuro além de <code>CT_MAX_FUTURE_BLOCK_TIMESTAMP_SECONDS</code></li>
+  <li>Verifica assinatura do líder (Ed25519) sobre <code>block.hash()</code></li>
+  <li>Verifica assinaturas de quórum dos validadores ativos</li>
+  <li>Valida <code>operations_hash</code> == Merkle das operações do bloco</li>
+</ol>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 5 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-5">
+<h2>5 — Storage</h2>
+
+<h3 id="ch5-rocks">RocksDB Column Families</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>CF</th><th>Conteúdo</th><th>Acesso</th></tr>
+  <tr><td><code>accounts</code></td><td>AugeAccount serializado</td><td>R/W por bloco</td></tr>
+  <tr><td><code>blocks</code></td><td>Headers + bodies</td><td>Write once, read often</td></tr>
+  <tr><td><code>tx_index</code></td><td>tx hash → bloco</td><td>Write once, index lookup</td></tr>
+  <tr><td><code>validator_set</code></td><td>Validadores ativos</td><td>Write per governance</td></tr>
+  <tr><td><code>equivocation_proofs</code></td><td>EquivocationProof</td><td>Write on detection</td></tr>
+</table>
+</div>
+
+<h4>Atomicidade (WriteBatch)</h4>
+<pre><code>commit_block_atomic:
+  ├─ put_account(contas modificadas)
+  ├─ put_block(bloco)
+  ├─ put_height(altura)
+  ├─ put_validator_set(validadores)
+  └─ flush(WAL)</code></pre>
+
+<h3 id="ch5-wal">Solução WAL Growth</h3>
+<p>O crescimento do Write-Ahead Log foi resolvido com:</p>
+<ol>
+  <li><code>set_max_total_wal_size</code> para limitar uso de disco</li>
+  <li>Compactação periódica após snapshots de checkpoint</li>
+  <li><code>set_keep_log_num</code> para controle de retenção</li>
+</ol>
+
+<h4>Snapshots e Checkpoints</h4>
+<p>Intervalo: <code>SAFEBOX_SNAPSHOT_INTERVAL_DEV = 100</code> / <code>_MAINNET = 1000</code>.</p>
+<p><code>flush_safebox_snapshot()</code> força snapshot (shutdown/export/recovery).</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 6 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-6">
+<h2>6 — Rede</h2>
+
+<h3 id="ch6-p2p">libp2p + Noise</h3>
+<p>Criptografia obrigatória via <strong>Noise Protocol</strong> — nenhuma conexão sem criptografia é aceita.</p>
+<pre class="art">
+libp2p Transport
+  ├─ Noise     (encryption)
+  ├─ TCP       (transport)
+  └─ Yamux     (multiplexing)
+</pre>
+
+<h3 id="ch6-gossip">Gossipsub</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Tópico</th><th>Conteúdo</th><th>Propagação</th></tr>
+  <tr><td><code>tx</code></td><td>Transações pendentes</td><td>Flood para todos os peers</td></tr>
+  <tr><td><code>block</code></td><td>Blocos finalizados</td><td>Flood para todos os peers</td></tr>
+  <tr><td><code>consensus</code></td><td>Mensagens de consenso</td><td>Mesh apenas validadores</td></tr>
+</table>
+</div>
+
+<h4>Protocolo de Sync</h4>
+<pre class="art">
+Novo Nó
+  │
+  ├─ Conecta aos bootnodes (handshake Noise)
+  ├─ Solicita checkpoint mais recente
+  │     └─ Restaura SafeBox do checkpoint
+  ├─ Solicita blocos restantes
+  │     └─ Executa cada bloco (verifica quórum)
+  ├─ Entra no mesh gossipsub ao vivo
+  └─ Participa do consenso (se validador)
+</pre>
+
+<h4>Descoberta de Peers</h4>
+<p>Lista estática de bootnodes (configurável). Sem Kademlia DHT — escolha pela simplicidade e auditabilidade em rede de 4 validadores.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 7 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-7">
+<h2>7 — RPC</h2>
+
+<h3 id="ch7-methods">Métodos JSON-RPC</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Método</th><th>Função</th><th>Auth</th></tr>
+  <tr><td><code>getAccount</code></td><td>Consulta por número/endereço/nome</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getAccountByAddress</code></td><td>Consulta por endereço Bech32m</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getBlock</code></td><td>Bloco por hash</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getBlockByHeight</code></td><td>Bloco por altura</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getBlockCount</code></td><td>Altura atual da cadeia</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>sendTransaction</code></td><td>Submeter transação assinada</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getMempool</code></td><td>Transações pendentes</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getValidatorSet</code></td><td>Validadores ativos</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getNetworkStatus</code></td><td>Status do node, peers</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>getValidatorEarnings</code></td><td>Ganhos do validador</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>listAccountsForSale</code></td><td>Listagens do marketplace</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>resolveName</code></td><td>Nome → conta</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>buyAccount</code></td><td>Comprar conta listada</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>sellAccount</code></td><td>Listar conta à venda</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>giftAccount</code></td><td>Iniciar doação de conta</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>acceptGift</code></td><td>Aceitar doação pendente</td><td><span class="badge badge-green">Public</span></td></tr>
+  <tr><td><code>validatorAdd</code></td><td>Adicionar validador</td><td><span class="badge badge-red">Admin</span></td></tr>
+  <tr><td><code>validatorRemove</code></td><td>Remover validador</td><td><span class="badge badge-red">Admin</span></td></tr>
+  <tr><td><code>validatorActivate</code></td><td>Ativar validador</td><td><span class="badge badge-red">Admin</span></td></tr>
+  <tr><td><code>validatorDeactivate</code></td><td>Desativar validador</td><td><span class="badge badge-red">Admin</span></td></tr>
+</table>
+</div>
+
+<h3 id="ch7-auth">Autenticação</h3>
+<p>Endpoints administrativos exigem API key via header. Endpoints públicos não exigem autenticação. Rate limiting por IP/API key.</p>
+
+<h4>Formato de Requisição</h4>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "method": "getAccount",
+  "params": [42],
+  "id": 1
+}</code></pre>
+
+<h4>Formato de Resposta</h4>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "result": {
+    "account_number": 42,
+    "balance": 1000000000,
+    "name": "MyAccount",
+    "state": "Normal"
+  },
+  "id": 1
+}</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 8 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-8">
+<h2>8 — Wallet</h2>
+
+<h3 id="ch8-types">Arquitetura Dual</h3>
+<div class="card-grid">
+  <div class="card">
+    <h4>Conta da Plataforma</h4>
+    <p>Login, perfil, sessão JWT. Servidor Express.js. Nunca envia chaves privadas.</p>
+  </div>
+  <div class="card">
+    <h4>Carteira Blockchain</h4>
+    <p>AUGEID, saldo, envio/recebimento. Toda criptografia no client (WASM ou nativo).</p>
+  </div>
+</div>
+
+<h4>Implementações</h4>
+<div class="table-wrap">
+<table>
+  <tr><th>Wallet</th><th>Framework</th><th>Crypto</th></tr>
+  <tr><td>wallet-web</td><td>React + Vite</td><td>WASM (@augecoin/wasm-crypto)</td></tr>
+  <tr><td>wallet-desktop</td><td>Tauri (Rust)</td><td>Nativo (augecoin-crypto)</td></tr>
+  <tr><td>wallet-mobile</td><td>React Native</td><td>Módulo nativo</td></tr>
+</table>
+</div>
+
+<h3 id="ch8-market">Marketplace e Doações</h3>
+<div class="card-grid">
+  <div class="card"><h4>sellAccount</h4><p>Listar conta com preço em augesat</p></div>
+  <div class="card"><h4>buyAccount</h4><p>Comprar conta listada no marketplace</p></div>
+  <div class="card"><h4>giftAccount</h4><p>Iniciar doação (pendente de aceite)</p></div>
+  <div class="card"><h4>acceptGift</h4><p>Aceitar doação pendente → conta operacional</p></div>
+</div>
+
+<h4>Inventário</h4>
+<p>Cada carteira rastreia: contas possuídas, doações pendentes, contas listadas, histórico de doações.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 9 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-9">
+<h2>9 — AUGEID</h2>
+
+<h3 id="ch9-states">Ciclo de Vida Completo</h3>
+<pre class="art">
+Bloco N
+  │
+  ↓
+Reserved (10 AUGEIDs por bloco, todos ao líder)
+  │
+  ├──→ ForSale (listado no marketplace)
+  │       └──→ Owned (comprado)
+  │
+  ├──→ GiftPending (doação iniciada)
+  │       └──→ Owned (doação aceita)
+  │
+  └──→ Owned (ativação direta)
+          └──→ Normal (conta operacional)
+</pre>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Estado</th><th>Descrição</th><th>Saldo</th><th>Envia</th></tr>
+  <tr><td><code>Reserved</code></td><td>Emitido ao líder do bloco</td><td>—</td><td>❌</td></tr>
+  <tr><td><code>Owned</code></td><td>Tem proprietário, sem chave definitiva</td><td>—</td><td>❌</td></tr>
+  <tr><td><code>ForSale</code></td><td>Listado no marketplace</td><td>—</td><td>❌</td></tr>
+  <tr><td><code>GiftPending</code></td><td>Doação aguardando aceite</td><td>—</td><td>❌</td></tr>
+  <tr><td><code>Normal</code></td><td>Conta operacional</td><td>✅</td><td>✅</td></tr>
+</table>
+</div>
+
+<h3 id="ch9-formula">Fórmula de Numeração</h3>
+<p><strong>AUGEID = bloco × 10 + offset (0..9)</strong></p>
+<p>Cada bloco emite exatamente 10 AUGEIDs, todos <code>Reserved</code> e pertencentes ao líder.</p>
+
+<h4>Por que AUGEID é um Ativo</h4>
+<div class="card-grid">
+  <div class="card"><h4>Escassez</h4><p>Apenas 10 por bloco, cronograma fixo</p></div>
+  <div class="card"><h4>Negociabilidade</h4><p>Podem ser compradas, vendidas, doadas</p></div>
+  <div class="card"><h4>Identidade</h4><p>Contas nomeadas (resolve_name)</p></div>
+  <div class="card"><h4>Especulação</h4><p>Números anteriores/menores podem ter prêmio</p></div>
+  <div class="card"><h4>Sem expiração</h4><p>Contas persistem para sempre</p></div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 10 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-10">
+<h2>10 — Benchmark</h2>
+
+<h3>Métricas de Performance</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Métrica</th><th>Resultado</th><th>Status</th></tr>
+  <tr><td>350.000 transações</td><td>Stress test completo</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+  <tr><td>117 TPS</td><td>Throughput sustentado</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+  <tr><td>0 rejeições</td><td>Integridade total</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+  <tr><td>4 validadores</td><td>Quórum completo</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+  <tr><td>60s block time</td><td>Intervalo de bloco</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+  <tr><td>120s timeout</td><td>View-change</td><td><span class="badge badge-green">✓ PASS</span></td></tr>
+</table>
+</div>
+
+<h4>Categorias de Teste</h4>
+<div class="card-grid">
+  <div class="card"><h4>Unit</h4><p>Serialização, crypto, round-trips</p></div>
+  <div class="card"><h4>Integration</h4><p>E2E, 4-nós, determinismo, SDK parity</p></div>
+  <div class="card"><h4>Adversarial</h4><p>Equivocation, duplicatas, propostas inválidas</p></div>
+  <div class="card"><h4>Property</h4><p>proptest: soma(recompensas) = supply total</p></div>
+  <div class="card"><h4>Fuzz</h4><p>tx_deserialize, block_deserialize</p></div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 11 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-11">
+<h2>11 — Segurança</h2>
+
+<h3 id="ch11-crypto">Criptografia</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Primitiva</th><th>Algoritmo</th><th>Finalidade</th></tr>
+  <tr><td>Assinatura</td><td>Ed25519 + Dilithium (dual)</td><td>Assinatura de tx/bloco</td></tr>
+  <tr><td>Hashing</td><td>BLAKE3-512 (XOF)</td><td>State root, hash do bloco</td></tr>
+  <tr><td>Derivação</td><td>HKDF-SHA3-512</td><td>HD wallet</td></tr>
+  <tr><td>Endereço</td><td>Bech32m</td><td>Endereços legíveis</td></tr>
+</table>
+</div>
+
+<h4>Proteção contra Replay</h4>
+<ul>
+  <li><code>op_sequence</code> por conta: monotonicamente crescente</li>
+  <li>Mesma operação não pode ser submetida duas vezes</li>
+  <li>Mempool rejeita sequências desatualizadas</li>
+</ul>
+
+<h3 id="ch11-attacks">Superfícies de Ataque</h3>
+<div class="card-grid">
+  <div class="card"><h4>1. RPC HTTP</h4><p>Porta configurável, exposta na rede. Mitigado com TLS obrigatório.</p></div>
+  <div class="card"><h4>2. libp2p / Rede</h4><p>Gossipsub + bootnodes. Mitigado com Noise encryption.</p></div>
+  <div class="card"><h4>3. Assinaturas</h4><p>Validação Ed25519+Dilithium. Dual-sign desde o gênesis.</p></div>
+  <div class="card"><h4>4. Serialização</h4><p>Blocos/tx malformados. Mitigado com validação na desserialização.</p></div>
+  <div class="card"><h4>5. Faucet</h4><p>Distribuição de tokens. Rate limiting implementado.</p></div>
+  <div class="card"><h4>6. Chaves</h4><p>Gerenciamento de chaves dos validadores. Nunca em config versionado.</p></div>
+</div>
+
+<h4>Limitações Conhecidas</h4>
+<ul>
+  <li>Sem atomic swaps</li>
+  <li>Sem exclusão de blockchain</li>
+  <li>Sem recuperação de coins com chave perdida</li>
+  <li>Chave admin é single-key (não multisig)</li>
+</ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 12 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-12">
+<h2>12 — Testes</h2>
+
+<h3>Inventário de Testes</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Crate</th><th>Testes</th><th>Tipo</th></tr>
+  <tr><td>augecoin-crypto</td><td>Signature, hash, hdkeys, address</td><td>Unit</td></tr>
+  <tr><td>augecoin-core</td><td>Account, block, transaction, emission</td><td>Unit + Property</td></tr>
+  <tr><td>augecoin-storage</td><td>RocksDB, checkpoint, state_root</td><td>Integration</td></tr>
+  <tr><td>augecoin-consensus</td><td>Quorum, round, validator, equivocation</td><td>Unit + Adversarial</td></tr>
+  <tr><td>augecoin-network</td><td>Transport, gossip, sync, rate_limit</td><td>Integration</td></tr>
+  <tr><td>augecoin-node</td><td>Mempool, execution, genesis, e2e</td><td>Integration</td></tr>
+  <tr><td>augecoin-rpc</td><td>Endpoints, auth, TLS</td><td>Integration</td></tr>
+  <tr><td>augecoin-cli</td><td>Commands, admin auth</td><td>Integration</td></tr>
+</table>
+</div>
+
+<h4>Comandos</h4>
+<pre><code>cargo test --workspace
+cargo clippy --workspace --all-targets
+cargo fmt --all -- --check
+cargo bench --workspace
+cargo fuzz run tx_deserialize -- -max_total_time=300</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 13 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-13">
+<h2>13 — APIs</h2>
+
+<h3 id="ch13-ref">Referência JSON-RPC 2.0</h3>
+<p>Base URL: <code>https://&lt;node&gt;:9443</code> (TLS obrigatório)</p>
+
+<h4>getAccount</h4>
+<div class="card-grid">
+  <div class="card"><h4>Parâmetros</h4><p><code>account_number</code> (u64), <code>address</code> (string), ou <code>name</code> (string)</p></div>
+  <div class="card"><h4>Retorno</h4><p>AccountInfo: number, balance, name, state</p></div>
+</div>
+<pre><code>curl -k https://localhost:9443 \
+  -d '{"jsonrpc":"2.0","method":"getAccount","params":[42],"id":1}'</code></pre>
+
+<h4>sendTransaction</h4>
+<div class="card-grid">
+  <div class="card"><h4>Parâmetros</h4><p><code>transaction</code> (hex): bytes da transação assinada</p></div>
+  <div class="card"><h4>Retorno</h4><p>SendOperationResult com status</p></div>
+</div>
+
+<h4>buyAccount</h4>
+<div class="card-grid">
+  <div class="card"><h4>Parâmetros</h4><p><code>account_number</code> (u64), <code>price</code> (u64 augesat)</p></div>
+  <div class="card"><h4>Retorno</h4><p>Operation result</p></div>
+</div>
+
+<h4>giftAccount</h4>
+<div class="card-grid">
+  <div class="card"><h4>Parâmetros</h4><p><code>account_number</code> (u64), <code>recipient</code> (string)</p></div>
+  <div class="card"><h4>Retorno</h4><p>Operation result (GiftPending)</p></div>
+</div>
+
+<h4>resolveName</h4>
+<div class="card-grid">
+  <div class="card"><h4>Parâmetros</h4><p><code>name</code> (string): nome da conta</p></div>
+  <div class="card"><h4>Retorno</h4><p>Número da conta (u64)</p></div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CHAPTER 14 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="chapter-14">
+<h2>14 — Anexos</h2>
+
+<h3>Constantes do Protocolo</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Constante</th><th>Valor</th></tr>
+  <tr><td>TOTAL_SUPPLY_AUGE</td><td>750.000.000</td></tr>
+  <tr><td>TOTAL_SUPPLY_AUGESAT</td><td>75.000.000.000.000.000</td></tr>
+  <tr><td>DECIMALS</td><td>8</td></tr>
+  <tr><td>BLOCK_TIME_SECONDS</td><td>60</td></tr>
+  <tr><td>EMISSION_YEARS</td><td>50</td></tr>
+  <tr><td>TOTAL_EMISSION_BLOCKS</td><td>26.298.000</td></tr>
+  <tr><td>BASE_REWARD_AUGESAT</td><td>2.852.383</td></tr>
+  <tr><td>QUORUM</td><td>2/3 + 1</td></tr>
+</table>
+</div>
+
+<h4>Árvore do Projeto</h4>
+<pre><code>opt/augecoin/
+├── Cargo.toml (workspace)
+├── crates/
+│   ├── augecoin-crypto/    (6 src files)
+│   ├── augecoin-core/      (8 src files)
+│   ├── augecoin-storage/   (4 src files)
+│   ├── augecoin-consensus/ (5 src files)
+│   ├── augecoin-network/   (3 src files)
+│   ├── augecoin-node/      (8 src files)
+│   ├── augecoin-rpc/       (4 src files)
+│   ├── augecoin-cli/       (4 src files)
+│   └── augecoin-bench/
+├── docs/
+│   ├── SPEC.md
+│   ├── DECISIONS.md
+│   └── architecture/
+├── graphify-out/
+│   ├── graph.json
+│   └── GRAPH_REPORT.md
+├── apps/
+│   ├── wallet-web/
+│   ├── wallet-desktop/
+│   └── wallet-mobile/
+├── packages/
+│   ├── sdk-ts/
+│   └── wasm-crypto/
+├── infra/
+│   ├── testnet-4node.yml
+│   └── observability/
+└── tools/
+    └── technical-book/</code></pre>
+
+<h4>Metadados de Build</h4>
+<div class="table-wrap">
+<table>
+  <tr><th>Campo</th><th>Valor</th></tr>
+  <tr><td>Rust</td><td>rustc 1.97.1</td></tr>
+  <tr><td>Graphify</td><td>3.167 nós, 6.966 arestas, 167 comunidades</td></tr>
+  <tr><td>Geração</td><td>Automática via build.py</td></tr>
+  <tr><td>Formatos</td><td>MD, HTML, PDF, EPUB</td></tr>
+</table>
+</div>
+</section>
+
+</main>
+
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+// Active sidebar link
+const sections = document.querySelectorAll('.chapter, .cover');
+const sidebarLinks = document.querySelectorAll('.sidebar a');
+const scrollTop = document.getElementById('scrollTop');
+
+function updateActive() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  sidebarLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+  scrollTop.classList.toggle('visible', window.scrollY > 400);
+}
+
+window.addEventListener('scroll', updateActive);
+updateActive();
+
+// Search
+function handleSearch(q) {
+  if (!q) {
+    document.querySelectorAll('.chapter section, .chapter h2, .chapter h3, .chapter p, .chapter li, .chapter td').forEach(el => {
+      el.style.display = '';
+    });
+    return;
+  }
+  const lq = q.toLowerCase();
+  document.querySelectorAll('.chapter').forEach(ch => {
+    const text = ch.textContent.toLowerCase();
+    ch.style.display = text.includes(lq) ? '' : 'none';
+  });
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+});
+</script>
+</body>
+</html>

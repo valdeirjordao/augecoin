@@ -22,6 +22,8 @@ pub const BLOCK_TOPIC: &str = "augecoin/blocks";
 pub const CONSENSUS_TOPIC: &str = "augecoin/consensus";
 pub const PEERS_TOPIC: &str = "augecoin/peers";
 pub const RELAY_TOPIC: &str = "augecoin/relay";
+pub const SYNC_CHECKPOINT_TOPIC: &str = "augecoin/sync/checkpoint";
+pub const SYNC_BLOCK_TOPIC: &str = "augecoin/sync/block";
 
 /// Raw bytes of a [`PeerId`] (32 bytes for Ed25519-based IDs).
 pub const PEER_ID_LEN: usize = 32;
@@ -165,7 +167,7 @@ impl AugecoinBehaviour {
         );
 
         if is_validator {
-            for topic in [OPS_TOPIC, BLOCK_TOPIC, CONSENSUS_TOPIC, PEERS_TOPIC, RELAY_TOPIC] {
+            for topic in [OPS_TOPIC, BLOCK_TOPIC, CONSENSUS_TOPIC, PEERS_TOPIC, RELAY_TOPIC, SYNC_CHECKPOINT_TOPIC, SYNC_BLOCK_TOPIC] {
                 gossipsub
                     .subscribe(&gossipsub::IdentTopic::new(topic))
                     .map_err(|e| NetworkError::Gossipsub(e.to_string()))?;
@@ -324,6 +326,26 @@ impl AugecoinBehaviour {
     /// the mempool instead of the consensus engine.
     pub fn ops_topic_hash() -> gossipsub::TopicHash {
         gossipsub::IdentTopic::new(OPS_TOPIC).hash()
+    }
+
+    /// Publish a checkpoint snapshot for sync purposes.
+    pub fn publish_sync_checkpoint(&mut self, data: Vec<u8>) -> Result<gossipsub::MessageId, NetworkError> {
+        self.publish_to_topic(SYNC_CHECKPOINT_TOPIC, data)
+    }
+
+    /// Publish a block for sync replay purposes.
+    pub fn publish_sync_block(&mut self, data: Vec<u8>) -> Result<gossipsub::MessageId, NetworkError> {
+        self.publish_to_topic(SYNC_BLOCK_TOPIC, data)
+    }
+
+    /// Hash of the sync checkpoint topic.
+    pub fn sync_checkpoint_topic_hash() -> gossipsub::TopicHash {
+        gossipsub::IdentTopic::new(SYNC_CHECKPOINT_TOPIC).hash()
+    }
+
+    /// Hash of the sync block topic.
+    pub fn sync_block_topic_hash() -> gossipsub::TopicHash {
+        gossipsub::IdentTopic::new(SYNC_BLOCK_TOPIC).hash()
     }
 }
 

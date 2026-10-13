@@ -111,7 +111,7 @@ pub async fn authenticate_api_key(
         developer_id: row.developer_id,
         api_key_id: Some(row.id),
         tier: row.tier,
-        scopes: row.scopes.unwrap_or_default(),
+        scopes: row.scopes.0.clone(),
     };
 
     req.extensions_mut().insert(claims);
@@ -186,17 +186,24 @@ pub async fn register_developer(
 ) -> Result<Json<RegisterResponse>, StatusCode> {
     let dev_id = Uuid::new_v4();
 
+    let name = req.name.clone();
+    let email = req.email.clone();
+    let company = req.company.clone();
+
     sqlx::query(
         r#"INSERT INTO developers (id, name, email, company, tier, created_at)
            VALUES ($1, $2, $3, $4, 'free', now())"#,
     )
     .bind(dev_id)
-    .bind(req.name)
-    .bind(req.email)
-    .bind(req.company)
+    .bind(&name)
+    .bind(&email)
+    .bind(&company)
     .execute(state.db.as_ref())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!("register_developer INSERT failed: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let api_key = state.billing.generate_api_key(&dev_id.to_string(), "default").await;
 
@@ -204,12 +211,12 @@ pub async fn register_developer(
         .bind(dev_id)
         .fetch_one(state.db.as_ref())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("register_developer SELECT failed: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    let created_at_str: String = row.get(0);
-    let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-        .map(|dt| dt.with_timezone(&chrono::Utc))
-        .unwrap_or_else(|_| chrono::Utc::now());
+    let created_at: chrono::DateTime<chrono::Utc> = row.get(0);
 
     Ok(Json(RegisterResponse {
         developer_id: dev_id.to_string(),
@@ -271,7 +278,7 @@ pub async fn revoke_api_key(
 ) -> Result<StatusCode, StatusCode> {
     sqlx::query("UPDATE api_keys SET revoked = true WHERE id = $1 AND developer_id = $2")
         .bind(key_id)
-        .bind(claims.developer_id.to_string())
+        .bind(claims.developer_id)
         .execute(state.db.as_ref())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -286,7 +293,7 @@ pub async fn list_all_keys(
         r#"SELECT id, developer_id, key_prefix, key_hash, tier, label, scopes, revoked, last_used_at, created_at
            FROM api_keys WHERE developer_id = $1"#,
     )
-    .bind(claims.developer_id.to_string())
+    .bind(claims.developer_id)
     .fetch_all(state.db.as_ref())
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

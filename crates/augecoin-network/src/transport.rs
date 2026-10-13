@@ -33,6 +33,7 @@ pub struct ConsensusNetworkHandle {
     pub outbound_tx: Sender<OutboundConsensus>,
     pub inbound_rx: Receiver<InboundConsensus>,
     pub op_inbound_rx: Receiver<Vec<u8>>,
+    pub sync_inbound_rx: Receiver<Vec<u8>>,
     pub peers_connected: Arc<AtomicU32>,
     pub peers_gossipsub: Arc<AtomicU32>,
     pub peers_kademlia: Arc<AtomicU32>,
@@ -88,6 +89,11 @@ impl ConsensusNetworkHandle {
         self.op_inbound_rx.try_recv().ok()
     }
 
+    /// Drain sync messages (checkpoints and blocks) received on sync topics.
+    pub fn try_recv_sync(&self) -> Option<Vec<u8>> {
+        self.sync_inbound_rx.try_recv().ok()
+    }
+
     pub fn shutdown(&self) {
         let _ = self.shutdown_tx.send(());
     }
@@ -109,6 +115,7 @@ pub trait ConsensusTransport: Send + Sync {
     fn gossipsub_peer_count(&self) -> u32;
     fn kademlia_peer_count(&self) -> u32;
     fn try_recv_operation(&self) -> Option<Vec<u8>>;
+    fn try_recv_sync(&self) -> Option<Vec<u8>>;
     fn shutdown(&self);
 }
 
@@ -147,6 +154,10 @@ impl ConsensusTransport for ConsensusNetworkHandle {
 
     fn try_recv_operation(&self) -> Option<Vec<u8>> {
         ConsensusNetworkHandle::try_recv_operation(self)
+    }
+
+    fn try_recv_sync(&self) -> Option<Vec<u8>> {
+        ConsensusNetworkHandle::try_recv_sync(self)
     }
 
     fn shutdown(&self) {
@@ -220,6 +231,7 @@ pub fn start_consensus_network(
     let (outbound_tx, outbound_rx) = crossbeam_channel::unbounded::<OutboundConsensus>();
     let (inbound_tx, inbound_rx) = crossbeam_channel::unbounded::<InboundConsensus>();
     let (op_inbound_tx, op_inbound_rx) = crossbeam_channel::unbounded::<Vec<u8>>();
+    let (sync_inbound_tx, sync_inbound_rx) = crossbeam_channel::unbounded::<Vec<u8>>();
     let (shutdown_tx, shutdown_rx) = crossbeam_channel::unbounded::<()>();
     let peers_connected = Arc::new(AtomicU32::new(0));
     let peers_connected_clone = peers_connected.clone();
@@ -327,6 +339,15 @@ pub fn start_consensus_network(
                                     // mempool via sender/n_operation).
                                     if message.data.len() <= MAX_CONSENSUS_MSG_SIZE {
                                         let _ = op_inbound_tx.send(message.data);
+                                    }
+                                } else if message.topic == AugecoinBehaviour::sync_checkpoint_topic_hash()
+                                    || message.topic == AugecoinBehaviour::sync_block_topic_hash()
+                                {
+                                    // Sync message (checkpoint snapshot or block
+                                    // for replay): route to the sync channel
+                                    // consumed by the SyncManager in main.rs.
+                                    if message.data.len() <= MAX_CONSENSUS_MSG_SIZE {
+                                        let _ = sync_inbound_tx.send(message.data);
                                     }
                                 } else if message.topic == AugecoinBehaviour::relay_topic_hash() {
                                     // Relay envelope: either we are the target
@@ -626,6 +647,7 @@ pub fn start_consensus_network(
         outbound_tx,
         inbound_rx,
         op_inbound_rx,
+        sync_inbound_rx,
         peers_connected,
         peers_gossipsub,
         peers_kademlia,

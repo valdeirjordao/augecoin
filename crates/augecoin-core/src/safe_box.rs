@@ -150,22 +150,39 @@ impl SafeBox {
         self.name_index.get(name).copied()
     }
 
+    /// Merkle root over all accounts (in `BTreeMap` order) followed by all
+    /// name-index entries (in `BTreeMap` order), duplicating an odd trailing
+    /// node at every level. The digest is consensus-critical and must stay
+    /// byte-identical across versions.
+    ///
+    /// Hot path: recomputed on every block commit. Uses one reusable scratch
+    /// buffer for account serialization and one for node concatenation so the
+    /// cost is dominated by the blake3 calls rather than by allocations.
     pub fn compute_safe_box_hash(&self) -> [u8; 64] {
         if self.accounts.is_empty() {
             return [0u8; 64];
         }
-        let mut hashes: Vec<[u8; 64]> = self.accounts.values().map(|a| a.hash()).collect();
-        // Include name_index entries in the hash for consensus
-        for (name, number) in &self.name_index {
-            let mut data = Vec::new();
-            data.extend_from_slice(name.as_bytes());
-            data.extend_from_slice(&number.to_be_bytes());
-            hashes.push(blake3_512(&data));
+        let mut scratch: Vec<u8> = Vec::with_capacity(512);
+        let mut hashes: Vec<[u8; 64]> =
+            Vec::with_capacity(self.accounts.len() + self.name_index.len());
+        for account in self.accounts.values() {
+            scratch.clear();
+            account.write_bytes_into(&mut scratch);
+            hashes.push(blake3_512(&scratch));
         }
+        // Include name_index entries in the hash for consensus
+        let mut name_data = Vec::with_capacity(64);
+        for (name, number) in &self.name_index {
+            name_data.clear();
+            name_data.extend_from_slice(name.as_bytes());
+            name_data.extend_from_slice(&number.to_be_bytes());
+            hashes.push(blake3_512(&name_data));
+        }
+        let mut combined: Vec<u8> = Vec::with_capacity(128);
         while hashes.len() > 1 {
             let mut next = Vec::with_capacity(hashes.len().div_ceil(2));
             for chunk in hashes.chunks(2) {
-                let mut combined = Vec::new();
+                combined.clear();
                 combined.extend_from_slice(&chunk[0]);
                 if chunk.len() > 1 {
                     combined.extend_from_slice(&chunk[1]);
@@ -531,5 +548,61 @@ mod tests {
         proof.account.balance = 999;
 
         assert!(SafeBox::verify_merkle_proof(&proof, &root).is_err());
+    }
+}
+
+#[cfg(test)]
+mod golden_hash {
+    use super::*;
+    use crate::account::Account;
+
+    fn mk_account(num: u64, seed: u8, name: Option<String>) -> Account {
+        let mut acc = Account::new(num, [seed; 32], 1);
+        acc.balance = num * 1000 + 7;
+        acc.n_operation = num;
+        acc.name = name;
+        acc.account_seal = vec![seed; 32];
+        acc
+    }
+
+    fn fixture() -> SafeBox {
+        let mut sb = SafeBox::new(5, 1);
+        sb.add_account(mk_account(3, 1, Some("alpha".into())));
+        sb.add_account(mk_account(1, 2, None));
+        sb.add_account(mk_account(2, 3, Some("beta".into())));
+        sb.add_account(mk_account(10, 4, None));
+        sb.update_hash();
+        sb
+    }
+
+    /// Golden digest of the SafeBox Merkle root. The root is consensus
+    /// critical: this pins it so an optimization of `compute_safe_box_hash`
+    /// can never silently change the digest.
+    ///
+    /// Verified byte-identical against the original (fully allocating)
+    /// implementation of `compute_safe_box_hash`.
+    #[test]
+    fn safe_box_merkle_root_is_pinned() {
+        let sb = fixture();
+        let h = sb.compute_safe_box_hash();
+        let hex: String = h.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "283d711a5d6ce96685fb5426ee0b4adec7fac10801c619530c285088954b71ea\
+             b2be3aaa73bc911ba7eae9e54f30ba824e73a0607f8f3b00cf31f133ec88c23c"
+        );
+        // Must agree with the cached header hash produced by update_hash().
+        assert_eq!(h, sb.header.safe_box_hash);
+    }
+
+    /// `write_bytes_into` must be byte-identical to `to_bytes`.
+    #[test]
+    fn write_bytes_into_matches_to_bytes() {
+        for acc in fixture().accounts.values() {
+            let mut buf = Vec::new();
+            acc.write_bytes_into(&mut buf);
+            assert_eq!(buf, acc.to_bytes());
+            assert_eq!(blake3_512(&buf), acc.hash());
+        }
     }
 }

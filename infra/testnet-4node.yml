@@ -1,0 +1,175 @@
+services:
+  # ── 4 Validator Nodes ────────────────────────────────────────────
+
+  validator-1:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    container_name: augecoin-validator-1
+    hostname: validator-1
+    volumes:
+      - validator1_data:/data
+      - ../scripts/genesis/genesis-data/validators/validator-1:/config:ro
+      - ../scripts/genesis/genesis-data/genesis.json:/config/genesis.json:ro
+    command:
+      - "--config"
+      - "/config/node.toml"
+      - "--genesis"
+      - "/config/genesis.json"
+    ports:
+      - "9001:9000"
+      - "9444:9443"
+      - "9101:9100"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+
+  validator-2:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    container_name: augecoin-validator-2
+    hostname: validator-2
+    volumes:
+      - validator2_data:/data
+      - ../scripts/genesis/genesis-data/validators/validator-2:/config:ro
+      - ../scripts/genesis/genesis-data/genesis.json:/config/genesis.json:ro
+    command:
+      - "--config"
+      - "/config/node.toml"
+      - "--genesis"
+      - "/config/genesis.json"
+    ports:
+      - "9002:9000"
+      - "9445:9443"
+      - "9102:9100"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+
+  validator-3:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    container_name: augecoin-validator-3
+    hostname: validator-3
+    volumes:
+      - validator3_data:/data
+      - ../scripts/genesis/genesis-data/validators/validator-3:/config:ro
+      - ../scripts/genesis/genesis-data/genesis.json:/config/genesis.json:ro
+    command:
+      - "--config"
+      - "/config/node.toml"
+      - "--genesis"
+      - "/config/genesis.json"
+    ports:
+      - "9003:9000"
+      - "9446:9443"
+      - "9103:9100"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+
+  validator-4:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    container_name: augecoin-validator-4
+    hostname: validator-4
+    volumes:
+      - validator4_data:/data
+      - ../scripts/genesis/genesis-data/validators/validator-4:/config:ro
+      - ../scripts/genesis/genesis-data/genesis.json:/config/genesis.json:ro
+    command:
+      - "--config"
+      - "/config/node.toml"
+      - "--genesis"
+      - "/config/genesis.json"
+    ports:
+      - "9004:9000"
+      - "9447:9443"
+      - "9104:9100"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+
+  # ── Observer Node (read-only, no consensus participation) ─────────
+
+  observer:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile
+    container_name: augecoin-observer
+    hostname: observer
+    volumes:
+      - observer_data:/data
+      - ../scripts/genesis/genesis-data/observer:/config:ro
+      - ../scripts/genesis/genesis-data/genesis.json:/config/genesis.json:ro
+    command:
+      - "--config"
+      - "/config/node.toml"
+      - "--genesis"
+      - "/config/genesis.json"
+    ports:
+      - "9443:9443"
+      - "9100:9100"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+    profiles:
+      - observer
+
+  # ── Prometheus ────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: augecoin-prometheus
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      - augecoin-testnet
+    restart: unless-stopped
+
+  # ── Grafana ───────────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: augecoin-grafana
+    volumes:
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/dashboards/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml:ro
+      - ./observability/grafana/dashboards/augecoin-node.json:/etc/grafana/provisioning/dashboards/augecoin-node.json:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=augecoin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/augecoin-node.json
+    ports:
+      - "3000:3000"
+    networks:
+      - augecoin-testnet
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  validator1_data:
+  validator2_data:
+  validator3_data:
+  validator4_data:
+  observer_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  augecoin-testnet:
+    driver: bridge

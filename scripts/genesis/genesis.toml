@@ -3,7 +3,7 @@
 
 [network]
 chain_id = "augecoin-testnet-1"
-block_time_seconds = 15
+block_time_seconds = 5
 timeout_seconds = 30
 
 [emission]

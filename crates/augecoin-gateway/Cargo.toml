@@ -14,9 +14,9 @@ augecoin-crypto.path = "../../crates/augecoin-crypto"
 
 # HTTP / server
 axum = "0.8"
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "compression-br"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-br", "request-id", "limit"] }
 tokio = { version = "1", features = ["full"] }
 rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2"
@@ -44,7 +44,7 @@ metrics-exporter-prometheus = { version = "0.17", default-features = false, feat
 prometheus = "0.13"
 
 # Database (billing / api keys)
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "uuid"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 
 # HTTP client for proxying
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }

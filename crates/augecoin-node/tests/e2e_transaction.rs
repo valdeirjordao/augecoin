@@ -120,7 +120,7 @@ fn full_transaction_lifecycle_via_rpc_mempool_consensus() {
         storage: storage.clone(),
         mempool: mempool.clone(),
         node_status: node_status.clone(),
-        api_keys: augecoin_rpc::auth::ApiKeyStore::empty(),
+        api_keys: augecoin_rpc::auth::ApiKeyStore::new(Vec::new()),
         rate_limiter: augecoin_rpc::auth::RateLimiter::new(
             1000,
             std::time::Duration::from_secs(60),
@@ -136,6 +136,7 @@ fn full_transaction_lifecycle_via_rpc_mempool_consensus() {
         faucet_claims: std::sync::Mutex::new(std::collections::HashMap::new()),
         admin_keypair: None,
         op_broadcaster: None,
+        read_cache: Arc::new(augecoin_rpc::endpoints::ReadCache::default()),
     };
 
     // ── 1. Wallet signs a transfer of 10 AUGE (A -> B) ───────────────────
@@ -287,7 +288,7 @@ fn mempool_rejects_duplicate_and_bad_nonce_via_rpc() {
         storage: storage.clone(),
         mempool: mempool.clone(),
         node_status,
-        api_keys: augecoin_rpc::auth::ApiKeyStore::empty(),
+        api_keys: augecoin_rpc::auth::ApiKeyStore::new(Vec::new()),
         rate_limiter: augecoin_rpc::auth::RateLimiter::new(
             1000,
             std::time::Duration::from_secs(60),
@@ -303,6 +304,7 @@ fn mempool_rejects_duplicate_and_bad_nonce_via_rpc() {
         faucet_claims: std::sync::Mutex::new(std::collections::HashMap::new()),
         admin_keypair: None,
         op_broadcaster: None,
+        read_cache: Arc::new(augecoin_rpc::endpoints::ReadCache::default()),
     };
 
     let op = signed_transfer(&kp_a, chain_id, 100, 0, 200, AUGE, 0);

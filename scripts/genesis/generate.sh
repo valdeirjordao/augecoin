@@ -77,7 +77,7 @@ cat > "${GENESIS_DIR}/genesis.json" << EOFJSON
   "consensus": {
     "type": "poa",
     "quorum_threshold": 3,
-    "block_time_seconds": 15,
+    "block_time_seconds": 5,
     "timeout_seconds": 120
   },
   "emission": {

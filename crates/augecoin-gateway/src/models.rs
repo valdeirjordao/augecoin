@@ -12,7 +12,7 @@ pub struct ApiKeyRow {
     pub key_hash: String,
     pub tier: String,
     pub label: String,
-    pub scopes: Option<Vec<String>>,
+    pub scopes: sqlx::types::Json<Vec<String>>,
     pub revoked: bool,
     pub last_used_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

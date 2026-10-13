@@ -10,8 +10,9 @@ use augecoin_core::operation::Operation;
 use augecoin_core::proposal::{op_hash, GetTransactions, ProposalMessage, TransactionsResponse};
 use augecoin_network::transport::start_consensus_network;
 use augecoin_network::{identity_from_ed25519_seed, parse_external_address, Bootnodes};
+use augecoin_node::sync::CheckpointSync;
 use augecoin_node::alerts::AlertManager;
-use augecoin_node::consensus::{reconstruct_from_proposal, ConsensusEngine, ConsensusEvent};
+use augecoin_node::consensus::{reconstruct_from_proposal, ConsensusEngine, ConsensusEvent, BATCH_SYNC_MAX_BLOCKS, SYNC_RETRY_INITIAL_DELAY_MS, SYNC_RETRY_BACKOFF_FACTOR};
 use augecoin_node::metrics::{MetricsServer, NodeMetrics};
 use augecoin_storage::Storage;
 use std::collections::{HashMap, HashSet};
@@ -19,13 +20,73 @@ use std::io::{IsTerminal, Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+/// Resolve and validate the block cadence before the node starts.
+///
+/// `block_time` is *not* on-chain state: it is a per-node pacing parameter, so
+/// a fleet only produces steady blocks when every validator uses the same
+/// value. This rejects unusable values up front and loudly flags a value that
+/// diverges from the protocol default so a misconfiguration is caught before
+/// initialization instead of surfacing as stalled block production.
+fn resolve_block_time() -> u64 {
+    let default = augecoin_core::constants::CT_BLOCK_TIME_SECONDS;
+    match std::env::var("AUGECOIN_BLOCK_TIME") {
+        Ok(raw) => parse_block_time(&raw, default).unwrap_or_else(|e| {
+            eprintln!("[config] FATAL: {e}");
+            std::process::exit(1);
+        }),
+        Err(_) => default,
+    }
+}
+
+/// Parse a configured cadence. Returns an error for an unusable value and warns
+/// when it diverges from the protocol default, so a misconfiguration is caught
+/// before initialization instead of surfacing as stalled block production.
+fn parse_block_time(raw: &str, default: u64) -> Result<u64, String> {
+    let trimmed = raw.trim();
+    let value: u64 = trimmed
+        .parse()
+        .map_err(|_| format!("AUGECOIN_BLOCK_TIME={trimmed:?} is not a positive integer"))?;
+    if value == 0 {
+        return Err("AUGECOIN_BLOCK_TIME must be greater than zero".to_string());
+    }
+    if value != default {
+        eprintln!(
+            "[config] WARNING: AUGECOIN_BLOCK_TIME={value}s differs from the protocol default \
+{default}s. Every validator in the same network must use the SAME value or block production \
+will stall; verify the whole fleet before starting."
+        );
+    }
+    Ok(value)
+}
+
+/// Whether a proposal for the next height may be accepted in the given phase.
+///
+/// `Executed` means the node already committed the previous block and is pacing
+/// before opening the next round. A valid next-height proposal must be accepted
+/// there too, otherwise it is dropped and has to be retried. `AwaitingSignatures`
+/// and `Idle`-after-proposal states must not accept a second proposal.
+fn can_accept_proposal(phase: NodePhase) -> bool {
+    matches!(phase, NodePhase::Idle | NodePhase::Executed)
+}
+
+/// Remaining time to wait before opening the next round, given the monotonic
+/// time elapsed since the previous commit. `None` means the wait is over.
+fn cadence_remaining(block_time: u64, elapsed: Duration) -> Option<Duration> {
+    let target = Duration::from_secs(block_time);
+    if elapsed < target {
+        Some(target - elapsed)
+    } else {
+        None
+    }
 }
 
 fn start_rpc_server(
@@ -36,6 +97,7 @@ fn start_rpc_server(
     admin_keypair: Option<augecoin_crypto::signature::HybridKeyPair>,
     faucet_enabled: bool,
     op_broadcast_tx: crossbeam_channel::Sender<Vec<u8>>,
+    read_cache: Arc<augecoin_rpc::endpoints::ReadCache>,
 ) {
     let admin_api_keys: Vec<String> = std::env::var("AUGECOIN_ADMIN_API_KEYS")
         .unwrap_or_default()
@@ -49,8 +111,6 @@ fn start_rpc_server(
         .and_then(|v| v.parse().ok())
         .unwrap_or(300);
     let faucet_keypair = if faucet_enabled {
-        // Fail-fast already happened in main(); the variable is guaranteed
-        // to be present and well-formed here.
         let raw = std::env::var("AUGECOIN_FAUCET_KEY_HEX").expect("validated at startup");
         let bytes = hex::decode(raw.trim()).expect("validated at startup");
         let seed: [u8; 32] = bytes[..32].try_into().expect("validated at startup");
@@ -91,11 +151,35 @@ fn start_rpc_server(
                     }
                 };
 
+            // ── Persistent API key store (Phase 1) ──────────────────────
+            // Try to connect to PostgreSQL for persistent keys. Falls back to
+            // in-memory store if the DB is unreachable or AUGECOIN_RPC_DATABASE_URL
+            // is not set.
+            let api_keys = if let Ok(db_url) = std::env::var("AUGECOIN_RPC_DATABASE_URL") {
+                match sqlx::PgPool::connect(&db_url).await {
+                    Ok(pool) => {
+                        println!("[rpc] persistent API key store connected to PostgreSQL");
+                        augecoin_rpc::auth::ApiKeyStore::new_with_pool(
+                            pool,
+                            admin_api_keys,
+                            std::time::Duration::from_secs(30),
+                        )
+                        .await
+                    }
+                    Err(e) => {
+                        eprintln!("[rpc] WARNING: cannot connect to RPC DB ({e}); falling back to in-memory keys");
+                        augecoin_rpc::auth::ApiKeyStore::new(admin_api_keys)
+                    }
+                }
+            } else {
+                augecoin_rpc::auth::ApiKeyStore::new(admin_api_keys)
+            };
+
             let state = Arc::new(augecoin_rpc::endpoints::AppState {
                 storage,
                 mempool,
                 node_status,
-                api_keys: augecoin_rpc::auth::ApiKeyStore::new(admin_api_keys),
+                api_keys,
                 rate_limiter: augecoin_rpc::auth::RateLimiter::new(rate_limit, Duration::from_secs(60)),
                 sensitive_rate_limiter: augecoin_rpc::auth::RateLimiter::new(10, Duration::from_secs(60)),
                 require_admin_auth: true,
@@ -105,6 +189,7 @@ fn start_rpc_server(
                 faucet_claims: std::sync::Mutex::new(std::collections::HashMap::new()),
                 admin_keypair,
                 op_broadcaster: Some(op_broadcast_tx),
+                read_cache,
             });
 
             let settings = augecoin_rpc::RpcSettings {
@@ -461,10 +546,7 @@ fn main() {
             },
             _ => None,
         };
-    let block_time: u64 = std::env::var("AUGECOIN_BLOCK_TIME")
-        .unwrap_or_else(|_| augecoin_core::constants::CT_BLOCK_TIME_SECONDS.to_string())
-        .parse()
-        .unwrap_or(augecoin_core::constants::CT_BLOCK_TIME_SECONDS);
+    let block_time = resolve_block_time();
 
     // Light-proposal transport (FASE 2). Default ON. Set AUGECOIN_HEAVY_PROPOSAL=1
     // to force the legacy full-block proposal (fallback for mixed networks).
@@ -501,6 +583,19 @@ fn main() {
     println!("══════════════════════════════════════════");
     println!();
 
+    // Structured logging (Fase 6) — respects RUST_LOG / AUGECOIN_LOG env vars.
+    // Falls back gracefully if a subscriber was already initialised by a dep.
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "augecoin_node=info,tower_http=info".into()),
+        )
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_file(true)
+        .with_line_number(true)
+        .try_init();
+
     println!("[init] opening RocksDB at {data_dir}");
     std::fs::create_dir_all(&data_dir).expect("failed to create data directory");
     let storage = Arc::new(Storage::open(&data_dir).expect("failed to open storage"));
@@ -521,6 +616,20 @@ fn main() {
     storage.set_safebox_snapshot_interval(safebox_snapshot_interval);
     println!("[init] SafeBox snapshot interval: {safebox_snapshot_interval} blocks");
 
+    // Explicit, versioned activation of the incremental SMT state root
+    // (protocol v6). Disabled unless AUGECOIN_STATE_ROOT_V6_ACTIVATION is set to
+    // a block height. Every validator on a network MUST use the same value;
+    // mainnet leaves it unset (u64::MAX = never).
+    let state_root_v6_activation = std::env::var("AUGECOIN_STATE_ROOT_V6_ACTIVATION")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok());
+    if let Some(height) = state_root_v6_activation {
+        storage.set_state_tree_activation(height);
+        println!("[init] SMT state root (protocol v6) activates at height {height}");
+    } else {
+        println!("[init] SMT state root disabled; using legacy flat state root (protocol 5)");
+    }
+
     let genesis_path = std::env::var("AUGECOIN_GENESIS_CONFIG").ok();
     let genesis_cfg = genesis::load_optional(genesis_path.as_deref().map(std::path::Path::new))
         .unwrap_or_else(|e| {
@@ -531,6 +640,18 @@ fn main() {
         eprintln!("[genesis] FATAL: {e}");
         std::process::exit(1);
     });
+
+    // Build the SMT once at the activation boundary. Idempotent: an already
+    // migrated node re-reads the committed root instead of rebuilding.
+    if state_root_v6_activation.is_some() {
+        match storage.migrate_state_tree() {
+            Ok(root) => println!("[init] SMT state tree ready; root={}", hex::encode(root)),
+            Err(e) => {
+                eprintln!("[init] FATAL: SMT state tree migration failed: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
 
     let (initial_validator_set, my_keypair, _admin_kp) = if is_dev_mode {
         let (vs, all_keys, admin) =
@@ -725,6 +846,12 @@ fn main() {
     // and the receiver is drained by the network thread.
     let (op_broadcast_tx, op_broadcast_rx) = crossbeam_channel::unbounded::<Vec<u8>>();
 
+    let read_cache = Arc::new(augecoin_rpc::endpoints::ReadCache::new(
+        4096,
+        2048,
+        std::time::Duration::from_secs(5),
+    ));
+
     start_rpc_server(
         storage.clone(),
         mempool.clone(),
@@ -733,6 +860,7 @@ fn main() {
         _admin_kp.clone(),
         faucet_enabled,
         op_broadcast_tx,
+        read_cache.clone(),
     );
     start_wallet_server(wallet_port);
 
@@ -771,7 +899,10 @@ fn main() {
         mempool.clone(),
         block_time,
     );
-    engine.attach_network(Arc::new(network_handle));
+    let mut checkpoint_sync = CheckpointSync::new();
+    let network_arc = Arc::new(network_handle);
+    let network_for_sync: std::sync::Arc<dyn augecoin_network::transport::ConsensusTransport> = network_arc.clone();
+    engine.attach_network(network_arc);
 
     std::thread::sleep(Duration::from_secs(2));
 
@@ -813,6 +944,11 @@ fn main() {
     let mut round_number: u64 = 0;
     let mut round_start_time = now_secs();
     let mut last_block_time = round_start_time;
+    // Monotonic anchor for the block cadence. The pacing wait is measured from
+    // the *commit* of the previous block with a monotonic clock, so a wall-clock
+    // jump can neither skip blocks nor stall production. The wall-clock value
+    // `last_block_time` is kept only for persisted timestamps/telemetry.
+    let mut last_commit_at = Instant::now();
     let total_round_timeout = block_time + 5;
 
     let mut round_change_votes: HashMap<u64, HashSet<u64>> = HashMap::new();
@@ -824,6 +960,8 @@ fn main() {
     let mut catching_up = false;
     let mut sync_target = height;
     let mut last_sync_request = 0u64;
+    let mut sync_retry_count: u32 = 0;
+    let mut sync_retry_height: u64 = 0;        // height that failed last
     let mut last_status_request = 0u64;
     let mut peers_heights: HashMap<u64, u64> = HashMap::new();
     let mut gossiped_seen: HashSet<[u8; 64]> = HashSet::new();
@@ -876,6 +1014,24 @@ fn main() {
             }
         }
 
+        // Drain sync messages (checkpoints and blocks) for checkpoint-based
+        // catch-up. Handled separately from consensus messages because sync
+        // bypasses the block-request protocol when peers have pruned old blocks.
+        // Returns true when checkpoint sync completes so we can clean the
+        // mempool and invalidate the read cache.
+        let checkpoint_done = checkpoint_sync.tick(now, height, &storage, &*network_for_sync);
+        if checkpoint_done {
+            let mut mp = match mempool.lock() {
+                Ok(g) => g,
+                Err(_) => continue,
+            };
+            mp.clear();
+            read_cache.invalidate_all();
+            drop(mp);
+            let mpsize = mempool.lock().map(|m| m.len()).unwrap_or(0);
+            node_metrics.mempool_size.set(mpsize as i64);
+        }
+
         if now >= last_status_request + 5 {
             engine.broadcast_to_others(&ConsensusEvent::StatusRequest {
                 requester_id: validator_id,
@@ -894,6 +1050,32 @@ fn main() {
                             height: req_h,
                             block_bytes: block.to_bytes(),
                             quorum_sigs: block.quorum_signatures.clone(),
+                            from_id: validator_id,
+                        };
+                        engine.send_to(requester_id, &resp);
+                    }
+                }
+                ConsensusEvent::BlockRangeRequest {
+                    start_height,
+                    count,
+                    requester_id,
+                } => {
+                    let count = count.min(BATCH_SYNC_MAX_BLOCKS);
+                    let mut blocks = Vec::new();
+                    let mut quorum_sigs = Vec::new();
+                    for h in start_height..start_height + count {
+                        if let Ok(Some(block)) = storage.get_block(h) {
+                            blocks.push(block.to_bytes());
+                            quorum_sigs.push(block.quorum_signatures.clone());
+                        } else {
+                            break; // Stop at first gap
+                        }
+                    }
+                    if !blocks.is_empty() {
+                        let resp = ConsensusEvent::BlockRangeResponse {
+                            start_height,
+                            blocks,
+                            quorum_sigs,
                             from_id: validator_id,
                         };
                         engine.send_to(requester_id, &resp);
@@ -924,6 +1106,16 @@ fn main() {
                                     .sync_lag
                                     .set(sync_target.saturating_sub(height) as i64);
                                 let mpsize = mempool.lock().map(|m| m.len()).unwrap_or(0);
+                                {
+                                    let mut mp = match mempool.lock() {
+                                        Ok(g) => g,
+                                        Err(_) => continue,
+                                    };
+                                    if let Ok(block) = OperationBlock::from_bytes(&block_bytes) {
+                                        mp.remove_committed(&block.operations);
+                                    }
+                                }
+                                read_cache.invalidate_all();
                                 update_node_status(
                                     &node_status,
                                     height,
@@ -947,7 +1139,104 @@ fn main() {
                             }
                             Err(e) => {
                                 eprintln!("[sync] REJECTED block {resp_h}: {e}");
-                                catching_up = false;
+                                sync_retry_count = sync_retry_count.saturating_add(1);
+                                sync_retry_height = resp_h;
+                                // Stay in catch-up — retry with backoff instead of
+                                // permanently aborting. After 3 consecutive failures
+                                // at the same height, fall back to batch sync.
+                                if sync_retry_count >= 3 {
+                                    eprintln!(
+                                        "[sync] {} consecutive failures at height {}, \
+                                         switching to batch sync mode",
+                                        sync_retry_count, resp_h
+                                    );
+                                    sync_retry_count = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                ConsensusEvent::BlockRangeResponse {
+                    start_height,
+                    blocks,
+                    quorum_sigs,
+                    from_id: _,
+                } => {
+                    if !catching_up {
+                        continue;
+                    }
+                    let batch_count = blocks.len();
+                    let expected_start = height + 1;
+                    if start_height > expected_start {
+                        // Received blocks ahead of our position — buffer them
+                        // for later (skip for now, we'll re-request)
+                        continue;
+                    }
+                    for (i, block_bytes) in blocks.iter().enumerate() {
+                        let target_h = start_height + i as u64;
+                        if target_h != height + 1 {
+                            // Skip blocks we're not ready for yet
+                            continue;
+                        }
+                        let sigs = quorum_sigs.get(i).map(|v| v.as_slice()).unwrap_or(&[]);
+                        match apply_catchup_block(block_bytes, sigs, &engine.validator_set, &storage) {
+                            Ok(new_sb_hash) => {
+                                height = target_h;
+                                prev_safe_box_hash = new_sb_hash;
+                                latest_block_hash =
+                                    OperationBlock::from_bytes(block_bytes)
+                                        .map(|b| b.hash())
+                                        .unwrap_or([0u8; 64]);
+                                node_metrics.block_height.set(height as i64);
+                                node_metrics.catchup_blocks_total.inc();
+                                node_metrics
+                                    .sync_lag
+                                    .set(sync_target.saturating_sub(height) as i64);
+                                let mpsize = mempool.lock().map(|m| m.len()).unwrap_or(0);
+                                {
+                                    let mut mp = match mempool.lock() {
+                                        Ok(g) => g,
+                                        Err(_) => continue,
+                                    };
+                                    if let Ok(block) = OperationBlock::from_bytes(block_bytes) {
+                                        mp.remove_committed(&block.operations);
+                                    }
+                                }
+                                read_cache.invalidate_all();
+                                update_node_status(
+                                    &node_status,
+                                    height,
+                                    latest_block_hash,
+                                    mpsize,
+                                    0,
+                                    0,
+                                    connected_peers,
+                                    gossipsub_peers,
+                                    kademlia_peers,
+                                    true,
+                                    sync_target,
+                                    now.saturating_sub(startup_time),
+                                    None,
+                                );
+                                println!(
+                                    "[sync] batch-applied block {}/{} ({} behind)",
+                                    i + 1,
+                                    batch_count,
+                                    sync_target.saturating_sub(height)
+                                );
+                                sync_validator_set_from_storage(&mut engine, &storage);
+                                sync_retry_count = 0; // Reset on success
+                            }
+                            Err(e) => {
+                                eprintln!("[sync] REJECTED batch block {target_h}: {e}");
+                                sync_retry_count = sync_retry_count.saturating_add(1);
+                                sync_retry_height = target_h;
+                                // Process remaining blocks in this batch as individual
+                                // requests instead of failing the whole batch
+                                if sync_retry_count >= 3 {
+                                    sync_retry_count = 0;
+                                }
+                                break; // Stop processing this batch, retry individually
                             }
                         }
                     }
@@ -1023,7 +1312,12 @@ fn main() {
                     if ev_height != height + 1 {
                         continue;
                     }
-                    if phase == NodePhase::Idle {
+                    // Accept a valid proposal for the next height while Idle or
+                    // while pacing after a commit (`Executed`). The old code
+                    // only accepted in `Idle`, so a proposal that arrived a few
+                    // milliseconds before this node finished its post-commit
+                    // wait was silently dropped and had to be retried.
+                    if can_accept_proposal(phase) {
                         match OperationBlock::from_bytes(&block_bytes) {
                             Ok(block) => accept_proposal(
                                 &engine,
@@ -1060,7 +1354,7 @@ fn main() {
                     if ev_height != height + 1 {
                         continue;
                     }
-                    if phase != NodePhase::Idle {
+                    if !can_accept_proposal(phase) {
                         continue;
                     }
                     // PART 13: reject proposals with an invalid leader signature.
@@ -1301,9 +1595,10 @@ fn main() {
                     if ev_height != height + 1 {
                         continue;
                     }
-                    if phase == NodePhase::Executed {
-                        continue;
-                    }
+                    // A commit for the next height is applied even while pacing
+                    // (`Executed`): it was already quorum- and pre-state-verified
+                    // below, and applying it keeps us aligned with the leader
+                    // instead of waiting for our own timer to lapse.
                     match OperationBlock::from_bytes(&block_bytes) {
                         Ok(block) => {
                             if block.header.block_number != ev_height {
@@ -1351,6 +1646,7 @@ fn main() {
                                         };
                                         mp.remove_committed(&full_block.operations);
                                     }
+                                    read_cache.invalidate_all();
 
                                     sync_validator_set_from_storage(&mut engine, &storage);
 
@@ -1383,6 +1679,7 @@ fn main() {
 
                                     phase = NodePhase::Executed;
                                     last_block_time = now;
+                                    last_commit_at = Instant::now();
                                     round_start_time = now;
                                     pending_proposal = None;
                                     collected_sigs.clear();
@@ -1472,29 +1769,72 @@ fn main() {
             }
             let leader_now = leader_for(height, round_number, &engine.validator_set);
             // Exit catch-up when fully caught up, or when we are exactly one
-            // block behind *and* we are the leader for the next block (in which
-            // case normal consensus will propose it instead of requesting a
-            // block that does not exist yet).
+            // block behind *and* we are the leader for the next block.
             if height >= sync_target {
                 catching_up = false;
+                checkpoint_sync = CheckpointSync::new();
                 println!("[sync] catch-up complete at height {height}");
                 sync_validator_set_from_storage(&mut engine, &storage);
             } else if height + 1 == sync_target && leader_now == validator_id {
                 catching_up = false;
+                checkpoint_sync = CheckpointSync::new();
                 println!("[sync] catch-up complete at height {height} (next leader is us)");
                 sync_validator_set_from_storage(&mut engine, &storage);
-            } else if now >= last_sync_request + 2 {
-                let req = ConsensusEvent::BlockRequest {
-                    height: height + 1,
-                    requester_id: validator_id,
-                };
-                engine.broadcast_to_others(&req);
-                last_sync_request = now;
-                println!(
-                    "[sync] requesting block {} (target {})",
-                    height + 1,
-                    sync_target
-                );
+            } else if !checkpoint_sync.is_active() {
+                let gap = sync_target.saturating_sub(height);
+                // Use checkpoint sync when the gap exceeds what peers can
+                // serve (~100 blocks, matching PRUNE_KEEP_BLOCKS). It is only
+                // attempted when explicitly enabled, otherwise we keep the
+                // quorum-verified block-by-block path for every gap size.
+                if checkpoint_sync.enabled() && gap > 100 {
+                    checkpoint_sync.start(sync_target);
+                } else {
+                    // ── Standard block-by-block catch-up ──────────────────────
+                    let backoff_secs = if sync_retry_count > 0 && sync_retry_height == height + 1 {
+                        let exp = sync_retry_count.min(5) as u32;
+                        (SYNC_RETRY_INITIAL_DELAY_MS * SYNC_RETRY_BACKOFF_FACTOR.pow(exp) / 1000).max(1)
+                    } else if sync_retry_count >= 3 {
+                        2
+                    } else {
+                        1
+                    };
+
+                    if now >= last_sync_request + backoff_secs {
+                        if gap <= BATCH_SYNC_MAX_BLOCKS || sync_retry_count >= 3 {
+                            // Batch mode: request a range of blocks for parallel download
+                            let batch_count = gap.min(BATCH_SYNC_MAX_BLOCKS).max(1);
+                            let req = ConsensusEvent::BlockRangeRequest {
+                                start_height: height + 1,
+                                count: batch_count,
+                                requester_id: validator_id,
+                            };
+                            engine.broadcast_to_others(&req);
+                            last_sync_request = now;
+                            println!(
+                                "[sync] batch-requesting blocks {}..{} ({} blocks, target {}, retries={})",
+                                height + 1,
+                                height + batch_count,
+                                batch_count,
+                                sync_target,
+                                sync_retry_count
+                            );
+                        } else {
+                            // Standard single-block request (gap > batch limit)
+                            let req = ConsensusEvent::BlockRequest {
+                                height: height + 1,
+                                requester_id: validator_id,
+                            };
+                            engine.broadcast_to_others(&req);
+                            last_sync_request = now;
+                            println!(
+                                "[sync] requesting block {} (target {}, {} behind)",
+                                height + 1,
+                                sync_target,
+                                gap
+                            );
+                        }
+                    }
+                }
             }
 
             let mpsize = mempool.lock().map(|m| m.len()).unwrap_or(0);
@@ -1538,14 +1878,18 @@ fn main() {
             None,
         );
 
-        let elapsed_since_last = now.saturating_sub(last_block_time);
-        if elapsed_since_last < block_time && phase == NodePhase::Executed {
-            let remaining = block_time - elapsed_since_last;
-            std::thread::sleep(Duration::from_secs(remaining.min(1)));
-            continue;
-        }
-
+        // Block cadence: after committing, wait `block_time` before opening the
+        // next round. The wait is anchored to the monotonic commit instant with
+        // sub-second precision, so it neither drifts nor gets consumed by the
+        // execution time of the block that just committed (the previous code
+        // compared against a stale whole-second `now`, which produced irregular
+        // 6-14 s gaps). We cap each sleep and re-check so incoming consensus
+        // messages keep being drained at the top of the loop.
         if phase == NodePhase::Executed {
+            if let Some(remaining) = cadence_remaining(block_time, last_commit_at.elapsed()) {
+                std::thread::sleep(remaining.min(Duration::from_millis(250)));
+                continue;
+            }
             phase = NodePhase::Idle;
         }
 
@@ -1741,6 +2085,7 @@ fn main() {
                                     };
                                     mp.remove_committed(&committed_block.operations);
                                 }
+                                read_cache.invalidate_all();
 
                                 sync_validator_set_from_storage(&mut engine, &storage);
 
@@ -1806,6 +2151,7 @@ fn main() {
 
                                 phase = NodePhase::Executed;
                                 last_block_time = now;
+                                last_commit_at = Instant::now();
                                 round_start_time = now;
                                 pending_proposal = None;
                                 collected_sigs.clear();
@@ -2071,4 +2417,55 @@ fn apply_catchup_block(
     let new_sb_hash = execution::execute_block(&full_block, storage).map_err(|e| e.to_string())?;
 
     Ok(new_sb_hash)
+}
+
+#[cfg(test)]
+mod main_tests {
+    use super::*;
+
+    #[test]
+    fn parse_block_time_accepts_value() {
+        assert_eq!(parse_block_time("5", 5).unwrap(), 5);
+        assert_eq!(parse_block_time(" 7 ", 5).unwrap(), 7);
+    }
+
+    #[test]
+    fn parse_block_time_rejects_zero_and_garbage() {
+        assert!(parse_block_time("0", 5).is_err());
+        assert!(parse_block_time("-1", 5).is_err());
+        assert!(parse_block_time("abc", 5).is_err());
+        assert!(parse_block_time("", 5).is_err());
+    }
+
+    #[test]
+    fn can_accept_proposal_covers_pacing_phase() {
+        // Idle and the post-commit pacing phase accept; a second proposal while
+        // already awaiting signatures must not.
+        assert!(can_accept_proposal(NodePhase::Idle));
+        assert!(can_accept_proposal(NodePhase::Executed));
+        assert!(!can_accept_proposal(NodePhase::AwaitingSignatures));
+    }
+
+    #[test]
+    fn cadence_remaining_is_exact_and_subsecond() {
+        assert_eq!(
+            cadence_remaining(5, Duration::ZERO),
+            Some(Duration::from_secs(5))
+        );
+        assert_eq!(
+            cadence_remaining(5, Duration::from_millis(2500)),
+            Some(Duration::from_millis(2500))
+        );
+        assert_eq!(cadence_remaining(5, Duration::from_secs(5)), None);
+        assert_eq!(cadence_remaining(5, Duration::from_secs(9)), None);
+    }
+
+    #[test]
+    fn leader_rotation_is_deterministic() {
+        let (set, _keys, _admin) = augecoin_node::consensus::create_dev_validator_set_and_keys(4);
+        // The leader for a height is stable for a given round.
+        assert_eq!(leader_for(100, 0, &set), leader_for(100, 0, &set));
+        // Successive heights rotate the leader.
+        assert_ne!(leader_for(100, 0, &set), leader_for(101, 0, &set));
+    }
 }

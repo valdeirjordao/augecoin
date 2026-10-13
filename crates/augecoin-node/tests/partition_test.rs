@@ -90,7 +90,7 @@ fn partition_state_isolation_preserves_atomicity() {
             }],
             receivers: vec![ReceiverInfo {
                 account: 11,
-                amount: 90,
+                amount: 100,
                 payload: vec![],
             }],
             changers: vec![],
@@ -137,7 +137,7 @@ fn partition_state_isolation_preserves_atomicity() {
     assert_eq!(acc1_after.balance, 10000 - 100 - 10);
 
     let acc2_after = storage.get_account(11).unwrap().unwrap();
-    assert_eq!(acc2_after.balance, 10000 + 90);
+    assert_eq!(acc2_after.balance, 10000 + 100);
 
     let leader_after = storage.get_account(100).unwrap().unwrap();
     assert!(leader_after.balance > 0);
@@ -173,7 +173,7 @@ fn partition_state_root_changes_after_recovery() {
             }],
             receivers: vec![ReceiverInfo {
                 account: 10,
-                amount: 90,
+                amount: 100,
                 payload: vec![],
             }],
             changers: vec![],
@@ -226,7 +226,7 @@ fn partition_state_root_changes_after_recovery() {
             }],
             receivers: vec![ReceiverInfo {
                 account: 10,
-                amount: 45,
+                amount: 50,
                 payload: vec![],
             }],
             changers: vec![],

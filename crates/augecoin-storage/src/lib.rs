@@ -1,5 +1,6 @@
 pub mod checkpoint;
 pub mod state_root;
+pub mod state_tree;
 
 /// Re-exported so dependent crates can build `WriteBatch`es without taking a
 /// direct `rocksdb` dependency.
@@ -34,6 +35,32 @@ pub const CF_CONTRACT_BALANCES: &str = "contract_balances";
 pub const CF_CONTRACT_CODES: &str = "contract_codes";
 pub const CF_CONTRACT_CODE_HASH: &str = "contract_code_hash";
 
+/// Nodes of the incremental Sparse Merkle Tree (protocol v6 state root).
+pub const CF_STATE_NODES: &str = "state_nodes";
+/// Metadata for the incremental tree: committed root, tree version, height.
+pub const CF_STATE_META: &str = "state_tree_meta";
+
+/// Metadata keys inside [`CF_STATE_META`].
+pub const STATE_META_ROOT: &[u8] = b"root";
+pub const STATE_META_VERSION: &[u8] = b"version";
+pub const STATE_META_HEIGHT: &[u8] = b"height";
+
+/// Consensus-relevant column families, in the same order used by the legacy
+/// flat root. These are the records committed by the state root.
+const CONSENSUS_COLUMN_FAMILIES: &[&str] = &[
+    CF_ACCOUNTS,
+    CF_VALIDATOR_SET,
+    CF_CONTRACTS,
+    CF_CONTRACT_METADATA,
+    CF_CONTRACT_BALANCES,
+    CF_CONTRACT_CODES,
+    CF_CONTRACT_CODE_HASH,
+];
+
+/// Maximum number of `state_nodes` mutations buffered before flushing during a
+/// streaming rebuild. Bounds peak memory to a few MB regardless of state size.
+const STATE_REBUILD_FLUSH_OPS: usize = 50_000;
+
 const ALL_COLUMN_FAMILIES: &[&str] = &[
     CF_ACCOUNTS,
     CF_BLOCKS,
@@ -48,6 +75,8 @@ const ALL_COLUMN_FAMILIES: &[&str] = &[
     CF_CONTRACT_BALANCES,
     CF_CONTRACT_CODES,
     CF_CONTRACT_CODE_HASH,
+    CF_STATE_NODES,
+    CF_STATE_META,
 ];
 
 // RocksDB tuning — see DECISIONS: disk growth was dominated by full SafeBox
@@ -103,6 +132,119 @@ struct SafeboxCache {
     snapshot_total: u64,
     /// Bytes of the last persisted snapshot.
     last_snapshot_bytes: u64,
+    /// Set when the resident SafeBox accounts changed but `header.safe_box_hash`
+    /// has not been recomputed yet. The Merkle hash is O(accounts), so block
+    /// commits only refresh it when a snapshot is actually serialized; readers
+    /// that need the value call `refresh_safebox_hash` first.
+    hash_dirty: bool,
+}
+
+/// Cache of the canonical consensus state root.
+///
+/// The root is a pure function of the consensus-relevant column families, so it
+/// is reused until a mutation bumps `generation`. Every write path that can
+/// change the root calls `Storage::invalidate_consensus_root`, which bumps the
+/// generation and drops the cached value. The generation check also makes the
+/// lazy refill race-safe: a value computed under an older generation is never
+/// stored over a newer one.
+#[derive(Default)]
+struct ConsensusRootCache {
+    generation: u64,
+    cached: Option<([u8; 64], u64)>,
+    /// Number of times the O(accounts) scan actually ran. Test-only: lets the
+    /// cache tests assert a value was reused instead of recomputed.
+    #[cfg(test)]
+    computes: u64,
+}
+
+/// Incremental Sparse Merkle Tree controller (protocol v6 state root).
+///
+/// The tree is persisted in [`CF_STATE_NODES`] and its committed root in
+/// [`CF_STATE_META`]. It is **disabled by default**: unless an activation
+/// height is configured, every existing code path keeps using the legacy flat
+/// root and no `state_nodes` write is ever produced. This is the explicit,
+/// versioned activation required before any consensus change can take effect.
+struct StateTreeCache {
+    /// Block height from which protocol v6 (SMT) becomes active, or `None`
+    /// while disabled. Set once at startup from configuration, never mutated
+    /// by consensus.
+    activation_height: Option<u64>,
+    /// Committed SMT root, cached with the generation it was produced under.
+    root: Option<([u8; 64], u64)>,
+    generation: u64,
+    /// True when a direct (non-block-commit) state write may have diverged the
+    /// persisted tree from the persisted state. Cleared by a rebuild or an
+    /// incremental block commit.
+    dirty: bool,
+    /// Set once the on-disk tree has been verified/built for the active
+    /// protocol version, so migration runs at most once.
+    migrated: bool,
+}
+
+impl Default for StateTreeCache {
+    fn default() -> Self {
+        StateTreeCache {
+            activation_height: None,
+            root: None,
+            generation: 0,
+            dirty: false,
+            migrated: false,
+        }
+    }
+}
+
+/// Accumulates `state_nodes` writes produced while updating the tree, so they
+/// can be appended to the same atomic `WriteBatch` as the block it belongs to.
+struct BatchNodeBackend<'a> {
+    db: &'a DB,
+    cf: rocksdb::ColumnFamilyRef<'a>,
+    overlay: HashMap<[u8; 64], Option<Vec<u8>>>,
+    ops: Vec<([u8; 64], Option<Vec<u8>>)>,
+}
+
+impl<'a> BatchNodeBackend<'a> {
+    fn new(db: &'a DB, cf: rocksdb::ColumnFamilyRef<'a>) -> Self {
+        BatchNodeBackend {
+            db,
+            cf,
+            overlay: HashMap::new(),
+            ops: Vec::new(),
+        }
+    }
+
+    /// Drain buffered mutations, clearing the read overlay (after a flush the
+    /// nodes are durable and reads fall through to RocksDB).
+    fn drain(&mut self) -> Vec<([u8; 64], Option<Vec<u8>>)> {
+        self.overlay.clear();
+        std::mem::take(&mut self.ops)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+}
+
+impl state_tree::NodeBackend for BatchNodeBackend<'_> {
+    fn get(&self, hash: &[u8; 64]) -> Option<Vec<u8>> {
+        if let Some(entry) = self.overlay.get(hash) {
+            return entry.clone();
+        }
+        self.db
+            .get_cf(&self.cf, hash)
+            .ok()
+            .flatten()
+            .map(|v| v.to_vec())
+    }
+
+    fn put(&mut self, hash: [u8; 64], bytes: Vec<u8>) {
+        self.overlay.insert(hash, Some(bytes.clone()));
+        self.ops.push((hash, Some(bytes)));
+    }
+
+    fn delete(&mut self, hash: &[u8; 64]) {
+        self.overlay.insert(*hash, None);
+        self.ops.push((*hash, None));
+    }
 }
 
 /// Key/value pairs returned by contract-state prefix scans.
@@ -139,6 +281,7 @@ impl SafeboxCache {
             snapshot_interval: 0,
             snapshot_total: 0,
             last_snapshot_bytes: 0,
+            hash_dirty: false,
         }
     }
 
@@ -199,6 +342,8 @@ pub struct Storage {
     pub(crate) db: DB,
     path: PathBuf,
     safebox_cache: Mutex<SafeboxCache>,
+    consensus_root_cache: Mutex<ConsensusRootCache>,
+    state_tree_cache: Mutex<StateTreeCache>,
 }
 
 impl Storage {
@@ -225,7 +370,238 @@ impl Storage {
             db,
             path: path_buf,
             safebox_cache: Mutex::new(SafeboxCache::new()),
+            consensus_root_cache: Mutex::new(ConsensusRootCache::default()),
+            state_tree_cache: Mutex::new(StateTreeCache::default()),
         })
+    }
+
+    /// Enable the incremental SMT state root from `activation_height` onward
+    /// (protocol v6). Idempotent; must be configured identically on every
+    /// validator. When never called, the storage keeps the legacy flat root and
+    /// emits no `state_nodes` writes.
+    pub fn set_state_tree_activation(&self, activation_height: u64) {
+        if let Ok(mut cache) = self.state_tree_cache.lock() {
+            cache.activation_height = Some(activation_height);
+        }
+    }
+
+    /// Configured activation height for the SMT state root, if any.
+    pub fn state_tree_activation(&self) -> Option<u64> {
+        self.state_tree_cache
+            .lock()
+            .ok()
+            .and_then(|c| c.activation_height)
+    }
+
+    /// Whether the SMT state root is active at `height`.
+    pub fn state_tree_active_at(&self, height: u64) -> bool {
+        self.state_tree_activation()
+            .is_some_and(|activation| height >= activation)
+    }
+
+    /// Protocol version that a block at `height` must carry: 6 when the SMT is
+    /// active at that height, 5 (legacy) otherwise.
+    pub fn active_protocol_version(&self, height: u64) -> u16 {
+        if self.state_tree_active_at(height) {
+            6
+        } else {
+            augecoin_core::constants::CT_BUILD_PROTOCOL
+        }
+    }
+
+    /// Mark the persisted tree as potentially stale after a direct state write.
+    fn invalidate_state_tree(&self) {
+        if let Ok(mut cache) = self.state_tree_cache.lock() {
+            cache.generation = cache.generation.wrapping_add(1);
+            cache.root = None;
+            cache.dirty = true;
+        }
+    }
+
+    /// Consensus state root for a block at `height`, selecting the algorithm by
+    /// the protocol version active at that height.
+    pub fn active_consensus_state_root(&self, height: u64) -> Result<[u8; 64], StorageError> {
+        if self.state_tree_active_at(height) {
+            self.consensus_state_root_v6()
+        } else {
+            self.consensus_state_root()
+        }
+    }
+
+    /// Incremental SMT root (protocol v6). Returns the committed root. If it is
+    /// not cached yet, the persisted root is adopted (it was written atomically
+    /// with the state); only a tree explicitly marked stale is rebuilt.
+    pub fn consensus_state_root_v6(&self) -> Result<[u8; 64], StorageError> {
+        let mut cache = self
+            .state_tree_cache
+            .lock()
+            .map_err(|_| StorageError::Database("state tree cache lock poisoned".into()))?;
+        if !cache.dirty {
+            if let Some((root, _)) = cache.root {
+                return Ok(root);
+            }
+            if let Some(root) = self.persisted_state_tree_root()? {
+                cache.root = Some((root, cache.generation));
+                cache.migrated = true;
+                return Ok(root);
+            }
+        }
+        drop(cache);
+        // Stale tree (an out-of-band write happened) or none committed yet:
+        // rebuild from the persisted state so the returned root matches disk.
+        self.rebuild_state_tree()
+    }
+
+    /// Rebuild the SMT from the persisted consensus column families and persist
+    /// it. Idempotent and **streaming**: records are inserted one at a time and
+    /// node mutations are flushed in bounded chunks, so peak memory does not
+    /// grow with the size of the state (a one-shot rebuild previously required
+    /// several GB and was OOM-killed at ~1 M records). Used at the migration
+    /// boundary, after out-of-band writes, and for auditing.
+    ///
+    /// Metadata (the committed root) is written only after the whole tree has
+    /// been persisted, so a crash mid-rebuild leaves no committed root and the
+    /// next attempt rebuilds from scratch.
+    pub fn rebuild_state_tree(&self) -> Result<[u8; 64], StorageError> {
+        let cf_nodes = self.cf(CF_STATE_NODES);
+
+        // Drop any nodes from a previous tree: the rebuild is authoritative and
+        // must not leave unreferenced nodes behind.
+        self.db
+            .delete_range_cf(&cf_nodes, &[0u8][..], &[0xffu8; 65][..])
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let mut backend = BatchNodeBackend::new(&self.db, cf_nodes);
+        let mut root: Option<[u8; 64]> = None;
+        let mut pending = 0usize;
+
+        for cf_name in CONSENSUS_COLUMN_FAMILIES {
+            let cf = self.cf(cf_name);
+            for item in self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start) {
+                let (key, value) = item.map_err(|e| StorageError::Database(e.to_string()))?;
+                root = Some(state_tree::put_record(
+                    &mut backend,
+                    root,
+                    state_tree::record_key(cf_name.as_bytes(), &key),
+                    &value,
+                ));
+                pending += 1;
+                if pending >= STATE_REBUILD_FLUSH_OPS {
+                    self.flush_state_nodes(&mut backend)?;
+                    pending = 0;
+                }
+            }
+        }
+        self.flush_state_nodes(&mut backend)?;
+
+        let root = root.unwrap_or(state_tree::EMPTY_STATE_ROOT);
+
+        // Commit metadata last so the root is only published once the nodes are
+        // durable.
+        let cf_meta = self.cf(CF_STATE_META);
+        let mut batch = WriteBatch::default();
+        batch.put_cf(&cf_meta, STATE_META_ROOT, root);
+        batch.put_cf(
+            &cf_meta,
+            STATE_META_VERSION,
+            augecoin_core::constants::CT_MAX_PROTOCOL.to_be_bytes(),
+        );
+        batch.put_cf(
+            &cf_meta,
+            STATE_META_HEIGHT,
+            self.get_height()?.to_be_bytes(),
+        );
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+
+        let mut cache = self
+            .state_tree_cache
+            .lock()
+            .map_err(|_| StorageError::Database("state tree cache lock poisoned".into()))?;
+        cache.root = Some((root, cache.generation));
+        cache.dirty = false;
+        cache.migrated = true;
+        Ok(root)
+    }
+
+    /// Flush buffered `state_nodes` mutations from a streaming tree update.
+    fn flush_state_nodes(&self, backend: &mut BatchNodeBackend) -> Result<(), StorageError> {
+        if backend.is_empty() {
+            return Ok(());
+        }
+        let cf_nodes = self.cf(CF_STATE_NODES);
+        let mut batch = WriteBatch::default();
+        for (hash, bytes) in backend.drain() {
+            match bytes {
+                Some(b) => batch.put_cf(&cf_nodes, hash, b),
+                None => batch.delete_cf(&cf_nodes, hash),
+            }
+        }
+        self.db
+            .write(batch)
+            .map_err(|e| StorageError::Database(e.to_string()))
+    }
+
+    /// Build the SMT exactly once if it has not been built for the active
+    /// protocol, then verify its root against the committed metadata. Safe to
+    /// call on every boot: a node that already migrated is a no-op.
+    pub fn migrate_state_tree(&self) -> Result<[u8; 64], StorageError> {
+        if self.state_tree_activation().is_none() {
+            return Err(StorageError::Serialization(
+                "state tree activation height is not configured".into(),
+            ));
+        }
+        let already = self
+            .state_tree_cache
+            .lock()
+            .ok()
+            .map(|c| c.migrated)
+            .unwrap_or(false);
+        if already {
+            return self.consensus_state_root_v6();
+        }
+        // Adopt the persisted root when present: it was written in the same
+        // atomic batch as the state at the last commit, so a clean restart need
+        // not rescan the whole state. Only the first migration (no metadata yet)
+        // performs the streaming rebuild.
+        if let Some(root) = self.persisted_state_tree_root()? {
+            let mut cache = self
+                .state_tree_cache
+                .lock()
+                .map_err(|_| StorageError::Database("state tree cache lock poisoned".into()))?;
+            cache.root = Some((root, cache.generation));
+            cache.dirty = false;
+            cache.migrated = true;
+            return Ok(root);
+        }
+        self.rebuild_state_tree()
+    }
+
+    /// Root persisted in `state_tree_meta`, if any (audit / recovery).
+    pub fn persisted_state_tree_root(&self) -> Result<Option<[u8; 64]>, StorageError> {
+        let cf = self.cf(CF_STATE_META);
+        match self.db.get_cf(&cf, STATE_META_ROOT) {
+            Ok(Some(value)) if value.len() == 64 => {
+                let mut root = [0u8; 64];
+                root.copy_from_slice(&value);
+                Ok(Some(root))
+            }
+            Ok(_) => Ok(None),
+            Err(e) => Err(StorageError::Database(e.to_string())),
+        }
+    }
+
+    /// Number of nodes currently persisted in the SMT (`state_nodes` CF). Used
+    /// by tests and diagnostics; absent-tree reads never materialize empty nodes.
+    pub fn state_tree_node_count(&self) -> Result<u64, StorageError> {
+        let cf = self.cf(CF_STATE_NODES);
+        let mut count = 0u64;
+        for item in self.db.iterator_cf(&cf, rocksdb::IteratorMode::Start) {
+            item.map_err(|e| StorageError::Database(e.to_string()))?;
+            count += 1;
+        }
+        Ok(count)
     }
 
     /// Configure the SafeBox snapshot interval (blocks between full snapshots).
@@ -267,7 +643,22 @@ impl Storage {
         }
         safebox.update_hash();
         cache.safebox = Some(safebox);
+        cache.hash_dirty = false;
         Ok(())
+    }
+
+    /// Recompute the resident SafeBox Merkle hash if a mutation left it stale.
+    /// The hash is O(accounts), so it is refreshed lazily instead of on every
+    /// block commit; any reader that serializes or compares the value calls it
+    /// first.
+    fn refresh_safebox_hash(cache: &mut SafeboxCache) {
+        if !cache.hash_dirty {
+            return;
+        }
+        if let Some(safebox) = cache.safebox.as_mut() {
+            safebox.update_hash();
+            cache.hash_dirty = false;
+        }
     }
 
     /// Return a clone of the current resident SafeBox (loading it if needed).
@@ -280,13 +671,15 @@ impl Storage {
         Ok(cache.safebox.as_ref().expect("safebox loaded").clone())
     }
 
-    /// Return the current SafeBox hash (Merkle root) without touching RocksDB.
+    /// Return the current SafeBox hash (Merkle root), refreshing it lazily if a
+    /// mutation left the resident value stale.
     pub fn safebox_hash(&self) -> Result<[u8; 64], StorageError> {
         let mut cache = self
             .safebox_cache
             .lock()
             .map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
         Self::ensure_safebox_loaded(&mut cache, &self.db)?;
+        Self::refresh_safebox_hash(&mut cache);
         Ok(cache
             .safebox
             .as_ref()
@@ -295,11 +688,66 @@ impl Storage {
             .safe_box_hash)
     }
 
+    /// Drop the cached consensus state root and advance the generation.
+    ///
+    /// Must be called by every write path that can change one of the
+    /// consensus-relevant column families (accounts, validator set, contracts
+    /// and the dedicated contract families). Safe to call spuriously.
+    fn invalidate_consensus_root(&self) {
+        self.invalidate_flat_root();
+        self.invalidate_state_tree();
+    }
+
+    /// Drop only the cached flat (legacy) consensus root.
+    fn invalidate_flat_root(&self) {
+        if let Ok(mut cache) = self.consensus_root_cache.lock() {
+            cache.generation = cache.generation.wrapping_add(1);
+            cache.cached = None;
+        }
+    }
+
     /// Canonical commitment of every consensus-relevant persisted state.
     /// Unlike the SafeBox Merkle hash, this includes validator and contract
     /// column families and is the value carried between block headers.
+    ///
+    /// The value is cached until a mutation invalidates it: a single block
+    /// computes the pre-state root (validation) and the post-state root
+    /// (commit) over the *same* unchanged state, so the second call is free.
     pub fn consensus_state_root(&self) -> Result<[u8; 64], StorageError> {
-        Ok(state_root::compute_consensus_state_root(&self.db))
+        let generation = {
+            let cache = self
+                .consensus_root_cache
+                .lock()
+                .map_err(|_| StorageError::Database("consensus root cache lock poisoned".into()))?;
+            if let Some((root, cached_gen)) = cache.cached {
+                if cached_gen == cache.generation {
+                    return Ok(root);
+                }
+            }
+            cache.generation
+        };
+        let root = state_root::compute_consensus_state_root(&self.db);
+        if let Ok(mut cache) = self.consensus_root_cache.lock() {
+            #[cfg(test)]
+            {
+                cache.computes += 1;
+            }
+            // Only publish if no mutation raced past us since we sampled.
+            if cache.generation == generation {
+                cache.cached = Some((root, generation));
+            }
+        }
+        Ok(root)
+    }
+
+    /// Test-only: number of times the O(accounts) consensus-root scan actually
+    /// ran. Used to prove that unchanged state reuses the cached value.
+    #[cfg(test)]
+    pub fn consensus_root_compute_count(&self) -> u64 {
+        self.consensus_root_cache
+            .lock()
+            .map(|c| c.computes)
+            .unwrap_or(0)
     }
 
     /// Return the current name index (clone) for name-uniqueness validation.
@@ -449,6 +897,7 @@ impl Storage {
             }
             safebox.header.end_block = safebox.header.start_block + 1;
             safebox.update_hash();
+            cache.hash_dirty = false;
         }
         for num in dirty_nums {
             cache.dirty.insert(num);
@@ -478,6 +927,8 @@ impl Storage {
             cache.dirty.clear();
         }
 
+        drop(cache);
+        self.invalidate_consensus_root();
         Ok(hash)
     }
 
@@ -492,9 +943,15 @@ impl Storage {
     /// Atomically commit a block: writes the modified accounts, the block
     /// header, the chain height, and an optional validator-set change into a
     /// single `WriteBatch`, so a crash cannot leave a partially-persisted block.
-    /// Also updates the resident SafeBox + pubkey index and returns the new
-    /// SafeBox hash. A full snapshot is written into the same batch only when
-    /// the snapshot interval has elapsed.
+    /// Also updates the resident SafeBox + pubkey index. A full snapshot is
+    /// written into the same batch only when the snapshot interval has elapsed.
+    ///
+    /// Return value: the resident `SafeBox` Merkle hash. That hash is only
+    /// recomputed when a snapshot is serialized, so on a non-snapshot commit the
+    /// returned value is the previous (stale) header hash. Callers that need a
+    /// current Merkle root must call [`Storage::safebox_hash`] (which refreshes
+    /// lazily); callers that need the consensus root must call
+    /// [`Storage::consensus_state_root`].
     pub fn commit_block_atomic(
         &self,
         modified: &HashMap<u64, Account>,
@@ -574,6 +1031,96 @@ impl Storage {
             }
         }
 
+        // (1b) Incremental SMT state root (protocol v6). When the tree is
+        // configured, apply the exact same logical writes to it and append the
+        // touched nodes to this batch, so a crash can never leave root and state
+        // divergent. The tree is maintained from the configured activation
+        // height onward; before that it is still kept in sync so the first v6
+        // block starts from a consistent, ready tree (no O(state) rebuild on
+        // the consensus hot path).
+        let state_tree_root: Option<[u8; 64]> = if self.state_tree_activation().is_some() {
+            if self.state_tree_active_at(block.header.block_number)
+                && block.header.protocol_version < augecoin_core::constants::CT_MAX_PROTOCOL
+            {
+                drop(cache);
+                return Err(StorageError::Serialization(format!(
+                    "block {} carries protocol {} but the SMT state root is active from height {}",
+                    block.header.block_number,
+                    block.header.protocol_version,
+                    self.state_tree_activation().unwrap_or(0)
+                )));
+            }
+            let cf_nodes = self.cf(CF_STATE_NODES);
+            let cf_meta = self.cf(CF_STATE_META);
+            let mut backend = BatchNodeBackend::new(&self.db, cf_nodes);
+
+            // Ensure the persisted tree is consistent with the pre-block state
+            // before applying this block's changes. If it is stale or was never
+            // built, do a streaming (memory-bounded) rebuild first; the block's
+            // own writes below are still applied in a single atomic batch.
+            let needs_rebuild = {
+                let st = self
+                    .state_tree_cache
+                    .lock()
+                    .map_err(|_| StorageError::Database("state tree cache lock poisoned".into()))?;
+                st.dirty || !st.migrated
+            };
+            if needs_rebuild || self.persisted_state_tree_root()?.is_none() {
+                self.rebuild_state_tree()?;
+            }
+            let start_root = self.persisted_state_tree_root()?;
+
+            let mut changes: Vec<state_tree::TreeChange> =
+                Vec::with_capacity(modified.len() + contract_writes.len() + 2);
+            for account in modified.values() {
+                changes.push(state_tree::TreeChange::put(
+                    CF_ACCOUNTS.as_bytes(),
+                    &account.account_number.to_be_bytes(),
+                    &account.to_bytes(),
+                ));
+            }
+            changes.push(state_tree::TreeChange::put(
+                CF_VALIDATOR_SET.as_bytes(),
+                b"height",
+                &block.header.block_number.to_be_bytes(),
+            ));
+            if let Some(vs) = validator_set_bytes {
+                changes.push(state_tree::TreeChange::put(
+                    CF_VALIDATOR_SET.as_bytes(),
+                    b"vset",
+                    vs,
+                ));
+            }
+            for (cf, key, value) in contract_writes {
+                changes.push(match value {
+                    Some(value) => state_tree::TreeChange::put(cf.as_bytes(), key, value),
+                    None => state_tree::TreeChange::delete(cf.as_bytes(), key),
+                });
+            }
+
+            let root = state_tree::update_from_root(&mut backend, start_root, changes);
+            for (hash, bytes) in backend.drain() {
+                match bytes {
+                    Some(b) => batch.put_cf(&cf_nodes, hash, b),
+                    None => batch.delete_cf(&cf_nodes, hash),
+                }
+            }
+            batch.put_cf(&cf_meta, STATE_META_ROOT, root);
+            batch.put_cf(
+                &cf_meta,
+                STATE_META_VERSION,
+                augecoin_core::constants::CT_MAX_PROTOCOL.to_be_bytes(),
+            );
+            batch.put_cf(
+                &cf_meta,
+                STATE_META_HEIGHT,
+                block.header.block_number.to_be_bytes(),
+            );
+            Some(root)
+        } else {
+            None
+        };
+
         // (2) Update the resident SafeBox + pubkey index in memory.
         {
             let old_pubkeys: Vec<Option<[u8; 32]>> = {
@@ -614,10 +1161,25 @@ impl Storage {
                 safebox.add_account(account.clone());
             }
             safebox.header.end_block = safebox.header.start_block + 1;
-            safebox.update_hash();
+            // The SafeBox Merkle hash is O(accounts): defer it until a snapshot
+            // is actually serialized. Readers refresh it lazily via
+            // `refresh_safebox_hash`.
+            cache.hash_dirty = true;
         }
         for num in dirty_nums {
             cache.dirty.insert(num);
+        }
+
+        cache.blocks_since_snapshot = cache.blocks_since_snapshot.saturating_add(1);
+        let interval = cache.snapshot_interval;
+        let should_snapshot =
+            force_snapshot || interval == 0 || cache.blocks_since_snapshot >= interval;
+
+        // (3) Append the periodic snapshot to the same atomic batch. Refresh the
+        // Merkle hash only now: the snapshot serializes it, non-snapshot blocks
+        // do not.
+        if should_snapshot {
+            Self::refresh_safebox_hash(&mut cache);
         }
 
         let hash = cache
@@ -627,12 +1189,6 @@ impl Storage {
             .header
             .safe_box_hash;
 
-        cache.blocks_since_snapshot = cache.blocks_since_snapshot.saturating_add(1);
-        let interval = cache.snapshot_interval;
-        let should_snapshot =
-            force_snapshot || interval == 0 || cache.blocks_since_snapshot >= interval;
-
-        // (3) Append the periodic snapshot to the same atomic batch.
         if should_snapshot {
             let cf_safebox = self.cf(CF_SAFEBOX);
             let safebox = cache.safebox.as_ref().expect("safebox loaded");
@@ -654,6 +1210,21 @@ impl Storage {
                 .to_bytes()
                 .len() as u64;
             cache.dirty.clear();
+        }
+
+        drop(cache);
+        // The flat root cache is always stale after a commit; the SMT cache is
+        // published below and must stay clean (no spurious invalidation).
+        self.invalidate_flat_root();
+
+        if let Some(root) = state_tree_root {
+            let mut st = self
+                .state_tree_cache
+                .lock()
+                .map_err(|_| StorageError::Database("state tree cache lock poisoned".into()))?;
+            st.root = Some((root, st.generation));
+            st.dirty = false;
+            st.migrated = true;
         }
 
         Ok(hash)
@@ -684,14 +1255,19 @@ impl Storage {
 
     /// Force a full SafeBox snapshot to RocksDB (shutdown / export / recovery).
     pub fn flush_safebox_snapshot(&self) -> Result<(), StorageError> {
-        let safebox = self.safebox()?;
+        let mut cache = self
+            .safebox_cache
+            .lock()
+            .map_err(|_| StorageError::Database("safebox cache lock poisoned".into()))?;
+        Self::ensure_safebox_loaded(&mut cache, &self.db)?;
+        // A snapshot persists the Merkle hash, so make sure it is current.
+        Self::refresh_safebox_hash(&mut cache);
+        let safebox = cache.safebox.as_ref().expect("safebox loaded").clone();
         self.put_safe_box(&safebox)?;
-        if let Ok(mut cache) = self.safebox_cache.lock() {
-            cache.snapshot_total = cache.snapshot_total.saturating_add(1);
-            cache.last_snapshot_bytes = safebox.to_bytes().len() as u64;
-            cache.dirty.clear();
-            cache.blocks_since_snapshot = 0;
-        }
+        cache.snapshot_total = cache.snapshot_total.saturating_add(1);
+        cache.last_snapshot_bytes = safebox.to_bytes().len() as u64;
+        cache.dirty.clear();
+        cache.blocks_since_snapshot = 0;
         Ok(())
     }
 
@@ -750,8 +1326,11 @@ impl Storage {
                 );
             }
             cache.safebox.as_mut().unwrap().add_account(account.clone());
-            cache.safebox.as_mut().unwrap().update_hash();
+            // Defer the O(accounts) Merkle hash; readers refresh it lazily.
+            cache.hash_dirty = true;
         }
+        drop(cache);
+        self.invalidate_consensus_root();
         Ok(())
     }
 
@@ -774,7 +1353,9 @@ impl Storage {
         let key = account_number.to_be_bytes();
         self.db
             .delete_cf(&cf, key)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn put_block(&self, block: &OperationBlock) -> Result<(), StorageError> {
@@ -827,7 +1408,9 @@ impl Storage {
         let cf = self.cf(CF_VALIDATOR_SET);
         self.db
             .put_cf(&cf, b"vset", data)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn get_validator_set_bytes(&self) -> Result<Option<Vec<u8>>, StorageError> {
@@ -842,7 +1425,9 @@ impl Storage {
         let cf = self.cf(CF_VALIDATOR_SET);
         self.db
             .put_cf(&cf, b"height", height.to_be_bytes())
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn get_height(&self) -> Result<u64, StorageError> {
@@ -922,7 +1507,9 @@ impl Storage {
     pub fn contract_put(&self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
         self.db
             .put_cf(&self.cf(CF_CONTRACTS), key, value)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn contract_get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
@@ -934,7 +1521,9 @@ impl Storage {
     pub fn contract_delete(&self, key: &[u8]) -> Result<(), StorageError> {
         self.db
             .delete_cf(&self.cf(CF_CONTRACTS), key)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn contract_scan_prefix(
@@ -990,7 +1579,9 @@ impl Storage {
         let handle = self.cf(cf);
         self.db
             .put_cf(&handle, key, value)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn contract_cf_get(&self, cf: &str, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
@@ -1005,7 +1596,9 @@ impl Storage {
         let handle = self.cf(cf);
         self.db
             .delete_cf(&handle, key)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     /// Append a put targeting `cf` to an existing batch (used to compose atomic,
@@ -1038,7 +1631,9 @@ impl Storage {
     pub fn contract_write_batch(&self, batch: WriteBatch) -> Result<(), StorageError> {
         self.db
             .write(batch)
-            .map_err(|e| StorageError::Database(e.to_string()))
+            .map_err(|e| StorageError::Database(e.to_string()))?;
+        self.invalidate_consensus_root();
+        Ok(())
     }
 
     pub fn list_equivocation_proofs(&self) -> Result<Vec<(u64, u64, Vec<u8>)>, StorageError> {
@@ -1138,6 +1733,12 @@ impl augecoin_core::mempool::AccountLookup for Storage {
     fn get_account(&self, account_number: u64) -> Result<Option<Account>, String> {
         Storage::get_account(self, account_number).map_err(|e| e.to_string())
     }
+    fn resolve_address(
+        &self,
+        address: &augecoin_crypto::address::AddressHash,
+    ) -> Result<Option<u64>, String> {
+        Storage::resolve_address(self, address).map_err(|e| e.to_string())
+    }
 }
 
 /// Column-family options tuned to reduce write amplification: larger memtables
@@ -1170,6 +1771,9 @@ mod tests {
     fn test_path() -> String {
         let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
         let path = format!("/tmp/augecoin-test-db-{id}");
+        // A previous (possibly failed) run may have left this directory behind;
+        // a reused path would start from stale state.
+        std::fs::remove_dir_all(&path).ok();
         path
     }
 
@@ -1757,6 +2361,210 @@ mod tests {
         storage.commit_safebox_incremental(&modified, true).unwrap();
 
         assert_eq!(storage.list_pending_gifts().unwrap().len(), 0);
+        cleanup(&path);
+    }
+
+    // ── Consensus state-root cache (performance mitigation A) ────────────────
+
+    #[test]
+    fn consensus_root_cache_reuses_unchanged_state() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(1, 100)).unwrap();
+        storage.put_account(&test_account(2, 200)).unwrap();
+
+        let r1 = storage.consensus_state_root().unwrap();
+        let after_first = storage.consensus_root_compute_count();
+        assert_eq!(after_first, 1, "first call must run the scan exactly once");
+
+        // Repeated reads over unchanged state must not rescan.
+        let r2 = storage.consensus_state_root().unwrap();
+        let r3 = storage.consensus_state_root().unwrap();
+        assert_eq!(r1, r2);
+        assert_eq!(r2, r3);
+        assert_eq!(
+            storage.consensus_root_compute_count(),
+            after_first,
+            "unchanged state must reuse the cached root"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn consensus_root_cache_invalidated_on_account_change() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(1, 100)).unwrap();
+        let r1 = storage.consensus_state_root().unwrap();
+        let c1 = storage.consensus_root_compute_count();
+
+        // Mutating a balance must invalidate.
+        storage.put_account(&test_account(1, 999)).unwrap();
+        let r2 = storage.consensus_state_root().unwrap();
+        assert_ne!(r1, r2, "root must change when an account changes");
+        assert!(
+            storage.consensus_root_compute_count() > c1,
+            "mutation must force a rescan"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn consensus_root_cache_invalidated_on_account_create_and_delete() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(1, 100)).unwrap();
+        let r1 = storage.consensus_state_root().unwrap();
+
+        storage.put_account(&test_account(2, 50)).unwrap();
+        let r2 = storage.consensus_state_root().unwrap();
+        assert_ne!(r1, r2, "creating an account must change the root");
+
+        storage.delete_account(2).unwrap();
+        let r3 = storage.consensus_state_root().unwrap();
+        assert_eq!(r1, r3, "deleting the created account restores the root");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn consensus_root_cache_invalidated_on_validator_set_and_height() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(1, 100)).unwrap();
+        let r1 = storage.consensus_state_root().unwrap();
+
+        storage.put_validator_set_bytes(b"vset-A").unwrap();
+        let r2 = storage.consensus_state_root().unwrap();
+        assert_ne!(r1, r2, "validator set is part of the consensus root");
+
+        storage.put_height(7).unwrap();
+        let r3 = storage.consensus_state_root().unwrap();
+        assert_ne!(r2, r3, "height is part of the validator-set CF digest");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn consensus_root_cache_invalidated_on_contract_writes() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.put_account(&test_account(1, 100)).unwrap();
+        let r1 = storage.consensus_state_root().unwrap();
+
+        storage.contract_put(b"k1", b"v1").unwrap();
+        let r2 = storage.consensus_state_root().unwrap();
+        assert_ne!(r1, r2, "generic contract CF is part of the root");
+
+        storage
+            .contract_cf_put(CF_CONTRACT_BALANCES, b"b1", b"42")
+            .unwrap();
+        let r3 = storage.consensus_state_root().unwrap();
+        assert_ne!(r2, r3, "dedicated contract CFs are part of the root");
+
+        storage
+            .contract_cf_delete(CF_CONTRACT_BALANCES, b"b1")
+            .unwrap();
+        let r4 = storage.consensus_state_root().unwrap();
+        assert_eq!(
+            r2, r4,
+            "deleting the contract entry restores the prior root"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn consensus_root_is_deterministic_across_instances() {
+        let p1 = test_path();
+        let p2 = test_path();
+        let s1 = Storage::open(&p1).unwrap();
+        let s2 = Storage::open(&p2).unwrap();
+        for i in 1..=5u64 {
+            s1.put_account(&test_account(i, i * 10)).unwrap();
+            s2.put_account(&test_account(i, i * 10)).unwrap();
+        }
+        assert_eq!(
+            s1.consensus_state_root().unwrap(),
+            s2.consensus_state_root().unwrap(),
+            "identical state must produce identical roots"
+        );
+        cleanup(&p1);
+        cleanup(&p2);
+    }
+
+    #[test]
+    fn consensus_root_is_stable_across_reopen() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        for i in 1..=5u64 {
+            storage.put_account(&test_account(i, i * 10)).unwrap();
+        }
+        storage.contract_put(b"ck", b"cv").unwrap();
+        let root = storage.consensus_state_root().unwrap();
+        drop(storage);
+
+        let reopened = Storage::open(&path).unwrap();
+        assert_eq!(
+            reopened.consensus_state_root().unwrap(),
+            root,
+            "persisted state rebuilds the same root after reopen"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn safebox_hash_lazily_refreshed_after_mutation() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        storage.set_safebox_snapshot_interval(1000);
+        for i in 1..=4u64 {
+            storage.put_account(&test_account(i, i * 10)).unwrap();
+        }
+        // No snapshot yet: the resident hash is dirty but `safebox_hash` must
+        // still return the correct value by refreshing lazily.
+        let expected = {
+            let mut sb = augecoin_core::safe_box::SafeBox::new(
+                augecoin_core::constants::CT_BUILD_PROTOCOL,
+                0,
+            );
+            for acc in storage.iter_accounts().unwrap() {
+                sb.add_account(acc);
+            }
+            sb.update_hash();
+            sb.header.safe_box_hash
+        };
+        assert_eq!(storage.safebox_hash().unwrap(), expected);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_block_atomic_snapshot_hash_matches_full_rebuild() {
+        let path = test_path();
+        let storage = Storage::open(&path).unwrap();
+        for i in 1..=3u64 {
+            storage.put_account(&test_account(i, i * 10)).unwrap();
+        }
+        let mut modified = HashMap::new();
+        let mut acc = test_account(1, 777);
+        acc.balance = 777;
+        modified.insert(1, acc);
+        let block = empty_block(5);
+        // Force a snapshot so the returned hash is serialized.
+        let hash = storage
+            .commit_block_atomic(&modified, &block, None, true)
+            .unwrap();
+
+        let expected = {
+            let mut sb = augecoin_core::safe_box::SafeBox::new(
+                augecoin_core::constants::CT_BUILD_PROTOCOL,
+                0,
+            );
+            for acc in storage.iter_accounts().unwrap() {
+                sb.add_account(acc);
+            }
+            sb.update_hash();
+            sb.header.safe_box_hash
+        };
+        assert_eq!(hash, expected);
+        assert_eq!(storage.safebox_hash().unwrap(), expected);
         cleanup(&path);
     }
 }

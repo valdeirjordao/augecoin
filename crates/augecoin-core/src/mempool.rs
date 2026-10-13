@@ -2,6 +2,7 @@ use crate::account::Account;
 use crate::constants::MIN_FEE_AUGESAT;
 use crate::operation::{Operation, OperationPayload, SenderInfo};
 use crate::proposal::{op_hash, TxHash};
+use augecoin_crypto::address::AddressHash;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use thiserror::Error;
@@ -13,6 +14,11 @@ use thiserror::Error;
 /// instance without introducing a dependency cycle between crates.
 pub trait AccountLookup {
     fn get_account(&self, account_number: u64) -> Result<Option<Account>, String>;
+    /// Resolve a canonical address to its account number, if any.
+    /// Needed to mirror the execution-time rule that a legacy hash-only
+    /// address can only receive when it already resolves (otherwise the op
+    /// fails at commit time and stalls block production).
+    fn resolve_address(&self, address: &AddressHash) -> Result<Option<u64>, String>;
 }
 
 #[derive(Debug, Clone, Error)]
@@ -418,7 +424,36 @@ impl Mempool {
     ) -> Result<(), MempoolError> {
         self.validate_signatures(op, lookup)?;
         self.validate_block_n_operations(op, lookup)?;
-        self.validate_balance_and_fee(op, lookup)
+        self.validate_balance_and_fee(op, lookup)?;
+        self.validate_address_receivers(op, lookup)
+    }
+
+    /// New rule: address-based receive never mints AUGEID. Receiver must already
+    /// own an AUGEID (via block validation, Gift or Buy). Both hash-only and
+    /// self-describing addresses that do not resolve are rejected here to avoid
+    /// proposing a block that execution will reject.
+    fn validate_address_receivers(
+        &self,
+        op: &Operation,
+        lookup: &dyn AccountLookup,
+    ) -> Result<(), MempoolError> {
+        let OperationPayload::AddressTransaction { senders, receivers, .. } = &op.payload
+        else {
+            return Ok(());
+        };
+        let sender = senders.first().map(|s| s.account).unwrap_or(0);
+        for receiver in receivers {
+            let resolved = lookup
+                .resolve_address(&receiver.address)
+                .map_err(MempoolError::Storage)?;
+            if resolved.is_none() {
+                return Err(MempoolError::InvalidAccountState {
+                    account: sender,
+                    reason: "address has no AUGEID: recipient must already own an AUGEID (obtain via block validation, gift or purchase)".into(),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Nonce check for the block builder, mirroring execution exactly: the
@@ -1052,6 +1087,9 @@ mod mempool_tests {
         fn get_account(&self, account_number: u64) -> Result<Option<Account>, String> {
             Ok(self.accounts.get(&account_number).cloned())
         }
+        fn resolve_address(&self, _address: &AddressHash) -> Result<Option<u64>, String> {
+            Ok(None)
+        }
     }
 
     fn create_keypair(seed: u64) -> HybridKeyPair {
@@ -1281,6 +1319,56 @@ mod mempool_tests {
         assert!(matches!(
             mempool.validate_and_admit(op, &lookup, 1000),
             Err(MempoolError::InsufficientBalance { .. })
+        ));
+    }
+
+    #[test]
+    fn precheck_rejects_legacy_address_to_unknown_account() {
+        use crate::operation::AddressReceiverInfo;
+        use augecoin_crypto::address::AddressHash;
+
+        let keypair = create_keypair(42);
+        let mut lookup = MockLookup {
+            accounts: HashMap::new(),
+        };
+        lookup
+            .accounts
+            .insert(1, create_account(1, &keypair, 10000, 0));
+
+        // Legacy hash-only destination that resolves to no account: execution
+        // rejects it at commit time, so the build-time precheck must too —
+        // otherwise the leader proposes a doomed block in a hot loop.
+        let legacy = AddressHash {
+            hash: [0xABu8; 24],
+            public_key: None,
+        };
+        let payload = OperationPayload::AddressTransaction {
+            senders: vec![transfer(1, 0, 1000)],
+            receivers: vec![AddressReceiverInfo {
+                address: legacy,
+                amount: 1000,
+                payload: vec![],
+            }],
+            fee: 10,
+        };
+        let unsigned = Operation {
+            chain_id: 1,
+            op_type: OperationType::AddressTransaction,
+            payload,
+            signatures: vec![],
+        };
+        let message = unsigned.to_bytes_stripped();
+        let op = Operation {
+            signatures: vec![keypair.sign(&message)],
+            ..unsigned
+        };
+
+        let mut mempool = Mempool::new(default_config());
+        // Admission is unchanged (fail-fast happens at build time).
+        mempool.validate_and_admit(op.clone(), &lookup, 1000).unwrap();
+        assert!(matches!(
+            mempool.precheck_for_block(&op, &lookup),
+            Err(MempoolError::InvalidAccountState { .. })
         ));
     }
 

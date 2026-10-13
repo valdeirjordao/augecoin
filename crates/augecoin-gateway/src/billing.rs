@@ -137,37 +137,51 @@ impl BillingEngine {
     pub async fn bootstrap_admin_key(&self, key: &str) {
         let key_hash = sha256(key);
 
-        let exists: Option<String> = sqlx::query_scalar("SELECT id FROM api_keys WHERE key_hash = $1")
+        let existing_key: Option<String> = sqlx::query_scalar("SELECT id FROM api_keys WHERE key_hash = $1")
             .bind(&key_hash)
             .fetch_optional(self.db.as_ref())
             .await
             .ok()
             .flatten();
 
-        if exists.is_none() {
-            let dev_id = Uuid::new_v4();
+        if existing_key.is_some() {
+            return; // already bootstrapped
+        }
+
+        // Find or create the admin developer
+        let dev_id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM developers WHERE email = 'admin@augecoin.io'")
+            .fetch_optional(self.db.as_ref())
+            .await
+            .ok()
+            .flatten();
+
+        let dev_id = if let Some(id) = dev_id {
+            id
+        } else {
+            let new_id = Uuid::new_v4();
             sqlx::query(
                 r#"INSERT INTO developers (id, name, email, tier, created_at)
                    VALUES ($1, 'Admin (bootstrap)', 'admin@augecoin.io', 'enterprise', now())"#,
             )
-            .bind(dev_id)
+            .bind(new_id)
             .execute(self.db.as_ref())
             .await
             .expect("Bootstrap admin insert failed");
+            new_id
+        };
 
-            sqlx::query(
-                r#"INSERT INTO api_keys (id, developer_id, key_prefix, key_hash, label, tier, scopes, created_at)
-                   VALUES ($1, $2, $3, $4, 'bootstrap-admin', 'enterprise', '["admin"]', now())"#,
-            )
-            .bind(Uuid::new_v4())
-            .bind(dev_id)
-            .bind("aug_admin")
-            .bind(key_hash)
-            .execute(self.db.as_ref())
-            .await
-            .expect("Bootstrap admin key insert failed");
-            warn!("Bootstrapped admin API key (GATEWAY_ADMIN_BOOTSTRAP_KEY was set)");
-        }
+        sqlx::query(
+            r#"INSERT INTO api_keys (id, developer_id, key_prefix, key_hash, label, tier, scopes, created_at)
+               VALUES ($1, $2, $3, $4, 'bootstrap-admin', 'enterprise', '["admin"]', now())"#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(dev_id)
+        .bind("aug_admin")
+        .bind(key_hash)
+        .execute(self.db.as_ref())
+        .await
+        .expect("Bootstrap admin key insert failed");
+        warn!("Bootstrapped admin API key (GATEWAY_ADMIN_BOOTSTRAP_KEY was set)");
     }
 
     // ─── Usage tracking ──────────────────────────────────────────────────────
@@ -273,7 +287,7 @@ impl BillingEngine {
         let current = self.get_usage(developer_id).await?;
 
         let invoices: Vec<crate::models::InvoiceRow> = sqlx::query_as(
-            r#"SELECT id, period_start, period_end, total_augesat, status, paid_at, created_at
+            r#"SELECT id, developer_id, period_start, period_end, total_augesat, status, paid_at, created_at
                FROM invoices WHERE developer_id = $1 ORDER BY period_start DESC LIMIT 12"#,
         )
         .bind(developer_id)
@@ -281,7 +295,7 @@ impl BillingEngine {
         .await?;
 
         let outstanding: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(total_augesat), 0) FROM invoices WHERE developer_id = $1 AND status = 'pending'",
+            "SELECT COALESCE(SUM(total_augesat)::bigint, 0) FROM invoices WHERE developer_id = $1 AND status = 'pending'",
         )
         .bind(developer_id)
         .fetch_one(self.db.as_ref())
@@ -346,14 +360,14 @@ pub async fn get_usage_stats(
     Ok(Json(stats))
 }
 
-pub async fn get_billing_summary(
+    pub async fn get_billing_summary(
     State(state): State<Arc<crate::AppState>>,
     claims: DeveloperClaims,
 ) -> Result<Json<BillingSummary>, StatusCode> {
-    let summary = state
+    state
         .billing
         .get_summary(&claims.developer_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(summary))
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }

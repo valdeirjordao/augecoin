@@ -11,6 +11,7 @@ members = [
     "crates/augecoin-node",
     "crates/augecoin-bench",
     "crates/augecoin-ops",
+    "crates/augecoin-gateway",
     "crates/augecoin-wasm-runtime",
     "crates/augecoin-contracts",
     "tools/augecoin-stress",

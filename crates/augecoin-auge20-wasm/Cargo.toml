@@ -1,0 +1,21 @@
+[package]
+name = "augecoin-auge20-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "AUGE20 token implemented as a real WASM contract (Fase 9)."
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+# Standalone crate (not part of the main workspace) so it can be compiled to
+# wasm32-unknown-unknown in isolation and embedded as bytes.
+[workspace]
+
+[profile.release]
+opt-level = "s"
+# lto = true
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
